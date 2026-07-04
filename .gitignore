@@ -1,0 +1,42 @@
+# Binaries and templates
+bin/
+pdp-server
+control-plane
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, consumed by Go land
+*.out
+*.prof
+
+# Local/Development configurations and environment files
+.env
+.env.*
+*.local
+local.env
+
+# IDEs/Editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Spill logs and Badger local storage
+*.log
+spill_logs/
+badger_data/
+tmp/
+temp/
