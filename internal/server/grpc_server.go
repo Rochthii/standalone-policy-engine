@@ -15,6 +15,7 @@ import (
 	"standalone-policy-engine/internal/security"
 	policyv1 "standalone-policy-engine/proto/v1"
 
+	"github.com/golang-jwt/jwt/v5"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/keepalive"
@@ -40,6 +41,44 @@ func NewGRPCServer(eng *engine.EngineWithGC, logger *audit.AuditLogger) *GRPCSer
 	}
 }
 
+// validateTenantAndGetClaims trích xuất, xác thực JWT và kiểm tra tenant isolation.
+func (s *GRPCServer) validateTenantAndGetClaims(ctx context.Context, tenantID string) (jwt.MapClaims, error) {
+	if s.jwtValidator == nil {
+		return nil, nil
+	}
+
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return nil, nil
+	}
+
+	var tokenStr string
+	if auth := md.Get("authorization"); len(auth) > 0 {
+		tokenStr = auth[0]
+	} else if bearer := md.Get("bearer"); len(bearer) > 0 {
+		tokenStr = bearer[0]
+	}
+
+	if tokenStr == "" {
+		return nil, nil
+	}
+
+	claims, err := s.jwtValidator.ValidateToken(tokenStr)
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "JWT token không hợp lệ: %v", err)
+	}
+
+	// Kiểm tra tenant_id trong token khớp với tenant_id trong request
+	if tokenTenantID, ok := claims["tenant_id"].(string); ok && tokenTenantID != "" {
+		if tenantID != tokenTenantID {
+			log.Printf("[Security] Cross-tenant attack detected: token.tenant_id=%s req.tenant_id=%s", tokenTenantID, tenantID)
+			return nil, status.Errorf(codes.PermissionDenied, "tenant_id trong token không khớp với request")
+		}
+	}
+
+	return claims, nil
+}
+
 // CheckAccess xử lý yêu cầu gRPC kiểm tra quyền truy cập lock-free và ghi log bất đồng bộ.
 func (s *GRPCServer) CheckAccess(ctx context.Context, req *policyv1.CheckAccessRequest) (*policyv1.CheckAccessResponse, error) {
 	// Áp dụng timeout 100ms để tránh blocking thread pool khi có request treo.
@@ -49,40 +88,22 @@ func (s *GRPCServer) CheckAccess(ctx context.Context, req *policyv1.CheckAccessR
 	startTime := time.Now()
 
 	// 0. Trích xuất, xác thực JWT và kiểm tra tenant isolation.
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		var tokenStr string
-		if auth := md.Get("authorization"); len(auth) > 0 {
-			tokenStr = auth[0]
-		} else if bearer := md.Get("bearer"); len(bearer) > 0 {
-			tokenStr = bearer[0]
-		}
+	claims, err := s.validateTenantAndGetClaims(ctx, req.TenantId)
+	if err != nil {
+		return nil, err
+	}
 
-		if tokenStr != "" && s.jwtValidator != nil {
-			claims, err := s.jwtValidator.ValidateToken(tokenStr)
-			if err != nil {
-				// Token có mặt nhưng không hợp lệ → từ chối
-				return nil, status.Errorf(codes.Unauthenticated, "JWT token không hợp lệ: %v", err)
+	if claims != nil {
+		sub, attrs, err := s.jwtValidator.ExtractSubjectAttributes(claims)
+		if err == nil {
+			// Ghi đè subject và bổ sung context attributes từ JWT claims
+			req.Subject = sub
+			if req.Context == nil {
+				req.Context = make(map[string]string)
 			}
-
-			// Kiểm tra tenant_id trong token khớp với tenant_id trong request
-			if tokenTenantID, ok := claims["tenant_id"].(string); ok && tokenTenantID != "" {
-				if req.TenantId != tokenTenantID {
-					log.Printf("[Security] Cross-tenant attack detected: token.tenant_id=%s req.tenant_id=%s", tokenTenantID, req.TenantId)
-					return nil, status.Errorf(codes.PermissionDenied, "tenant_id trong token không khớp với request")
-				}
-			}
-
-			sub, attrs, err := s.jwtValidator.ExtractSubjectAttributes(claims)
-			if err == nil {
-				// Ghi đè subject và bổ sung context attributes từ JWT claims
-				req.Subject = sub
-				if req.Context == nil {
-					req.Context = make(map[string]string)
-				}
-				for k, v := range attrs {
-					if _, exists := req.Context[k]; !exists {
-						req.Context[k] = v
-					}
+			for k, v := range attrs {
+				if _, exists := req.Context[k]; !exists {
+					req.Context[k] = v
 				}
 			}
 		}
@@ -136,6 +157,28 @@ func (s *GRPCServer) CheckAccess(ctx context.Context, req *policyv1.CheckAccessR
 
 // ExplainDecision đánh giá và trả về giải thích chi tiết các luật thỏa mãn điều kiện.
 func (s *GRPCServer) ExplainDecision(ctx context.Context, req *policyv1.ExplainRequest) (*policyv1.ExplainResponse, error) {
+	// 0. Trích xuất, xác thực JWT và kiểm tra tenant isolation.
+	claims, err := s.validateTenantAndGetClaims(ctx, req.TenantId)
+	if err != nil {
+		return nil, err
+	}
+
+	if claims != nil {
+		sub, attrs, err := s.jwtValidator.ExtractSubjectAttributes(claims)
+		if err == nil {
+			// Ghi đè subject và bổ sung context attributes từ JWT claims
+			req.Subject = sub
+			if req.Context == nil {
+				req.Context = make(map[string]string)
+			}
+			for k, v := range attrs {
+				if _, exists := req.Context[k]; !exists {
+					req.Context[k] = v
+				}
+			}
+		}
+	}
+
 	// 1. Thực hiện kiểm tra quyền
 	res := s.engine.CheckPermission(ctx, req.TenantId, req.Subject, req.Action, req.Resource, req.Context)
 

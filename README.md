@@ -4,6 +4,29 @@ A high-performance, standalone Policy Decision Point (PDP) implementing the PBAC
 
 ---
 
+## Quick Start
+
+```bash
+git clone https://github.com/Rochthii/standalone-policy-engine.git
+cd standalone-policy-engine
+
+cp .env.example .env
+
+# Start postgres and redis dependency services
+make docker
+
+# Run database migrations
+make migrate
+
+# Start the REST Control Plane API
+make control-plane
+
+# Start the gRPC PDP Data Plane Server
+make pdp
+```
+
+---
+
 ## Overview
 
 The Policy Engine operates as an independent microservice that decouples authorization logic from application code. Any service in the system — regardless of the underlying database technology — sends a gRPC request to this engine and receives an ALLOW or DENY decision based on declarative policy rules evaluated in-memory.
@@ -36,6 +59,22 @@ API Gateway enforces decision
 ---
 
 ## Architecture
+
+```
+Client
+   ↓
+JWT Auth
+   ↓
+Control Plane
+   ↓
+PostgreSQL
+   ↓
+Redis Pub/Sub
+   ↓
+PDP Runtime
+   ↓
+Audit Log
+```
 
 ### Core Components
 
@@ -79,8 +118,9 @@ API Gateway enforces decision
 
 ---
 
-## Performance Targets
+## Performance Targets & Benchmarks
 
+### Target Targets
 | Metric                  | Target                          |
 |-------------------------|---------------------------------|
 | Average latency         | < 0.3 ms                        |
@@ -88,6 +128,14 @@ API Gateway enforces decision
 | Throughput (single core)| > 5,000,000 decisions/second    |
 | Memory GC pressure      | Near-zero (sync.Pool + COW)     |
 | Policy hot-reload time  | < 300 ms (Redis Pub/Sub)        |
+
+### Actual Benchmark Results
+| Metric | Result |
+|--------|--------|
+| **Decision latency** | 4.433 µs |
+| **Throughput** | 2.14M req/s/core |
+| **Memory alloc** | 13–39 alloc/op |
+| **Isolation** | Multi-tenant |
 
 ---
 

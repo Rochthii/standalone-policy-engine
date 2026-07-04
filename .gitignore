@@ -18,6 +18,7 @@ control-plane
 # Local/Development configurations and environment files
 .env
 .env.*
+!.env.example
 *.local
 local.env
 

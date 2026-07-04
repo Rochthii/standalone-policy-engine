@@ -117,4 +117,50 @@ func TestGRPCServer_TenantIsolation(t *testing.T) {
 		}
 		log.Printf("Unauthenticated error test passed: %v", err)
 	})
+
+	t.Run("Mismatched Tenant ID ExplainDecision", func(t *testing.T) {
+		token := makeToken("tenant-a")
+		ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+token))
+
+		req := &policyv1.ExplainRequest{
+			TenantId: "tenant-b", // Mismatch
+			Subject:  "user:test",
+			Action:   "READ",
+			Resource: "file:doc",
+		}
+
+		_, err := srv.ExplainDecision(ctx, req)
+		if err == nil {
+			t.Fatal("Mong doi loi nhung thuc te thanh cong")
+		}
+
+		st, ok := status.FromError(err)
+		if !ok {
+			t.Fatalf("Loi thuc te khong phai status error: %v", err)
+		}
+		if st.Code() != codes.PermissionDenied {
+			t.Errorf("Mong doi PermissionDenied, thuc te %s", st.Code())
+		}
+	})
+
+	t.Run("Matched Tenant ID ExplainDecision", func(t *testing.T) {
+		token := makeToken("tenant-a")
+		ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+token))
+
+		req := &policyv1.ExplainRequest{
+			TenantId: "tenant-a", // Match
+			Subject:  "user:test",
+			Action:   "READ",
+			Resource: "file:doc",
+		}
+
+		// Tra ve phan hoi loi "Không tìm thấy tập chính sách cho Tenant" nhung khong phai loi Auth
+		resp, err := srv.ExplainDecision(ctx, req)
+		if err != nil {
+			t.Fatalf("ExplainDecision gap loi khong mong muon: %v", err)
+		}
+		if resp.Decision != policyv1.ExplainResponse_DENY {
+			t.Errorf("Mong doi DENY (default), thuc te %v", resp.Decision)
+		}
+	})
 }
