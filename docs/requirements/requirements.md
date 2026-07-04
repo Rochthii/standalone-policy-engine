@@ -1,6 +1,6 @@
 # Functional & Non-Functional Requirements Specification
 
-Tài liệu này đặc tả chi tiết các yêu cầu chức năng (FR) và phi chức năng (NFR) chuẩn hóa cho **Standalone Policy Engine**.
+Tài liệu này đặc tả chi tiết các yêu cầu chức năng (FR) và phi chức năng (NFR) chuẩn hóa cho **Standalone Policy Engine**, đã tích hợp các bản vá bảo mật và hiệu năng từ đợt kiểm duyệt kiến trúc (Architecture Review).
 
 ---
 
@@ -35,9 +35,9 @@ Tài liệu này đặc tả chi tiết các yêu cầu chức năng (FR) và ph
 ### FR-008: Nạp nóng Không gián đoạn (Hot Reload)
 *   PDP phải hỗ trợ nạp nóng các chính sách mới vào RAM cache (Trie Index) ngay khi có sự thay đổi từ Control Plane mà không được gây downtime hay gián đoạn dịch vụ gRPC đang chạy.
 
-### FR-009: Nhật ký Kiểm toán (Audit Logging)
+### FR-009: Nhật ký Kiểm toán Bất biến (Audit Logging)
 *   PDP phải ghi lại chi tiết mọi quyết định phân quyền một cách bất đồng bộ xuống cơ sở dữ liệu kiểm toán bất biến (WORM).
-*   Log phải chứa: `tenant_id`, `subject`, `action`, `resource`, `context`, `decision`, `matched_policy_id` và timestamp.
+*   **Cơ chế Spill-to-Disk:** Khi hàng đợi ghi log bị đầy do Database quá tải, hệ thống phải tự động chuyển hướng ghi log thô tạm thời xuống đĩa cứng vật lý (SSD) thay vì block luồng gRPC chính, đảm bảo không mất mát log kiểm toán.
 
 ### FR-010: Giả lập Chính sách (Policy Simulation)
 *   Control Plane phải cung cấp API giả lập, cho phép quản trị viên gửi thử request giả định cùng một tập chính sách chưa kích hoạt (Draft) để kiểm tra xem quyết định phân quyền sẽ ra sao trước khi xuất bản (Publish) chính sách đó lên môi trường production.
@@ -65,3 +65,11 @@ Tài liệu này đặc tả chi tiết các yêu cầu chức năng (FR) và ph
 ### NFR-005: Khả năng quan sát (Observability)
 *   Cung cấp Prometheus metrics exporter (RPS, Latency histogram, CPU/RAM utilization, RAM cache policy count).
 *   Tích hợp OpenTelemetry tracing.
+
+---
+
+## 3. Ràng buộc An toàn & Ngăn ngừa Quá tải (Safety Constraints)
+
+*   **Ràng buộc Wildcard:** Control Plane bắt buộc phải từ chối kích hoạt chính sách nếu một Tenant thiết lập số lượng chính sách wildcard kép (`principal == any` và `resource == any` đồng thời) vượt quá **`5%`** tổng số chính sách đang hoạt động của Tenant đó.
+*   **Giới hạn AST Depth:** Giới hạn tối đa độ sâu của cây biểu thức logic AST là **`15`** cấp để bảo vệ call stack của Go runtime khỏi lỗi tràn bộ nhớ (Stack Overflow).
+*   **Version Epoch Matching:** Mỗi request CheckAccess từ PEP bắt buộc phải gửi kèm số phiên bản epoch của tập chính sách hiện tại để phát hiện lệch cache và đồng bộ tức thì.
