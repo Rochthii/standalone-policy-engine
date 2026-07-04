@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package policy;
+
+option go_package = "standalone-policy-engine/proto;policy";
+
+// Dịch vụ PDP (Policy Decision Point)
+service PolicyDecisionPoint {
+  // Kiểm tra quyền truy cập dựa trên ngữ cảnh động
+  rpc CheckPermission (CheckRequest) returns (CheckResponse);
+}
+
+// Yêu cầu kiểm tra quyền
+message CheckRequest {
+  string subject = 1;      // Đối tượng yêu cầu (ví dụ: "user:alice")
+  string action = 2;       // Hành động (ví dụ: "DELETE")
+  string resource = 3;     // Tài nguyên tác động (ví dụ: "file:report.pdf")
+  map<string, string> context = 4; // Ngữ cảnh động (ví dụ: ip="192.168.1.10", time="09:00")
+}
+
+// Phản hồi kết quả quyết định
+message CheckResponse {
+  enum Decision {
+    DENY = 0;
+    ALLOW = 1;
+  }
+  Decision decision = 1;   // Quyết định cuối cùng (ALLOW hoặc DENY)
+  string reason = 2;       // Lý do đưa ra quyết định (luật nào được áp dụng)
+}
