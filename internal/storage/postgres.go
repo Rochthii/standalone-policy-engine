@@ -95,12 +95,15 @@ func (s *Storage) initSchema(ctx context.Context) error {
 		`CREATE TABLE IF NOT EXISTS decision_audit_logs (
 			id BIGSERIAL PRIMARY KEY,
 			tenant_id UUID NOT NULL,
-			request_subject VARCHAR(255) NOT NULL,
-			request_action VARCHAR(255) NOT NULL,
-			request_resource VARCHAR(255) NOT NULL,
+			request_subject VARCHAR(255),
+			request_action VARCHAR(255),
+			request_resource VARCHAR(255),
 			decision VARCHAR(10) NOT NULL,
 			matched_policy_id UUID,
 			evaluated_context JSONB,
+			is_encrypted BOOLEAN DEFAULT FALSE,
+			encrypted_dek TEXT,
+			encrypted_payload TEXT,
 			evaluated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 		);`,
 
@@ -228,21 +231,45 @@ func (s *Storage) InsertAuditLogsBatch(ctx context.Context, logs []*audit.LogEnt
 	// Sử dụng CopyFrom của pgx để đạt hiệu năng ghi đĩa tối đa
 	entries := make([][]interface{}, len(logs))
 	for i, l := range logs {
+		var subjectVal, actionVal, resourceVal interface{}
+		var contextVal interface{}
+
+		if !l.IsEncrypted {
+			subjectVal = l.Subject
+			actionVal = l.Action
+			resourceVal = l.Resource
+			contextVal = l.Context
+		}
+
 		entries[i] = []interface{}{
 			l.TenantID,
-			l.Subject,
-			l.Action,
-			l.Resource,
+			subjectVal,
+			actionVal,
+			resourceVal,
 			l.Decision,
 			l.MatchedPolicyID,
-			l.Context, // Chứa chuỗi JSON hoặc map
+			contextVal,
+			l.IsEncrypted,
+			l.EncryptedDEK,
+			l.EncryptedPayload,
 		}
 	}
 
 	_, err := s.pool.CopyFrom(
 		ctx,
 		pgx.Identifier{"decision_audit_logs"},
-		[]string{"tenant_id", "request_subject", "request_action", "request_resource", "decision", "matched_policy_id", "evaluated_context"},
+		[]string{
+			"tenant_id",
+			"request_subject",
+			"request_action",
+			"request_resource",
+			"decision",
+			"matched_policy_id",
+			"evaluated_context",
+			"is_encrypted",
+			"encrypted_dek",
+			"encrypted_payload",
+		},
 		pgx.CopyFromRows(entries),
 	)
 	return err

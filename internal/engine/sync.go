@@ -3,10 +3,12 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"standalone-policy-engine/internal/metrics"
 	"standalone-policy-engine/internal/parser"
 	"standalone-policy-engine/internal/storage"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -22,15 +24,15 @@ type PolicyUpdateEvent struct {
 // Syncer chịu trách nhiệm đồng bộ trạng thái chính sách giữa PostgreSQL (Source of Truth)
 // và bộ nhớ RAM Trie Indexer của PDP Engine.
 type Syncer struct {
-	engine      *Engine
+	engine      *EngineWithGC
 	storage     *storage.Storage
-	redisClient *redis.Client
+	redisClient redis.UniversalClient
 	stopChan    chan struct{}
 	wg          sync.WaitGroup
 }
 
 // NewSyncer khởi tạo một instance Syncer.
-func NewSyncer(eng *Engine, store *storage.Storage, rdb *redis.Client) *Syncer {
+func NewSyncer(eng *EngineWithGC, store *storage.Storage, rdb redis.UniversalClient) *Syncer {
 	return &Syncer{
 		engine:      eng,
 		storage:     store,
@@ -41,13 +43,16 @@ func NewSyncer(eng *Engine, store *storage.Storage, rdb *redis.Client) *Syncer {
 
 // Start khởi chạy tiến trình đồng bộ (lắng nghe Redis và Polling dự phòng).
 func (s *Syncer) Start(ctx context.Context) {
-	s.wg.Add(2)
+	s.wg.Add(3)
 
 	// Worker 1: Lắng nghe kênh Redis Pub/Sub
 	go s.redisSubscriber(ctx)
 
 	// Worker 2: Polling định kỳ mỗi 10 giây để backup khi Redis mất kết nối
 	go s.pollingWorker(ctx)
+
+	// Worker 3: Định kỳ gửi tin nhắn Heartbeat giám sát Node lên Redis
+	go s.heartbeatWorker(ctx)
 }
 
 // Stop dừng an toàn Syncer.
@@ -160,5 +165,43 @@ func (s *Syncer) SyncTenant(ctx context.Context, tenantID string) {
 	}
 }
 
-// import sync for WaitGroup
-import "sync"
+// heartbeatWorker gửi tin nhắn heartbeat định kỳ để Control Plane theo dõi sức khỏe cluster.
+func (s *Syncer) heartbeatWorker(ctx context.Context) {
+	defer s.wg.Done()
+
+	if s.redisClient == nil {
+		return
+	}
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	nodeID := fmt.Sprintf("pdp-node-%d", time.Now().UnixNano())
+	log.Printf("[Syncer] Khởi chạy Heartbeat cho Node ID: %s", nodeID)
+
+	for {
+		select {
+		case <-s.stopChan:
+			// Gửi thông báo offline trước khi thoát
+			offlineMsg := map[string]string{
+				"node_id": nodeID,
+				"status":  "OFFLINE",
+			}
+			payload, _ := json.Marshal(offlineMsg)
+			_ = s.redisClient.Publish(ctx, "pdp-heartbeats", payload).Err()
+			return
+		case <-ticker.C:
+			state := s.engine.GetState()
+			activeTenants := len(state.Tenants)
+
+			heartbeatMsg := map[string]interface{}{
+				"node_id":        nodeID,
+				"status":         "ONLINE",
+				"active_tenants": activeTenants,
+				"timestamp":      time.Now().Unix(),
+			}
+			payload, _ := json.Marshal(heartbeatMsg)
+			_ = s.redisClient.Publish(ctx, "pdp-heartbeats", payload).Err()
+		}
+	}
+}

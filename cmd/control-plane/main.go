@@ -9,6 +9,7 @@ import (
 	"standalone-policy-engine/internal/engine"
 	"standalone-policy-engine/internal/server"
 	"standalone-policy-engine/internal/storage"
+	"strings"
 	"syscall"
 	"time"
 
@@ -37,21 +38,11 @@ func main() {
 	defer store.Close()
 	log.Println("[Control-Plane] Kết nối PostgreSQL thành công.")
 
-	// 2. Khởi tạo Redis Client
-	rdb := redis.NewClient(&redis.Options{
-		Addr: redisAddr,
-	})
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	if err := rdb.Ping(ctx).Err(); err != nil {
-		log.Printf("[Control-Plane] Cảnh báo: Không kết nối được Redis (%v). Tính năng hot reload qua Pub/Sub sẽ bị vô hiệu hóa.", err)
-		rdb = nil
-	} else {
-		log.Println("[Control-Plane] Kết nối Redis thành công.")
-	}
-	cancel()
+	// 2. Khởi tạo Redis Universal Client (hỗ trợ Single/Sentinel/Cluster)
+	rdb := initRedis()
 
-	// 3. Khởi tạo Engine trống để phục vụ cho API REST Fallback /decisions
-	eng := engine.NewEngine()
+	// 3. Khởi tạo Engine có GC để phục vụ cho API REST Fallback /decisions
+	eng := engine.NewEngineWithGC(1*time.Hour, 24*time.Hour)
 
 	// 4. Khởi chạy HTTP Server (cổng 8080)
 	httpPort := 8080
@@ -74,4 +65,44 @@ func main() {
 		log.Printf("[Control-Plane] HTTP Shutdown lỗi: %v", err)
 	}
 	log.Println("[Control-Plane] Dừng dịch vụ hoàn tất. Tạm biệt!")
+}
+
+// initRedis khởi tạo UniversalClient hỗ trợ chế độ Cluster, Sentinel hoặc Single.
+func initRedis() redis.UniversalClient {
+	mode := os.Getenv("REDIS_MODE")
+	redisAddr := os.Getenv("REDIS_URL")
+	if redisAddr == "" {
+		redisAddr = "localhost:6379"
+	}
+
+	var rdb redis.UniversalClient
+	switch mode {
+	case "cluster":
+		addrs := strings.Split(redisAddr, ",")
+		rdb = redis.NewClusterClient(&redis.ClusterOptions{Addrs: addrs})
+		log.Printf("[Control-Plane] Khởi tạo Redis CLUSTER tại %v", addrs)
+	case "sentinel":
+		sentinelAddrs := strings.Split(os.Getenv("REDIS_SENTINEL_ADDRS"), ",")
+		masterName := os.Getenv("REDIS_MASTER_NAME")
+		if masterName == "" {
+			masterName = "mymaster"
+		}
+		rdb = redis.NewFailoverClient(&redis.FailoverOptions{
+			MasterName:    masterName,
+			SentinelAddrs: sentinelAddrs,
+		})
+		log.Printf("[Control-Plane] Khởi tạo Redis SENTINEL (Master: %s)", masterName)
+	default:
+		rdb = redis.NewClient(&redis.Options{Addr: redisAddr})
+		log.Printf("[Control-Plane] Khởi tạo Redis SINGLE tại %s", redisAddr)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		log.Printf("[Control-Plane] Cảnh báo: Không thể ping Redis (%v). Tính năng Pub/Sub bị vô hiệu hóa.", err)
+		return nil
+	}
+	log.Println("[Control-Plane] Ping Redis thành công.")
+	return rdb
 }

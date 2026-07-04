@@ -8,6 +8,7 @@ import (
 	"standalone-policy-engine/internal/audit"
 	"standalone-policy-engine/internal/engine"
 	"standalone-policy-engine/internal/metrics"
+	"standalone-policy-engine/internal/security"
 	policyv1 "standalone-policy-engine/proto/v1"
 	"time"
 
@@ -20,21 +21,52 @@ import (
 type GRPCServer struct {
 	policyv1.UnimplementedPolicyDecisionPointServer
 
-	engine      *engine.Engine
-	auditLogger *audit.AuditLogger
+	engine       *engine.EngineWithGC
+	auditLogger  *audit.AuditLogger
+	jwtValidator *security.JWTValidator
 }
 
 // NewGRPCServer tạo mới một instance GRPCServer.
-func NewGRPCServer(eng *engine.Engine, logger *audit.AuditLogger) *GRPCServer {
+func NewGRPCServer(eng *engine.EngineWithGC, logger *audit.AuditLogger) *GRPCServer {
 	return &GRPCServer{
-		engine:      eng,
-		auditLogger: logger,
+		engine:       eng,
+		auditLogger:  logger,
+		jwtValidator: security.NewJWTValidator(),
 	}
 }
 
 // CheckAccess xử lý yêu cầu gRPC kiểm tra quyền truy cập lock-free và ghi log bất đồng bộ.
 func (s *GRPCServer) CheckAccess(ctx context.Context, req *policyv1.CheckAccessRequest) (*policyv1.CheckAccessResponse, error) {
 	startTime := time.Now()
+
+	// 0. Trích xuất và xác thực JWT token từ gRPC Metadata nếu có
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		var tokenStr string
+		if auth := md.Get("authorization"); len(auth) > 0 {
+			tokenStr = auth[0]
+		} else if bearer := md.Get("bearer"); len(bearer) > 0 {
+			tokenStr = bearer[0]
+		}
+
+		if tokenStr != "" && s.jwtValidator != nil {
+			claims, err := s.jwtValidator.ValidateToken(tokenStr)
+			if err == nil {
+				sub, attrs, err := s.jwtValidator.ExtractSubjectAttributes(claims)
+				if err == nil {
+					// Ghi đè subject và bổ sung context attributes từ JWT claims
+					req.Subject = sub
+					if req.Context == nil {
+						req.Context = make(map[string]string)
+					}
+					for k, v := range attrs {
+						if _, exists := req.Context[k]; !exists {
+							req.Context[k] = v
+						}
+					}
+				}
+			}
+		}
+	}
 
 	// 1. Thực hiện đánh giá quyết định trên RAM thông qua Engine
 	res := s.engine.CheckPermission(req.TenantId, req.Subject, req.Action, req.Resource, req.Context)
@@ -81,7 +113,7 @@ func (s *GRPCServer) ExplainDecision(ctx context.Context, req *policyv1.ExplainR
 	res := s.engine.CheckPermission(req.TenantId, req.Subject, req.Action, req.Resource, req.Context)
 
 	// 2. Thu thập thông tin chi tiết các chính sách khớp
-	trie, exists := s.engine.GetTenantTrie(req.TenantId)
+	trie, exists := s.engine.GetTenantTrie(ctx, req.TenantId)
 	if !exists {
 		decisionVal := policyv1.ExplainResponse_DENY
 		return &policyv1.ExplainResponse{
@@ -148,7 +180,7 @@ func (s *GRPCServer) ExplainDecision(ctx context.Context, req *policyv1.ExplainR
 }
 
 // StartGRPCServer cấu hình mTLS, Keepalive và khởi chạy gRPC Server tại cổng chỉ định.
-func StartGRPCServer(port int, eng *engine.Engine, logger *audit.AuditLogger) (*grpc.Server, error) {
+func StartGRPCServer(port int, eng *engine.EngineWithGC, logger *audit.AuditLogger) (*grpc.Server, error) {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		return nil, fmt.Errorf("lắng nghe cổng %d thất bại: %v", port, err)

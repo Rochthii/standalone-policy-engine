@@ -17,12 +17,12 @@ import (
 // HTTPServer cung cấp REST API cho Control Plane (CRUD chính sách) và Data Plane Fallback.
 type HTTPServer struct {
 	storage     *storage.Storage
-	engine      *engine.Engine
-	redisClient *redis.Client
+	engine      *engine.EngineWithGC
+	redisClient redis.UniversalClient
 }
 
 // NewHTTPServer khởi tạo mới một instance HTTPServer.
-func NewHTTPServer(store *storage.Storage, eng *engine.Engine, rdb *redis.Client) *HTTPServer {
+func NewHTTPServer(store *storage.Storage, eng *engine.EngineWithGC, rdb redis.UniversalClient) *HTTPServer {
 	return &HTTPServer{
 		storage:     store,
 		engine:      eng,
@@ -52,7 +52,7 @@ func (s *HTTPServer) ConfigureMux() *http.ServeMux {
 }
 
 // StartHTTPServer khởi chạy HTTP server tại cổng chỉ định.
-func StartHTTPServer(port int, store *storage.Storage, eng *engine.Engine, rdb *redis.Client) (*http.Server, error) {
+func StartHTTPServer(port int, store *storage.Storage, eng *engine.EngineWithGC, rdb redis.UniversalClient) (*http.Server, error) {
 	s := NewHTTPServer(store, eng, rdb)
 	mux := s.ConfigureMux()
 
@@ -275,7 +275,7 @@ func (s *HTTPServer) handleExplain(w http.ResponseWriter, r *http.Request) {
 
 	// Thu thập giải thích chi tiết
 	matchedMetadata := make([]map[string]string, 0)
-	trie, exists := s.engine.GetTenantTrie(req.TenantID)
+	trie, exists := s.engine.GetTenantTrie(r.Context(), req.TenantID)
 	if exists {
 		subjects := trie.RoleDAG.GetInheritedRoles(req.Subject)
 		resources := []string{req.Resource}

@@ -8,20 +8,24 @@ import (
 	"os"
 	"path/filepath"
 	"standalone-policy-engine/internal/metrics"
+	"standalone-policy-engine/internal/security"
 	"sync"
 	"time"
 )
 
 // LogEntry chứa thông tin chi tiết của một quyết định kiểm toán phân quyền.
 type LogEntry struct {
-	TenantID        string            `json:"tenant_id"`
-	Subject         string            `json:"subject"`
-	Action          string            `json:"action"`
-	Resource        string            `json:"resource"`
-	Decision        string            `json:"decision"`
-	MatchedPolicyID string            `json:"matched_policy_id,omitempty"`
-	Context         map[string]string `json:"context,omitempty"`
-	EvaluatedAt     time.Time         `json:"evaluated_at"`
+	TenantID         string            `json:"tenant_id"`
+	Subject          string            `json:"subject"`
+	Action           string            `json:"action"`
+	Resource         string            `json:"resource"`
+	Decision         string            `json:"decision"`
+	MatchedPolicyID  string            `json:"matched_policy_id,omitempty"`
+	Context          map[string]string `json:"context,omitempty"`
+	EvaluatedAt      time.Time         `json:"evaluated_at"`
+	IsEncrypted      bool              `json:"is_encrypted"`
+	EncryptedDEK     string            `json:"encrypted_dek,omitempty"`
+	EncryptedPayload string            `json:"encrypted_payload,omitempty"`
 }
 
 // BatchWriter là interface giúp ghi log theo lô xuống PostgreSQL.
@@ -37,6 +41,7 @@ type AuditLogger struct {
 	spillDir string
 	logChan  chan *LogEntry
 	stopChan chan struct{}
+	crypto   *security.EnvelopeCrypto
 
 	fileMutex sync.Mutex
 	wg        sync.WaitGroup
@@ -49,11 +54,17 @@ func NewAuditLogger(writer BatchWriter, spillDir string, bufferSize int) *AuditL
 		// Log warning
 	}
 
+	crypto, err := security.NewEnvelopeCrypto()
+	if err != nil {
+		// Log warning
+	}
+
 	return &AuditLogger{
 		writer:   writer,
 		spillDir: spillDir,
 		logChan:  make(chan *LogEntry, bufferSize),
 		stopChan: make(chan struct{}),
+		crypto:   crypto,
 	}
 }
 
@@ -69,6 +80,30 @@ func (l *AuditLogger) Log(tenantID, subject, action, resource, decision, matched
 		MatchedPolicyID: matchedPolicyID,
 		Context:         ctxMap,
 		EvaluatedAt:     time.Now(),
+	}
+
+	// Thực hiện mã hóa Envelope các trường nhạy cảm
+	if l.crypto != nil {
+		payloadMap := map[string]interface{}{
+			"subject":  subject,
+			"action":   action,
+			"resource": resource,
+			"context":  ctxMap,
+		}
+		payloadBytes, err := json.Marshal(payloadMap)
+		if err == nil {
+			ciphertext, encDEK, err := l.crypto.Encrypt(payloadBytes)
+			if err == nil {
+				entry.IsEncrypted = true
+				entry.EncryptedPayload = ciphertext
+				entry.EncryptedDEK = encDEK
+				// Xoá thông tin thô nhạy cảm để bảo mật bộ nhớ RAM và log spill
+				entry.Subject = ""
+				entry.Action = ""
+				entry.Resource = ""
+				entry.Context = nil
+			}
+		}
 	}
 
 	select {

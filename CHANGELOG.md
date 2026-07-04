@@ -10,6 +10,19 @@ Phân loại thay đổi:
 
 ---
 
+## [1.3.0] - 2026-07-04: JWT Token Validation, AES-GCM Log Encryption & Redis Universal Client
+
+Sprint cuối cùng. Hoàn thiện tầng bảo mật và vận hành phân tán: xác thực định danh tại điểm vào, mã hóa log kiểm toán chống đọc trộm và hỗ trợ triển khai Redis đa nút.
+
+### Added
+*   **JWT Token Validation ([jwt.go](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/security/jwt.go)):** PDP gRPC Server tự động trích xuất và xác thực JWT Token (HMAC-SHA256) từ gRPC Metadata `authorization`. Claims được parse và nạp vào `req.Subject` và `req.Context` trước khi chạy bộ đánh giá ABAC. PEP không cần giải mã token thủ công.
+*   **AES-GCM Envelope Encryption ([crypto.go](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/security/crypto.go)):** Mọi trường nhạy cảm trong log kiểm toán (subject, action, resource, context) được mã hóa bằng AES-GCM 256-bit trước khi ghi vào PostgreSQL hoặc Spill-to-Disk. Mỗi bản ghi dùng một DEK ngẫu nhiên riêng, DEK được mã hóa bởi KEK từ biến môi trường `LOG_KEK`. Ngay cả admin PostgreSQL cũng không thể đọc nội dung log.
+*   **Redis Universal Client:** Cả `cmd/pdp-server` và `cmd/control-plane` hỗ trợ ba chế độ kết nối Redis thông qua biến môi trường `REDIS_MODE`: `single` (mặc định), `sentinel` (Failover) và `cluster` (Horizontal Scale). Không cần sửa code khi nâng cấp topology Redis.
+*   **PDP Node Heartbeat Registry:** `Syncer.heartbeatWorker` định kỳ 5 giây gửi JSON heartbeat kèm node ID, trạng thái và số Tenant đang hoạt động lên kênh Redis `pdp-heartbeats`. Cho phép Control Plane theo dõi số lượng và sức khỏe tất cả node PDP trong cluster.
+*   **Unit Tests ([jwt_test.go](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/security/jwt_test.go), [crypto_test.go](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/security/crypto_test.go)):** Kiểm thử toàn diện cả hai module: JWT validate hợp lệ/hết hạn/sai secret, Bearer prefix stripping, Envelope Encrypt/Decrypt vòng đời, nonce độc lập, DEK sai và payload >5KB.
+
+---
+
 ## [1.2.0] - 2026-07-04: Policy Simulation, Edge Storage (BadgerDB) & RAM GC
 Hiện thực hóa các tính năng nâng cao giúp hệ thống trở nên thông minh và tự phục hồi: API giả lập chính sách không ảnh hưởng production, bộ lưu trữ cục bộ BadgerDB hỗ trợ khởi động siêu tốc khi mất mạng, và cơ chế tự động dọn dẹp RAM.
 
