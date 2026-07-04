@@ -1,0 +1,29 @@
+# Stage 1: Build binary
+FROM golang:1.22-alpine AS builder
+
+WORKDIR /app
+
+# Sao chép các file dependency
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Sao chép toàn bộ mã nguồn
+COPY . .
+
+# Biên dịch ứng dụng control-plane
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o control-plane cmd/control-plane/main.go
+
+# Stage 2: Run application
+FROM alpine:3.19
+
+WORKDIR /app
+
+RUN apk --no-cache add ca-certificates
+
+# Copy binary từ stage builder
+COPY --from=builder /app/control-plane .
+
+# Port mặc định cho HTTP server
+EXPOSE 8080
+
+ENTRYPOINT ["./control-plane"]

@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package policy.v1;
+
+option go_package = "standalone-policy-engine/proto/v1;policyv1";
+
+// Dịch vụ PDP (Policy Decision Point)
+service PolicyDecisionPoint {
+  // Đánh giá quyền truy cập dựa trên ngữ cảnh động
+  rpc CheckAccess (CheckAccessRequest) returns (CheckAccessResponse);
+  
+  // Đánh giá quyền kèm giải thích chi tiết các luật áp dụng
+  rpc ExplainDecision (ExplainRequest) returns (ExplainResponse);
+}
+
+// Yêu cầu kiểm tra quyền truy cập
+message CheckAccessRequest {
+  string tenant_id = 1;         // Khóa đa khách thuê (Tenant ID)
+  string subject = 2;           // Đối tượng yêu cầu (ví dụ: "user:alice", "role:admin")
+  string action = 3;            // Hành động thực hiện (ví dụ: "READ", "DELETE")
+  string resource = 4;          // Tài nguyên tác động (ví dụ: "file:report.pdf")
+  map<string, string> context = 5; // Ngữ cảnh thuộc tính động (ví dụ: ip="192.168.1.10", time="08:00:00Z")
+}
+
+// Phản hồi kết quả kiểm tra quyền truy cập
+message CheckAccessResponse {
+  enum Decision {
+    DENY = 0;
+    ALLOW = 1;
+  }
+  Decision decision = 1;        // Quyết định cuối cùng (ALLOW hoặc DENY)
+  string matched_policy_id = 2; // ID chính sách quyết định cuối cùng (ALLOW hoặc FORBID)
+}
+
+// Yêu cầu giải thích chi tiết quyết định
+message ExplainRequest {
+  string tenant_id = 1;
+  string subject = 2;
+  string action = 3;
+  string resource = 4;
+  map<string, string> context = 5;
+}
+
+// Phản hồi giải thích chi tiết quyết định
+message ExplainResponse {
+  enum Decision {
+    DENY = 0;
+    ALLOW = 1;
+  }
+  Decision decision = 1;                // Quyết định cuối cùng
+  string final_reason = 2;              // Lý do tổng quát
+  repeated PolicyMetadata matched = 3; // Danh sách các chính sách đã khớp và thỏa mãn điều kiện
+}
+
+// Thông tin chi tiết của một chính sách khớp
+message PolicyMetadata {
+  string policy_id = 1;
+  string effect = 2;                    // "permit" hoặc "forbid"
+  string policy_text = 3;               // Mã DSL thô của chính sách
+}

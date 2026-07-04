@@ -57,6 +57,7 @@ docs/
 │   └── testing-strategy.md        # Chiến lược Unit/Fuzz/Integration/Chaos test
 ├── operations/
 │   └── runbooks.md                # Giám sát SLOs & cẩm nang cứu hộ sự cố
-└── adr/
-    └── adr-001-policy-engine-design.md # Quyết định kiến trúc cốt lõi đã phê duyệt
+├── adr/
+│   └── adr-001-policy-engine-design.md # Quyết định kiến trúc cốt lõi đã phê duyệt
+└── CHANGELOG.md                       # Lịch sử thay đổi và timeline phát triển
 ```

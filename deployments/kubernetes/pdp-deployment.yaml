@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pdp-engine
+  namespace: security
+  labels:
+    app: pdp-engine
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: pdp-engine
+  template:
+    metadata:
+      labels:
+        app: pdp-engine
+    spec:
+      containers:
+      # 1. PDP Server Container
+      - name: pdp-server
+        image: rochthii/pdp-server:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 50051
+          name: grpc-backend
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: db-secrets
+              key: database-url
+        - name: REDIS_URL
+          value: "redis-cluster.cache.svc.cluster.local:6379"
+        resources:
+          limits:
+            cpu: "2"
+            memory: 2Gi
+          requests:
+            cpu: "500m"
+            memory: 512Mi
+        volumeMounts:
+        - name: spill-logs-volume
+          mountPath: /app/spill-logs
+        readinessProbe:
+          tcpSocket:
+            port: 50051
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: 50051
+          initialDelaySeconds: 15
+          periodSeconds: 20
+
+      # 2. Envoy Proxy Container (Sidecar L7 Load Balancer)
+      - name: envoy-sidecar
+        image: envoyproxy/envoy:v1.28.0
+        ports:
+        - containerPort: 9000
+          name: grpc-envoy
+        volumeMounts:
+        - name: envoy-config-volume
+          mountPath: /etc/envoy
+        resources:
+          limits:
+            cpu: "500m"
+            memory: 256Mi
+          requests:
+            cpu: "100m"
+            memory: 64Mi
+
+      volumes:
+      # Thư mục chứa cấu hình Envoy
+      - name: envoy-config-volume
+        configMap:
+          name: envoy-config
+      # Mount SSD Volume cho Spill-to-Disk log kiểm toán cục bộ
+      - name: spill-logs-volume
+        emptyDir:
+          medium: Memory # Hoặc dùng SSD PersistentVolumeClaim
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pdp-engine-service
+  namespace: security
+spec:
+  selector:
+    app: pdp-engine
+  ports:
+  - port: 9000
+    targetPort: 9000
+    name: grpc
+  type: ClusterIP
