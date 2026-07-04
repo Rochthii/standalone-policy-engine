@@ -17,6 +17,14 @@ type tenantAccessRecord struct {
 	policyCount  int
 }
 
+// GCConfig chứa cấu hình cho cơ chế GC dọn dẹp RAM của Engine.
+type GCConfig struct {
+	Enabled      bool
+	Interval     time.Duration
+	IdleTimeout  time.Duration
+	MaxCacheSize int
+}
+
 // EngineWithGC mở rộng Engine cơ bản với cơ chế Tenant Cache GC và Lazy Loading.
 type EngineWithGC struct {
 	// Nhúng Engine cơ bản (COW + atomic pointer)
@@ -29,6 +37,9 @@ type EngineWithGC struct {
 	// Caller (Syncer) sẽ cung cấp hàm này để tải lại dữ liệu từ Postgres
 	lazyLoader func(ctx context.Context, tenantID string) error
 
+	// gcEnabled là cờ bật/tắt GC
+	gcEnabled bool
+
 	// gcInterval là chu kỳ quét dọn dẹp (mặc định 1 giờ)
 	gcInterval time.Duration
 
@@ -39,10 +50,19 @@ type EngineWithGC struct {
 }
 
 // NewEngineWithGC khởi tạo Engine có cơ chế GC tự động dọn dẹp Tenant không hoạt động.
-func NewEngineWithGC(gcInterval, maxIdleTime time.Duration) *EngineWithGC {
+func NewEngineWithGC(cfg GCConfig) *EngineWithGC {
+	interval := cfg.Interval
+	if interval <= 0 {
+		interval = 1 * time.Hour
+	}
+	idle := cfg.IdleTimeout
+	if idle <= 0 {
+		idle = 24 * time.Hour
+	}
 	e := &EngineWithGC{
-		gcInterval:  gcInterval,
-		maxIdleTime: maxIdleTime,
+		gcEnabled:   cfg.Enabled,
+		gcInterval:  interval,
+		maxIdleTime: idle,
 		stopGC:      make(chan struct{}),
 	}
 	initialState := &EngineState{
@@ -59,7 +79,9 @@ func (e *EngineWithGC) SetLazyLoader(loader func(ctx context.Context, tenantID s
 
 // StartGC khởi chạy goroutine GC dọn dẹp Tenant không hoạt động.
 func (e *EngineWithGC) StartGC(ctx context.Context) {
-	go e.gcWorker(ctx)
+	if e.gcEnabled {
+		go e.gcWorker(ctx)
+	}
 }
 
 // StopGC dừng goroutine GC.
@@ -106,21 +128,33 @@ func (e *EngineWithGC) GetTenantTrie(ctx context.Context, tenantID string) (*Tri
 
 // CheckPermission là hot-path lock-free gọi trực tiếp qua Engine gốc (cho PDP gRPC server).
 // Phương thức này cập nhật LastAccessTime cho GC tracking.
-func (e *EngineWithGC) CheckPermission(tenantID, subject, action, resource string, ctxMap map[string]string) DecisionResult {
-	state := e.GetState()
-	trie, exists := state.Tenants[tenantID]
-	if !exists {
+func (e *EngineWithGC) CheckPermission(ctx context.Context, tenantID, subject, action, resource string, ctxMap map[string]string) DecisionResult {
+	if err := ctx.Err(); err != nil {
 		return DecisionResult{
 			Decision: DecisionDeny,
-			Reason:   "Tenant không tồn tại hoặc chưa được nạp chính sách",
+			Reason:   "Yêu cầu bị hủy hoặc hết thời gian chờ: " + err.Error(),
 		}
 	}
 
-	// Cập nhật LastAccess
-	e.touchTenant(tenantID, 0)
+	state := e.GetState()
+	trie, exists := state.Tenants[tenantID]
+	if !exists {
+		// Thử lấy và nạp từ Lazy Loading nếu có cấu hình
+		var loaded bool
+		trie, loaded = e.GetTenantTrie(ctx, tenantID)
+		if !loaded {
+			return DecisionResult{
+				Decision: DecisionDeny,
+				Reason:   "Tenant không tồn tại hoặc chưa được nạp chính sách",
+			}
+		}
+	} else {
+		// Cập nhật LastAccess
+		e.touchTenant(tenantID, 0)
+	}
 
 	// Delegate sang decision engine core
-	return CheckPermission(trie, subject, action, resource, ctxMap)
+	return CheckPermission(ctx, trie, subject, action, resource, ctxMap)
 }
 
 // UpdateTenantPolicies cập nhật tập luật cho Tenant sử dụng COW.

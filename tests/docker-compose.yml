@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: policy_engine
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  pdp-server:
+    image: standalone-pdp-test:latest
+    build:
+      context: ..
+      dockerfile: deployments/docker/Dockerfile.pdp
+    ports:
+      - "50061:50051"
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/policy_engine?sslmode=disable
+      REDIS_URL: redis:6379
+      JWT_SECRET: test-secret-key-for-sprint-6-unit-test
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  control-plane:
+    image: standalone-control-test:latest
+    build:
+      context: ..
+      dockerfile: deployments/docker/Dockerfile.control
+    ports:
+      - "8082:8080"
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/policy_engine?sslmode=disable
+      REDIS_URL: redis:6379
+      JWT_SECRET: test-secret-key-for-sprint-6-unit-test
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy

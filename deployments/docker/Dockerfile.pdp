@@ -23,6 +23,7 @@ RUN apk --no-cache add ca-certificates
 
 # Copy binary từ stage builder
 COPY --from=builder /app/pdp-server .
+COPY --from=builder /app/db /app/db
 
 # Tạo thư mục chứa spill-logs cục bộ và phân quyền ghi
 RUN mkdir -p /app/spill-logs && chmod 777 /app/spill-logs

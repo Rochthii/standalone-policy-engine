@@ -3,7 +3,8 @@
 package policyv1
 
 import (
-	"reflect"
+	"encoding/json"
+	"google.golang.org/grpc/encoding"
 )
 
 type CheckAccessRequest struct {
@@ -73,3 +74,21 @@ func (*ExplainResponse) ProtoMessage()    {}
 func (x *PolicyMetadata) Reset()         { *x = PolicyMetadata{} }
 func (x *PolicyMetadata) String() string { return "" }
 func (*PolicyMetadata) ProtoMessage()    {}
+
+type jsonCodec struct{}
+
+func (jsonCodec) Marshal(v interface{}) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+func (jsonCodec) Unmarshal(data []byte, v interface{}) error {
+	return json.Unmarshal(data, v)
+}
+
+func (jsonCodec) Name() string {
+	return "json"
+}
+
+func init() {
+	encoding.RegisterCodec(jsonCodec{})
+}

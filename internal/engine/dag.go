@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 )
 
@@ -167,9 +168,6 @@ func formatString(format string, a ...interface{}) string {
 	// Nhưng ở đây dùng fmt.Sprintf là chuẩn nhất.
 	return fmtSprintf(format, a...)
 }
-
-// Ta import fmt để format chuỗi lỗi tốt nhất.
-import "fmt"
 
 func fmtSprintf(format string, a ...interface{}) string {
 	return fmt.Sprintf(format, a...)

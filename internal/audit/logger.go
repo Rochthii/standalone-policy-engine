@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"standalone-policy-engine/internal/metrics"
 	"standalone-policy-engine/internal/security"
+	"strings"
 	"sync"
 	"time"
 )
@@ -37,11 +38,12 @@ type BatchWriter interface {
 // AuditLogger quản lý hàng đợi log kiểm toán bất đồng bộ (Ring Buffer)
 // và cơ chế tự phục hồi Spill-to-Disk khi database quá tải.
 type AuditLogger struct {
-	writer   BatchWriter
-	spillDir string
-	logChan  chan *LogEntry
-	stopChan chan struct{}
-	crypto   *security.EnvelopeCrypto
+	writer          BatchWriter
+	spillDir        string
+	logChan         chan *LogEntry
+	stopChan        chan struct{}
+	crypto          *security.EnvelopeCrypto
+	maxSpillDirSize int64
 
 	fileMutex sync.Mutex
 	wg        sync.WaitGroup
@@ -60,11 +62,12 @@ func NewAuditLogger(writer BatchWriter, spillDir string, bufferSize int) *AuditL
 	}
 
 	return &AuditLogger{
-		writer:   writer,
-		spillDir: spillDir,
-		logChan:  make(chan *LogEntry, bufferSize),
-		stopChan: make(chan struct{}),
-		crypto:   crypto,
+		writer:          writer,
+		spillDir:        spillDir,
+		logChan:         make(chan *LogEntry, bufferSize),
+		stopChan:        make(chan struct{}),
+		crypto:          crypto,
+		maxSpillDirSize: 1024 * 1024 * 1024, // Mặc định 1 GB
 	}
 }
 
@@ -205,37 +208,102 @@ func (l *AuditLogger) spillToDisk(entry *LogEntry) {
 	if _, err := f.Write(append(data, '\n')); err == nil {
 		metrics.IncrementAuditLogsSpilled(entry.TenantID)
 	}
+
+	// Đảm bảo không vượt quá giới hạn dung lượng đĩa tối đa
+	l.enforceSizeLimit()
 }
 
-// replayWorker chạy ngầm định kỳ mỗi 5 giây, đọc log từ SSD và đồng bộ lại vào DB.
+// enforceSizeLimit kiểm tra và xóa bớt file log cũ nhất nếu tổng dung lượng spill logs vượt quá 1 GB.
+func (l *AuditLogger) enforceSizeLimit() {
+	size, err := l.getDirSize()
+	if err != nil || size <= l.maxSpillDirSize {
+		return
+	}
+
+	files, err := ioutil.ReadDir(l.spillDir)
+	if err != nil || len(files) == 0 {
+		return
+	}
+
+	var oldestFile os.FileInfo
+	for _, file := range files {
+		if file.IsDir() || !strings.HasPrefix(file.Name(), "spill_") {
+			continue
+		}
+		if oldestFile == nil || file.ModTime().Before(oldestFile.ModTime()) {
+			oldestFile = file
+		}
+	}
+
+	if oldestFile != nil {
+		_ = os.Remove(filepath.Join(l.spillDir, oldestFile.Name()))
+		// Gọi đệ quy cho đến khi dung lượng nhỏ hơn 1 GB
+		l.enforceSizeLimit()
+	}
+}
+
+// getDirSize tính tổng dung lượng thư mục spill logs.
+func (l *AuditLogger) getDirSize() (int64, error) {
+	var size int64
+	err := filepath.Walk(l.spillDir, func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			size += info.Size()
+		}
+		return nil
+	})
+	return size, err
+}
+
+// replayWorker chạy ngầm định kỳ, đọc log từ SSD và đồng bộ lại vào DB với cơ chế exponential back-off.
 func (l *AuditLogger) replayWorker(ctx context.Context) {
 	defer l.wg.Done()
 
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
+	backoff := 1 * time.Second
+	maxBackoff := 1 * time.Minute
+
+	timer := time.NewTimer(backoff)
+	defer timer.Stop()
 
 	for {
 		select {
 		case <-l.stopChan:
 			return
-		case <-ticker.C:
-			l.replayLogs(ctx)
+		case <-timer.C:
+			err := l.replayLogs(ctx)
+			if err != nil {
+				// Tăng thời gian back-off khi gặp lỗi DB
+				backoff *= 2
+				if backoff > maxBackoff {
+					backoff = maxBackoff
+				}
+			} else {
+				// Reset về chu kỳ bình thường 5 giây khi thành công
+				backoff = 5 * time.Second
+			}
+			timer.Reset(backoff)
 		}
 	}
 }
 
-func (l *AuditLogger) replayLogs(ctx context.Context) {
+// replayLogs đồng bộ log từ SSD vào DB và trả về lỗi nếu quá trình insert thất bại.
+func (l *AuditLogger) replayLogs(ctx context.Context) error {
 	l.fileMutex.Lock()
 	files, err := ioutil.ReadDir(l.spillDir)
 	l.fileMutex.Unlock()
 
-	if err != nil || len(files) == 0 {
-		return
+	if err != nil {
+		return err
+	}
+	if len(files) == 0 {
+		return nil
 	}
 
 	// Xử lý từng file
 	for _, file := range files {
-		if file.IsDir() || !filepath.HasPrefix(file.Name(), "spill_") {
+		if file.IsDir() || !strings.HasPrefix(file.Name(), "spill_") {
 			continue
 		}
 
@@ -265,7 +333,9 @@ func (l *AuditLogger) replayLogs(ctx context.Context) {
 		}
 
 		if len(batch) == 0 {
+			l.fileMutex.Lock()
 			_ = os.Remove(filePath)
+			l.fileMutex.Unlock()
 			continue
 		}
 
@@ -280,11 +350,9 @@ func (l *AuditLogger) replayLogs(ctx context.Context) {
 			_ = os.Remove(filePath)
 			l.fileMutex.Unlock()
 		} else {
-			// DB vẫn lỗi -> Dừng tiến trình replay cho lượt tiếp theo
-			break
+			// DB vẫn lỗi -> Trả về lỗi để kích hoạt back-off
+			return err
 		}
 	}
+	return nil
 }
-
-// import strings for file check
-import "strings"

@@ -3,10 +3,18 @@ package storage
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
+
+	"standalone-policy-engine/internal/audit"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
 // DBPolicy đại diện cho một dòng trong bảng policies của PostgreSQL.
@@ -49,10 +57,10 @@ func NewStorage(connStr string) (*Storage, error) {
 
 	s := &Storage{pool: pool}
 
-	// Tự động khởi tạo schema cơ sở dữ liệu
-	if err := s.initSchema(ctx); err != nil {
+	// Tự động khởi tạo schema cơ sở dữ liệu qua golang-migrate
+	if err := s.runMigrations(connStr); err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("khởi tạo schema thất bại: %v", err)
+		return nil, fmt.Errorf("chạy migration thất bại: %v", err)
 	}
 
 	return s, nil
@@ -65,60 +73,46 @@ func (s *Storage) Close() {
 	}
 }
 
-func (s *Storage) initSchema(ctx context.Context) error {
-	// Kịch bản schema thực tế dựa trên docs/data/data-model.md
-	queries := []string{
-		`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`,
-		
-		`CREATE TABLE IF NOT EXISTS tenants (
-			id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-			name VARCHAR(255) NOT NULL UNIQUE,
-			status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
-			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-		);`,
-
-		`CREATE TABLE IF NOT EXISTS policies (
-			id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-			tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-			effect VARCHAR(10) NOT NULL,
-			policy_text TEXT NOT NULL,
-			ast_json JSONB,
-			version INT NOT NULL DEFAULT 1,
-			status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
-			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-		);`,
-
-		`CREATE INDEX IF NOT EXISTS idx_policies_tenant_status ON policies(tenant_id, status);`,
-
-		`CREATE TABLE IF NOT EXISTS decision_audit_logs (
-			id BIGSERIAL PRIMARY KEY,
-			tenant_id UUID NOT NULL,
-			request_subject VARCHAR(255),
-			request_action VARCHAR(255),
-			request_resource VARCHAR(255),
-			decision VARCHAR(10) NOT NULL,
-			matched_policy_id UUID,
-			evaluated_context JSONB,
-			is_encrypted BOOLEAN DEFAULT FALSE,
-			encrypted_dek TEXT,
-			encrypted_payload TEXT,
-			evaluated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-		);`,
-
-		`CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_time ON decision_audit_logs(tenant_id, evaluated_at DESC);`,
+func (s *Storage) runMigrations(connStr string) error {
+	migrationsDir, err := locateMigrationsDir()
+	if err != nil {
+		return err
 	}
 
-	// Chạy từng câu lệnh tuần tự
-	for _, q := range queries {
-		if _, err := s.pool.Exec(ctx, q); err != nil {
-			return fmt.Errorf("lỗi thực thi query: %s. Chi tiết: %v", q, err)
-		}
+	sourceURL := fmt.Sprintf("file://%s", filepath.ToSlash(migrationsDir))
+	m, err := migrate.New(sourceURL, connStr)
+	if err != nil {
+		return fmt.Errorf("khởi tạo migrate với source %s thất bại: %w", sourceURL, err)
+	}
+	defer m.Close()
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("lỗi apply migrations: %w", err)
 	}
 
 	return nil
 }
+
+func locateMigrationsDir() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	// Duyệt ngược lên tối đa 5 cấp thư mục để tìm db/migrations
+	for i := 0; i < 5; i++ {
+		candidate := filepath.Join(dir, "db", "migrations")
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return "", fmt.Errorf("không tìm thấy thư mục db/migrations bắt đầu từ %s", dir)
+}
+
 
 // CreateTenant tạo mới một Tenant và trả về UUID ID.
 func (s *Storage) CreateTenant(ctx context.Context, name string) (string, error) {

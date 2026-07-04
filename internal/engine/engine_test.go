@@ -1,8 +1,9 @@
 package engine
 
 import (
-	"fmt"
+	"context"
 	"standalone-policy-engine/internal/parser"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -134,7 +135,7 @@ when {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res := engine.CheckPermission("tenant-1", tt.subject, tt.action, tt.resource, tt.context)
+			res := engine.CheckPermission(context.Background(), "tenant-1", tt.subject, tt.action, tt.resource, tt.context)
 			if res.Decision != tt.expectedDecision {
 				t.Errorf("Quyết định sai. mong đợi=%v, thực tế=%v, lý do=%s", tt.expectedDecision, res.Decision, res.Reason)
 			}
@@ -187,7 +188,7 @@ when { context.ip_address in "192.168.1.0/24" };`
 				case <-stopChan:
 					return
 				default:
-					res := engine.CheckPermission("tenant-conc", "user:random", "READ", "file:doc", map[string]string{
+					res := engine.CheckPermission(context.Background(), "tenant-conc", "user:random", "READ", "file:doc", map[string]string{
 						"ip_address": "192.168.1.100",
 					})
 					if res.Decision != DecisionAllow {
@@ -245,6 +246,3 @@ func compileHelper(t *testing.T, c *parser.Compiler, id string, dsl string) *par
 
 	return compiled
 }
-
-// import strings for tests
-import "strings"

@@ -10,16 +10,26 @@ Phân loại thay đổi:
 
 ---
 
-## [1.3.0] - 2026-07-04: JWT Token Validation, AES-GCM Log Encryption & Redis Universal Client
+## [1.3.0] - 2026-07-04: JWT Token Validation, AES-GCM Log Encryption, Redis Universal Client & Sprint 7 Final Deliverables
 
-Sprint cuối cùng. Hoàn thiện tầng bảo mật và vận hành phân tán: xác thực định danh tại điểm vào, mã hóa log kiểm toán chống đọc trộm và hỗ trợ triển khai Redis đa nút.
+Sprint cuối cùng & Sprint 7. Hoàn thiện tầng bảo mật, vận hành phân tán, dọn dẹp bộ nhớ RAM tự động, cấu trúc cơ sở dữ liệu có phiên bản, đo đạc hiệu năng và kiểm thử tích hợp E2E:
 
 ### Added
+*   **E2E Integration Test ([e2e_test.go](file:///e:/Projects/Project_TN/standalone-policy-engine/tests/e2e_test.go)):** Xây dựng luồng kiểm thử E2E trong container qua Docker Compose kết nối PostgreSQL và Redis thực tế. Tự động khởi tạo Tenant ngẫu nhiên trong DB, thực hiện CRUD chính sách, kiểm thử phân quyền gRPC, giả lập mất kết nối Redis để kiểm thử đồng bộ dự phòng (Fallback Polling).
+*   **JSON Codec for Mock gRPC ([policy.pb.go](file:///e:/Projects/Project_TN/standalone-policy-engine/proto/v1/policy.pb.go)):** Đăng ký JSON codec cho gRPC giúp đóng gói và giải tuần tự các struct viết tay (mock protobuf) qua mạng TCP Docker mà không cần cài đặt trình biên dịch `protoc` trên máy local.
+*   **Database Migration System ([migrations](file:///e:/Projects/Project_TN/standalone-policy-engine/db/migrations/)):** Tách biệt DDL schema cứng và thay bằng hệ thống migrations có phiên bản sử dụng `golang-migrate/migrate/v4`. Tự động khởi chạy migration khi khởi động tầng PostgreSQL Storage.
+*   **Audit Logger Graceful Degradation ([logger.go](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/audit/logger.go)):** Cấu hình exponential back-off (1 giây đến tối đa 1 phút) cho replay worker. Thêm cơ chế giới hạn thư mục log cục bộ tối đa 1GB (Spill-to-Disk size limit) để bảo vệ đĩa cứng tránh bị tràn.
+*   **GC Configuration via Env Vars ([main.go](file:///e:/Projects/Project_TN/standalone-policy-engine/cmd/pdp-server/main.go)):** Hỗ trợ cấu hình RAM GC động thông qua các biến môi trường `GC_ENABLED`, `GC_INTERVAL`, `GC_IDLE_TIMEOUT` để tối ưu hóa bộ nhớ đệm in-memory trie.
+*   **Benchmark Validation ([benchmark_test.go](file:///e:/Projects/Project_TN/standalone-policy-engine/tests/benchmark_test.go)):** Bổ sung bộ kiểm thử tải trọng lớn đo đạc throughput và latency của PDP Engine dưới các mức quy mô 1k, 10k, 100k chính sách và lưu trữ kết quả tại [results.md](file:///e:/Projects/Project_TN/standalone-policy-engine/benchmarks/results.md).
 *   **JWT Token Validation ([jwt.go](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/security/jwt.go)):** PDP gRPC Server tự động trích xuất và xác thực JWT Token (HMAC-SHA256) từ gRPC Metadata `authorization`. Claims được parse và nạp vào `req.Subject` và `req.Context` trước khi chạy bộ đánh giá ABAC. PEP không cần giải mã token thủ công.
 *   **AES-GCM Envelope Encryption ([crypto.go](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/security/crypto.go)):** Mọi trường nhạy cảm trong log kiểm toán (subject, action, resource, context) được mã hóa bằng AES-GCM 256-bit trước khi ghi vào PostgreSQL hoặc Spill-to-Disk. Mỗi bản ghi dùng một DEK ngẫu nhiên riêng, DEK được mã hóa bởi KEK từ biến môi trường `LOG_KEK`. Ngay cả admin PostgreSQL cũng không thể đọc nội dung log.
 *   **Redis Universal Client:** Cả `cmd/pdp-server` và `cmd/control-plane` hỗ trợ ba chế độ kết nối Redis thông qua biến môi trường `REDIS_MODE`: `single` (mặc định), `sentinel` (Failover) và `cluster` (Horizontal Scale). Không cần sửa code khi nâng cấp topology Redis.
 *   **PDP Node Heartbeat Registry:** `Syncer.heartbeatWorker` định kỳ 5 giây gửi JSON heartbeat kèm node ID, trạng thái và số Tenant đang hoạt động lên kênh Redis `pdp-heartbeats`. Cho phép Control Plane theo dõi số lượng và sức khỏe tất cả node PDP trong cluster.
 *   **Unit Tests ([jwt_test.go](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/security/jwt_test.go), [crypto_test.go](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/security/crypto_test.go)):** Kiểm thử toàn diện cả hai module: JWT validate hợp lệ/hết hạn/sai secret, Bearer prefix stripping, Envelope Encrypt/Decrypt vòng đời, nonce độc lập, DEK sai và payload >5KB.
+
+### Fixed
+*   **gRPC Tenant Isolation Mismatch:** Khắc phục lỗi so khớp Subject trong E2E test bằng cách đồng bộ hóa JWT token đăng nhập của Alice/Bob khớp với danh tính gửi đi, ngăn chặn bộ lọc Interceptor chặn nhầm request.
+*   **Nil Response Handling:** Ngăn ngừa lỗi Panic bằng cách bọc kiểm tra an toàn `nil` cho các response HTTP trước khi gọi close body trong E2E tests khi container Redis bị tắt.
 
 ---
 

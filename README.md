@@ -198,10 +198,21 @@ The engine tracks the last access time for each tenant's in-memory Trie. A backg
 
 ### Environment Variables
 
-| Variable       | Description                         | Default                                                                |
-|----------------|-------------------------------------|------------------------------------------------------------------------|
-| `DATABASE_URL` | PostgreSQL connection string        | `postgres://postgres:postgres@localhost:5432/policy_engine?sslmode=disable` |
-| `REDIS_URL`    | Redis address                       | `localhost:6379`                                                       |
+| Variable             | Description                                     | Default                                                                     |
+|----------------------|-------------------------------------------------|-----------------------------------------------------------------------------|
+| `DATABASE_URL`       | PostgreSQL connection string                    | `postgres://postgres:postgres@localhost:5432/policy_engine?sslmode=disable` |
+| `REDIS_URL`          | Redis address                                   | `localhost:6379`                                                            |
+| `REDIS_MODE`         | Redis client mode (`single`, `sentinel`, `cluster`) | `single`                                                                    |
+| `JWT_SECRET`         | Secret key for validating incoming gRPC JWTs   | `default-policy-engine-super-secret-key-12345`                              |
+| `LOG_KEK`            | Key Encrypting Key for AES-GCM log envelope     | `default-log-encryption-key-for-sprint-6-must-be-32-bytes!`                 |
+| `GC_ENABLED`         | Enables automatic RAM Trie GC for idle tenants | `true`                                                                      |
+| `GC_INTERVAL`        | Interval for running the RAM GC cycle          | `10m` (10 minutes)                                                          |
+| `GC_IDLE_TIMEOUT`    | Idle timeout before a tenant is unloaded from RAM| `24h` (24 hours)                                                            |
+| `GC_MAX_CACHE_SIZE`  | Maximum number of tenants kept active in RAM    | `1000`                                                                      |
+
+### Database Migrations
+
+The project uses `golang-migrate` to manage the schema database versioning. Migrations are automatically run on startup. Migration files are located in [db/migrations/](file:///e:/Projects/Project_TN/standalone-policy-engine/db/migrations/).
 
 ### Running Locally
 

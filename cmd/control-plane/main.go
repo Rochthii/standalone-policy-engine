@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"standalone-policy-engine/internal/engine"
@@ -42,7 +41,11 @@ func main() {
 	rdb := initRedis()
 
 	// 3. Khởi tạo Engine có GC để phục vụ cho API REST Fallback /decisions
-	eng := engine.NewEngineWithGC(1*time.Hour, 24*time.Hour)
+	eng := engine.NewEngineWithGC(engine.GCConfig{
+		Enabled:     true,
+		Interval:    1 * time.Hour,
+		IdleTimeout: 24 * time.Hour,
+	})
 
 	// 4. Khởi chạy HTTP Server (cổng 8080)
 	httpPort := 8080

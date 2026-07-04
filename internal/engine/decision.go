@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"standalone-policy-engine/internal/parser"
 	"strings"
@@ -34,7 +35,15 @@ type DecisionResult struct {
 // và đưa ra quyết định phân quyền cuối cùng dựa trên các quy tắc:
 //  1. Deny-by-Default (Mặc định cấm)
 //  2. Forbid Overrides (Luật cấm ghi đè luật cho phép)
-func (e *Engine) CheckPermission(tenantID, subject, action, resource string, context map[string]string) DecisionResult {
+func (e *Engine) CheckPermission(ctx context.Context, tenantID, subject, action, resource string, context map[string]string) DecisionResult {
+	if err := ctx.Err(); err != nil {
+		return DecisionResult{
+			Decision:     DecisionDeny,
+			Reason:       "Yêu cầu bị hủy hoặc hết thời gian chờ: " + err.Error(),
+			Explanations: []string{},
+		}
+	}
+
 	// 1. Lấy cây Trie của Tenant
 	trie, exists := e.GetTenantTrie(tenantID)
 	if !exists {
@@ -130,7 +139,15 @@ func normalizeAction(act string) string {
 
 // CheckPermission là hàm mức package thực hiện quyết định phân quyền trực tiếp
 // từ một TrieRoot cho trước (dùng bởi engine_gc.go và simulator).
-func CheckPermission(trie *TrieRoot, subject, action, resource string, ctxMap map[string]string) DecisionResult {
+func CheckPermission(ctx context.Context, trie *TrieRoot, subject, action, resource string, ctxMap map[string]string) DecisionResult {
+	if err := ctx.Err(); err != nil {
+		return DecisionResult{
+			Decision:     DecisionDeny,
+			Reason:       "Yêu cầu bị hủy hoặc hết thời gian chờ: " + err.Error(),
+			Explanations: []string{},
+		}
+	}
+
 	// Thu thập danh tính Subject
 	subjects := trie.RoleDAG.GetInheritedRoles(subject)
 	resources := []string{resource}

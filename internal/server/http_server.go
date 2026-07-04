@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
+	"time"
+
 	"standalone-policy-engine/internal/engine"
 	"standalone-policy-engine/internal/parser"
+	"standalone-policy-engine/internal/security"
 	"standalone-policy-engine/internal/storage"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
@@ -31,17 +34,25 @@ func NewHTTPServer(store *storage.Storage, eng *engine.EngineWithGC, rdb redis.U
 }
 
 // ConfigureMux cấu hình router sử dụng ServeMux tiêu chuẩn Go 1.22+.
+// Các endpoint Control Plane được bảo vệ bởi TenantAuthMiddleware (JWT + cross-tenant check).
 func (s *HTTPServer) ConfigureMux() *http.ServeMux {
 	mux := http.NewServeMux()
+	jwtValidator := security.NewJWTValidator()
+	tenantAuth := TenantAuthMiddleware(jwtValidator)
 
-	// Control Plane API endpoints
-	mux.HandleFunc("POST /api/v1/tenants/{tenant_id}/policies", s.handleCreatePolicy)
-	mux.HandleFunc("PUT /api/v1/tenants/{tenant_id}/policies/{policy_id}", s.handleUpdatePolicy)
-	mux.HandleFunc("DELETE /api/v1/tenants/{tenant_id}/policies/{policy_id}", s.handleDeletePolicy)
-	mux.HandleFunc("POST /api/v1/tenants/{tenant_id}/policies/{policy_id}/publish", s.handlePublishPolicy)
-	mux.HandleFunc("POST /api/v1/tenants/{tenant_id}/simulate", s.handleSimulate)
+	// Control Plane API endpoints — yêu cầu JWT hợp lệ và tenant isolation
+	mux.Handle("POST /api/v1/tenants/{tenant_id}/policies",
+		tenantAuth(http.HandlerFunc(s.handleCreatePolicy)))
+	mux.Handle("PUT /api/v1/tenants/{tenant_id}/policies/{policy_id}",
+		tenantAuth(http.HandlerFunc(s.handleUpdatePolicy)))
+	mux.Handle("DELETE /api/v1/tenants/{tenant_id}/policies/{policy_id}",
+		tenantAuth(http.HandlerFunc(s.handleDeletePolicy)))
+	mux.Handle("POST /api/v1/tenants/{tenant_id}/policies/{policy_id}/publish",
+		tenantAuth(http.HandlerFunc(s.handlePublishPolicy)))
+	mux.Handle("POST /api/v1/tenants/{tenant_id}/simulate",
+		tenantAuth(http.HandlerFunc(s.handleSimulate)))
 
-	// Data Plane Fallback REST endpoints
+	// Data Plane Fallback REST endpoints — không yêu cầu tenant auth (PDP public)
 	mux.HandleFunc("POST /api/v1/decisions", s.handleDecisions)
 	mux.HandleFunc("POST /api/v1/decisions/explain", s.handleExplain)
 
@@ -249,7 +260,7 @@ func (s *HTTPServer) handleDecisions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := s.engine.CheckPermission(req.TenantID, req.Subject, req.Action, req.Resource, req.Context)
+	res := s.engine.CheckPermission(r.Context(), req.TenantID, req.Subject, req.Action, req.Resource, req.Context)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -271,7 +282,7 @@ func (s *HTTPServer) handleExplain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := s.engine.CheckPermission(req.TenantID, req.Subject, req.Action, req.Resource, req.Context)
+	res := s.engine.CheckPermission(r.Context(), req.TenantID, req.Subject, req.Action, req.Resource, req.Context)
 
 	// Thu thập giải thích chi tiết
 	matchedMetadata := make([]map[string]string, 0)
@@ -307,7 +318,7 @@ func (s *HTTPServer) handleExplain(w http.ResponseWriter, r *http.Request) {
 				matchedMetadata = append(matchedMetadata, map[string]string{
 					"id":          p.ID,
 					"effect":      effect,
-					"policy_text": p.PolicyText, // DB text
+					"policy_text": p.ID + ": " + effect + "(...) when { ... };",
 				})
 			}
 		}
@@ -321,8 +332,6 @@ func (s *HTTPServer) handleExplain(w http.ResponseWriter, r *http.Request) {
 		"final_reason": "%s",
 		"matched_policies": %s
 	}`, res.Decision.String(), res.Reason, string(matchedJSON))))
-}
-
 }
 
 // simulateReq chứa ngữ cảnh yêu cầu và tập văn bản chính sách cần giả lập.
@@ -402,7 +411,7 @@ func (s *HTTPServer) handleSimulate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 4. Chạy đánh giá quyết định trên Trie tạm thời (hoàn toàn không ảnh hưởng Engine chính)
-	result := engine.CheckPermission(tempTrie, req.Subject, req.Action, req.Resource, req.Context)
+	result := engine.CheckPermission(r.Context(), tempTrie, req.Subject, req.Action, req.Resource, req.Context)
 
 	// 5. Trả về kết quả giả lập
 	w.Header().Set("Content-Type", "application/json")
@@ -417,6 +426,4 @@ func (s *HTTPServer) handleSimulate(w http.ResponseWriter, r *http.Request) {
 		"tenant_id": "%s"
 	}`, result.Decision.String(), result.Reason, string(exJSON), string(errJSON), tenantID)))
 }
-
-import "strings"
 

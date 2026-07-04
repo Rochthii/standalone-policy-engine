@@ -2,11 +2,13 @@ package engine
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"standalone-policy-engine/internal/parser"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Các lỗi nghiệp vụ có kiểm soát trong quá trình đánh giá
@@ -278,6 +280,10 @@ func evaluateComparison(n *parser.BinaryExprNode, ctx *EvalContext) (*parser.Val
 		expectedType = rightVal.ValType
 	}
 
+	if n.Op == parser.BinOpIn && expectedType == parser.ValueTypeIPNet {
+		expectedType = parser.ValueTypeIP
+	}
+
 	// Đọc vế trái (Variable) với kiểu mong đợi lấy từ vế phải
 	var leftVal *parser.ValueNode
 	var err error
@@ -437,9 +443,3 @@ func tryParseDateTimeOrTime(s string) (int64, bool) {
 
 	return 0, false
 }
-
-// import time and fmt for parser helper functions
-import (
-	"fmt"
-	"time"
-)

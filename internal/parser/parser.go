@@ -263,7 +263,7 @@ func (p *Parser) parseScope(scopeKeyword TokenType) *ScopeNode {
 	p.nextToken() // chuyển sang giá trị
 	if p.curTokenIs(TokAny) {
 		scope.Operator = ScopeOpAny
-	} else if p.curTokenIs(TokIdent) {
+	} else if p.curTokenIs(TokIdent) || p.curTokenIs(TokPrincipal) || p.curTokenIs(TokAction) || p.curTokenIs(TokResource) {
 		// Dạng Type:ID, ví dụ: user:"alice"
 		scope.EntityType = p.curToken.Literal
 

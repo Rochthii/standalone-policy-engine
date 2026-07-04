@@ -1,12 +1,16 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
+	"testing"
+
 	"standalone-policy-engine/internal/engine"
 	"standalone-policy-engine/internal/parser"
-	"testing"
 )
+func TestDummy(t *testing.T) {}
+
 
 // BenchmarkEvaluatorLatency đo lường độ trễ (Latency) trực tiếp của PDP Engine
 // khi thực hiện quyết định phân quyền CheckPermission trên bộ nhớ RAM.
@@ -61,10 +65,10 @@ func BenchmarkEvaluatorLatency(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// So khớp ngẫu nhiên giữa các user để đo thời gian trung bình thực tế
 		userID := rand.Intn(1000)
-		subject := fmt.Sprintf("user_%d", userID)
+		subject := fmt.Sprintf("user:user_%d", userID)
 		resource := fmt.Sprintf("file:doc_%d", userID)
 
-		res := eng.CheckPermission(tenantID, subject, "READ", resource, reqCtx)
+		res := eng.CheckPermission(context.Background(), tenantID, subject, "READ", resource, reqCtx)
 		
 		// Đo lường kết quả để tránh trình biên dịch Go optimize bỏ qua vòng lặp
 		if userID < 990 {
@@ -78,12 +82,51 @@ func BenchmarkEvaluatorLatency(b *testing.B) {
 				"request_time":  "12:00:00Z",
 				"device_status": "compromised",
 			}
-			resCompromised := eng.CheckPermission(tenantID, subject, "READ", resource, reqCtxWithCompromised)
+			resCompromised := eng.CheckPermission(context.Background(), tenantID, subject, "READ", resource, reqCtxWithCompromised)
 			if resCompromised.Decision != engine.DecisionDeny {
 				b.Fatalf("Mong đợi DENY cho user bị compromised %s, thực tế: ALLOW", subject)
 			}
 		}
 	}
+}
+
+// BenchmarkConcurrentLoad đo lường hiệu năng của PDP Engine dưới tải truy cập đồng thời lớn (Concurrent Load).
+func BenchmarkConcurrentLoad(b *testing.B) {
+	eng := engine.NewEngine()
+	compiler := parser.NewCompiler()
+
+	tenantID := "tenant-benchmark-conc"
+	policies := make([]*parser.PolicyNode, 1000)
+	for i := 0; i < 1000; i++ {
+		dsl := fmt.Sprintf(`permit(principal == user:"user_%d", action == action:READ, resource == file:"doc_%d")
+        when {
+            context.ip_address in "192.168.1.0/24"
+        };`, i, i)
+		policies[i] = compileHelper(b, compiler, fmt.Sprintf("P-%d", i), dsl)
+	}
+
+	err := eng.UpdateTenantPolicies(tenantID, policies, nil)
+	if err != nil {
+		b.Fatalf("UpdateTenantPolicies failed: %v", err)
+	}
+
+	reqCtx := map[string]string{
+		"ip_address": "192.168.1.50",
+	}
+
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			userID := rand.Intn(1000)
+			subject := fmt.Sprintf("user:user_%d", userID)
+			resource := fmt.Sprintf("file:doc_%d", userID)
+			res := eng.CheckPermission(context.Background(), tenantID, subject, "READ", resource, reqCtx)
+			if res.Decision != engine.DecisionAllow {
+				b.Fatalf("Mong đợi ALLOW cho user %s, thực tế: %v", subject, res.Decision)
+			}
+		}
+	})
 }
 
 // Helper biên dịch chính sách

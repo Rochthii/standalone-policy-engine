@@ -45,10 +45,14 @@ func compileTestPolicy(t *testing.T, id, dsl string) *parser.PolicyNode {
 
 func TestGCUnloadIdleTenant(t *testing.T) {
 	// GC interval 100ms, maxIdleTime 50ms để test nhanh
-	eng := NewEngineWithGC(100*time.Millisecond, 50*time.Millisecond)
+	eng := NewEngineWithGC(GCConfig{
+		Enabled:     true,
+		Interval:    100 * time.Millisecond,
+		IdleTimeout: 50 * time.Millisecond,
+	})
 
 	tenantID := "tenant-gc-test"
-	dsl := `permit(principal == user:alice, action == action:READ, resource == file:doc.txt) when { true };`
+	dsl := `permit(principal == user:alice, action == action:READ, resource == file:"doc.txt") when { true };`
 	policies := []*parser.PolicyNode{compileTestPolicy(t, "P-GC-001", dsl)}
 
 	if err := eng.UpdateTenantPolicies(tenantID, policies, nil); err != nil {
@@ -75,10 +79,14 @@ func TestGCUnloadIdleTenant(t *testing.T) {
 }
 
 func TestGCLazyLoadingOnRequest(t *testing.T) {
-	eng := NewEngineWithGC(1*time.Hour, 1*time.Hour) // GC sẽ không chạy tự động
+	eng := NewEngineWithGC(GCConfig{
+		Enabled:     true,
+		Interval:    1 * time.Hour,
+		IdleTimeout: 1 * time.Hour,
+	}) // GC sẽ không chạy tự động
 
 	tenantID := "tenant-lazy-test"
-	dsl := `permit(principal == user:alice, action == action:READ, resource == file:doc.txt) when { true };`
+	dsl := `permit(principal == user:alice, action == action:READ, resource == file:"doc.txt") when { true };`
 	policies := []*parser.PolicyNode{compileTestPolicy(t, "P-LZ-001", dsl)}
 
 	loader := &mockLoader{policies: policies, eng: eng}
@@ -114,10 +122,14 @@ func TestGCLazyLoadingOnRequest(t *testing.T) {
 
 func TestGCTenantStaysAliveOnActivity(t *testing.T) {
 	// maxIdleTime 100ms nhưng ta sẽ đụng vào mỗi 40ms → Tenant phải tồn tại
-	eng := NewEngineWithGC(1*time.Hour, 100*time.Millisecond)
+	eng := NewEngineWithGC(GCConfig{
+		Enabled:     true,
+		Interval:    1 * time.Hour,
+		IdleTimeout: 100 * time.Millisecond,
+	})
 
 	tenantID := "tenant-alive"
-	dsl := `permit(principal == user:bob, action == action:WRITE, resource == file:test.txt) when { true };`
+	dsl := `permit(principal == user:bob, action == action:WRITE, resource == file:"test.txt") when { true };`
 	policies := []*parser.PolicyNode{compileTestPolicy(t, "P-ALIVE-001", dsl)}
 
 	if err := eng.UpdateTenantPolicies(tenantID, policies, nil); err != nil {
@@ -127,7 +139,7 @@ func TestGCTenantStaysAliveOnActivity(t *testing.T) {
 	// Giữ Tenant alive bằng cách touch mỗi 40ms trong 200ms
 	for i := 0; i < 5; i++ {
 		time.Sleep(40 * time.Millisecond)
-		eng.CheckPermission(tenantID, "user:bob", "WRITE", "file:test.txt", nil)
+		eng.CheckPermission(context.Background(), tenantID, "user:bob", "WRITE", "file:test.txt", nil)
 	}
 
 	// Chạy GC cycle
@@ -141,10 +153,14 @@ func TestGCTenantStaysAliveOnActivity(t *testing.T) {
 }
 
 func TestGCConcurrentSafety(t *testing.T) {
-	eng := NewEngineWithGC(50*time.Millisecond, 30*time.Millisecond)
+	eng := NewEngineWithGC(GCConfig{
+		Enabled:     true,
+		Interval:    50 * time.Millisecond,
+		IdleTimeout: 30 * time.Millisecond,
+	})
 
 	tenantIDs := []string{"t1", "t2", "t3", "t4", "t5"}
-	dsl := `permit(principal == user:x, action == action:READ, resource == file:x.txt) when { true };`
+	dsl := `permit(principal == user:x, action == action:READ, resource == file:"x.txt") when { true };`
 
 	for _, tid := range tenantIDs {
 		policies := []*parser.PolicyNode{compileTestPolicy(t, "P-CONC-"+tid, dsl)}
@@ -162,7 +178,7 @@ func TestGCConcurrentSafety(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < 100; j++ {
 				for _, tid := range tenantIDs {
-					eng.CheckPermission(tid, "user:x", "READ", "file:x.txt", nil)
+					eng.CheckPermission(context.Background(), tid, "user:x", "READ", "file:x.txt", nil)
 				}
 				time.Sleep(time.Millisecond)
 			}

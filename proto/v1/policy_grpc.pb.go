@@ -5,6 +5,8 @@ package policyv1
 import (
 	"context"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // PolicyDecisionPointClient là client API cho dịch vụ PolicyDecisionPoint.
@@ -49,11 +51,11 @@ type PolicyDecisionPointServer interface {
 type UnimplementedPolicyDecisionPointServer struct{}
 
 func (UnimplementedPolicyDecisionPointServer) CheckAccess(context.Context, *CheckAccessRequest) (*CheckAccessResponse, error) {
-	return nil, grpc.Errorf(grpc.Code(grpc.Codes(grpc.Codes(12))), "method CheckAccess not implemented") // codes.Unimplemented
+	return nil, status.Errorf(codes.Unimplemented, "method CheckAccess not implemented")
 }
 
 func (UnimplementedPolicyDecisionPointServer) ExplainDecision(context.Context, *ExplainRequest) (*ExplainResponse, error) {
-	return nil, grpc.Errorf(grpc.Code(grpc.Codes(grpc.Codes(12))), "method ExplainDecision not implemented")
+	return nil, status.Errorf(codes.Unimplemented, "method ExplainDecision not implemented")
 }
 
 func RegisterPolicyDecisionPointServer(s grpc.ServiceRegistrar, srv PolicyDecisionPointServer) {

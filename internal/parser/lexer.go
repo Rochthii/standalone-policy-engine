@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"strings"
 	"unicode"
 )
 
@@ -218,6 +217,7 @@ func (l *Lexer) NextToken() Token {
 	case '"':
 		tok.Type = TokString
 		tok.Literal = l.readString()
+		return tok
 	case 0:
 		tok.Type = TokEOF
 		tok.Literal = ""

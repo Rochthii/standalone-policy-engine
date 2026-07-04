@@ -45,8 +45,29 @@ func main() {
 	// 2. Khởi tạo Redis Universal Client (hỗ trợ Single/Sentinel/Cluster)
 	rdb := initRedis()
 
-	// 3. Khởi tạo Core Engine có GC dọn dẹp RAM (gcInterval=1h, maxIdleTime=24h)
-	eng := engine.NewEngineWithGC(1*time.Hour, 24*time.Hour)
+	// 3. Khởi tạo Core Engine có GC dọn dẹp RAM dựa trên biến môi trường
+	disableGC := os.Getenv("DISABLE_GC") == "true"
+	gcIntervalStr := os.Getenv("GC_INTERVAL")
+	gcIdleStr := os.Getenv("GC_IDLE_TIMEOUT")
+
+	gcInterval := 1 * time.Hour
+	if gcIntervalStr != "" {
+		if d, err := time.ParseDuration(gcIntervalStr); err == nil {
+			gcInterval = d
+		}
+	}
+	gcIdle := 24 * time.Hour
+	if gcIdleStr != "" {
+		if d, err := time.ParseDuration(gcIdleStr); err == nil {
+			gcIdle = d
+		}
+	}
+
+	eng := engine.NewEngineWithGC(engine.GCConfig{
+		Enabled:     !disableGC,
+		Interval:    gcInterval,
+		IdleTimeout: gcIdle,
+	})
 	eng.StartGC(ctxServer)
 
 	// 4. Khởi tạo Audit Logger bất đồng bộ

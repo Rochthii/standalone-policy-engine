@@ -5,14 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"standalone-policy-engine/internal/metrics"
-	"standalone-policy-engine/internal/parser"
-	"standalone-policy-engine/internal/storage"
 	"sync"
 	"time"
 
+	"standalone-policy-engine/internal/metrics"
+	"standalone-policy-engine/internal/parser"
+	"standalone-policy-engine/internal/storage"
+
 	"github.com/redis/go-redis/v9"
 )
+
 
 // PolicyUpdateEvent mô tả định dạng sự kiện truyền nhận qua Redis Pub/Sub.
 type PolicyUpdateEvent struct {
