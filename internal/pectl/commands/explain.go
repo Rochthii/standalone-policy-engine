@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"fmt"
 	"standalone-policy-engine/internal/pectl"
 	"standalone-policy-engine/internal/pectl/printer"
 	"time"
