@@ -49,6 +49,8 @@ docs/
 │   ├── decision-api.md            # gRPC CheckAccess & REST POST decisions
 │   ├── management-api.md          # HTTP API quản trị CRUD chính sách
 │   └── explain-api.md             # gRPC ExplainDecision API
+├── cli/
+│   └── pectl.md                   # Tài liệu hướng dẫn sử dụng công cụ CLI pectl
 ├── roadmap/
 │   └── roadmap.md                 # Lộ trình 9 Phases & Kế hoạch chia Sprint
 ├── project-structure/

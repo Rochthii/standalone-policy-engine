@@ -10,6 +10,28 @@ Phân loại thay đổi:
 
 ---
 
+## [1.4.0] - 2026-07-05: High-Performance CLI Tool (`pectl`) & Automation Support
+
+Bổ sung công cụ dòng lệnh (CLI) `pectl` chuẩn production-grade hỗ trợ quản trị chính sách, giả lập và ra quyết định thông qua REST Control Plane.
+
+### Added
+- **`pectl` CLI Tool (`cmd/pectl`):** Khởi tạo ứng dụng CLI sử dụng `cobra` và `viper`, hỗ trợ đa dạng câu lệnh quản trị vòng đời chính sách, quản lý tenant, đo đạc telemetry và kiểm tra sức khỏe hệ thống.
+- **Enterprise-Grade Client (`internal/pectl/client.go`):** Reusable HTTP API client với cơ chế tự động gửi lại yêu cầu (retry với exponential backoff 100ms-2s) tối đa 3 lần cho lỗi 5xx, hỗ trợ xử lý lỗi có cấu trúc theo chuẩn RFC 7807 (Problem Details).
+- **Tabular & Structured Printing (`internal/pectl/printer`):** Triển khai tầng xuất dữ liệu ra Console hỗ trợ 3 chế độ `--output`: `table` (sử dụng tabwriter căn lề cột), `json` (định dạng đẹp) và `yaml` (gopkg.in/yaml.v3).
+- **Flexible Configuration:** Ưu tiên cấu hình động theo thứ tự: CLI Flags > Environment Variables (`PECTL_*`) > File cấu hình (`~/.pectl/config.yaml`).
+- **Commands Added:**
+  - `policy`: `create`, `update`, `publish`, `delete`, `list`, `get`
+  - `simulate`: Giả lập quyết định với ngữ cảnh JSON (`--context-file`), nạp chính sách draft cục bộ (`--draft-file`) và gộp chính sách active (`--include-active`).
+  - `check` & `explain`: Kiểm tra quyền truy cập trực tiếp kèm đo lường latency chính xác và hiển thị vết thực thi (trace).
+  - `tenant`: `list`, `get`, `status`
+  - `metrics` & `health`: Thu thập telemetry (latency P50/P95/P99, QPS, GC) và kiểm tra sức khỏe thành phần hệ thống.
+- **Setup Scripts & Makefile Targets:**
+  - Viết script tự động cài đặt `go mod tidy` và biên dịch nhanh `setup-pectl.sh` (Linux/WSL) và `setup-pectl.ps1` (Windows).
+  - Thêm target `build-pectl`, `install-pectl`, `test-pectl`, và `tidy` vào `Makefile`.
+- **Unit Tests:** Kiểm thử 100% logic nạp cấu hình, cơ chế retry/error client và định dạng đầu ra của printer.
+
+---
+
 ## [1.3.0] - 2026-07-04: JWT Token Validation, AES-GCM Log Encryption, Redis Universal Client & Sprint 7 Final Deliverables
 
 Sprint cuối cùng & Sprint 7. Hoàn thiện tầng bảo mật, vận hành phân tán, dọn dẹp bộ nhớ RAM tự động, cấu trúc cơ sở dữ liệu có phiên bản, đo đạc hiệu năng và kiểm thử tích hợp E2E:

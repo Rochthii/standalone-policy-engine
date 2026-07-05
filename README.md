@@ -351,6 +351,73 @@ kubectl apply -f deployments/kubernetes/
 
 ---
 
+## Command Line Tool (`pectl`)
+
+A production-grade command-line tool named **`pectl`** is provided for interacting with the Control Plane REST API.
+
+### Build and Install
+
+```bash
+# Setup dependencies and build using script
+# Windows (PowerShell)
+.\scripts\setup-pectl.ps1
+
+# Linux/macOS/WSL (Bash)
+bash scripts/setup-pectl.sh
+
+# Or build via Makefile
+make tidy
+make build-pectl
+```
+
+The compiled binary will be placed at `bin/pectl` (or `bin/pectl.exe`).
+
+### Configuration
+
+`pectl` can be configured via flags, environment variables, or a config file (loaded in order of priority: Flags > Environment > Config File).
+
+Configuration file path: `~/.pectl/config.yaml`
+```yaml
+server: http://localhost:8080
+auth:
+  token: your-jwt-token
+output: table
+timeout: 10s
+```
+
+Environment variables:
+- `PECTL_SERVER`
+- `PECTL_TOKEN`
+- `PECTL_OUTPUT`
+
+### Example Usage
+
+```bash
+# Verify version
+pectl version
+
+# List all policies for a tenant
+pectl policy list tenant-123
+
+# Create a draft policy
+pectl policy create tenant-123 --effect permit --file policy.cedar
+
+# Publish policy to engine memory
+pectl policy publish tenant-123 policy-uuid-xxx
+
+# Run evaluation simulation
+pectl simulate tenant-123 --subject user:alice --action read --resource file:doc --context-file ctx.json --draft-file draft.cedar
+
+# Perform dynamic permission checks
+pectl check tenant-123 --subject user:alice --action read --resource file:doc
+
+# Check metrics and health
+pectl metrics
+pectl health
+```
+
+---
+
 ## License
 
 This project is for research and educational purposes as part of the Standalone Authorization Engine design study.
