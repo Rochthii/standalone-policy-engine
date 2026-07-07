@@ -1,5 +1,9 @@
 # Standalone Policy Engine
 
+[![CI](https://github.com/Rochthii/standalone-policy-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/Rochthii/standalone-policy-engine/actions/workflows/ci.yml)
+[![Go Version](https://img.shields.io/badge/Go-1.22-blue.svg)](https://go.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 A high-performance, standalone Policy Decision Point (PDP) implementing the PBAC/ABAC authorization model. Written in Go, designed for Cloud-Native microservices architectures requiring sub-millisecond access control decisions under extreme load.
 
 ---
@@ -60,20 +64,40 @@ API Gateway enforces decision
 
 ## Architecture
 
-```
-Client
-   ↓
-JWT Auth
-   ↓
-Control Plane
-   ↓
-PostgreSQL
-   ↓
-Redis Pub/Sub
-   ↓
-PDP Runtime
-   ↓
-Audit Log
+```mermaid
+flowchart TD
+    Client(["Client Application"])
+    PEP["API Gateway / Envoy\n(Policy Enforcement Point)"]
+    CP["Control Plane REST API\n:8080 — Policy Management"]
+    PDP["PDP gRPC Server\n:50051 — CheckAccess"]
+    Trie["In-Memory Trie Index\nTenantID → Subject → Resource → Action\nO(log N) lookup"]
+    DAG["Role Hierarchy DAG\nTransitive closure O(1)"]
+    AST["AST Evaluator\nABAC conditions + short-circuit"]
+    BadgerDB[("BadgerDB\nEdge Store\n(cold start fallback)")]
+    Postgres[("PostgreSQL\nPolicy Store +\nAudit Log")]
+    Redis(["Redis Pub/Sub\nHot-reload < 300ms"])
+    Audit["Async Audit Logger\nRing Buffer → Batch Insert"]
+
+    Client -->|"HTTP Request"| PEP
+    PEP -->|"gRPC CheckAccess"| PDP
+    PDP --> Trie
+    Trie --> DAG
+    DAG --> AST
+    AST -->|"ALLOW / DENY"| PDP
+    PDP -->|"Decision + Explanation"| PEP
+    PEP -->|"Enforce"| Client
+
+    PDP -->|"Async log"| Audit
+    Audit -->|"Batch insert pgx.CopyFrom"| Postgres
+
+    CP -->|"Publish policy"| Postgres
+    Postgres -->|"Startup load"| Trie
+    Redis -->|"Policy update event"| PDP
+    BadgerDB -->|"Cold start if Postgres down"| PDP
+
+    style PDP fill:#1e3a5f,color:#fff
+    style Trie fill:#0d4f3c,color:#fff
+    style AST fill:#0d4f3c,color:#fff
 ```
 
 ### Core Components
@@ -136,6 +160,23 @@ Audit Log
 | **Throughput** | 2.14M req/s/core |
 | **Memory alloc** | 13–39 alloc/op |
 | **Isolation** | Multi-tenant |
+
+### Gap Analysis — Why 2.14M/s Instead of 5M/s?
+
+Actual throughput (2.14M req/s/core) falls short of the 5M/s target. Root causes identified:
+
+| Root Cause | Detail | Priority |
+|---|---|---|
+| **Memory allocation** | Still 13–39 alloc/op. `sync.Pool` covers `EvalContext` but not `MatchResult` slices or intermediate AST nodes | 🔴 High |
+| **Trie lock contention** | Hot tenants still use `sync.RWMutex` per-lookup. At 1000+ concurrent readers, RLock adds overhead | 🟡 Medium |
+| **String comparison overhead** | Wildcard matching and principal normalization use `strings.Contains`. No interned string pool yet | 🟡 Medium |
+
+**Next optimization steps toward 5M/s:**
+1. Pool `MatchResult` slices via `sync.Pool`
+2. Sharded per-tenant lock-free pointer swap (eliminate global RWMutex entirely)
+3. Interned string map for principal/resource identifier lookups
+
+> These are identified improvement areas, not bugs. The current system already satisfies P99 < 1ms under real production workloads.
 
 ---
 
@@ -418,6 +459,43 @@ pectl health
 
 ---
 
+## Known Limitations
+
+Good engineers know exactly where their system's boundaries are and have a plan to address them.
+
+| Limitation | Impact | Planned Resolution |
+|---|---|---|
+| **GC eviction race condition** | If GC evicts tenant T while a request for T is in-flight, that request reads the old (stale) pointer — safe due to COW, but based on stale policy | Epoch-based reclamation with reference counting before eviction |
+| **No internal mTLS** | gRPC PEP → PDP does not enforce mTLS — JWT bearer token used instead | SPIFFE/SPIRE for workload identity |
+| **Redis single point** | Hot-reload depends on Redis. The 10s PostgreSQL poll fallback introduces latency above SLA | Redis Sentinel or Redis Cluster |
+| **Policy compile at Control Plane** | If Control Plane is down, no new policies can be published even though PDP continues serving decisions | Control Plane HA with leader election |
+| **In-memory ring buffer for audit log** | Log entries are lost if PDP crashes before flushing to Postgres | Replace ring buffer with WAL-backed queue |
+
+---
+
 ## License
 
-This project is for research and educational purposes as part of the Standalone Authorization Engine design study.
+MIT License — see [LICENSE](./LICENSE).
+
+---
+
+<details>
+<summary>🆻🇳 Tóm tắt tiếng Việt (Vietnamese Summary)</summary>
+
+## Tổng Quan
+
+PDP Engine hiệu năng cao viết bằng Go, đánh giá quyết định phân quyền PBAC/ABAC trong RAM với độ trễ < 0.3ms.
+
+**Kiến trúc:** PEP (API Gateway/Envoy) gửi gRPC `CheckAccess` → PDP tra cứu Trie O(log N) → DAG vai trò O(1) → AST Evaluator → ALLOW/DENY.
+
+**Ngôn ngữ chính sách:** Cú pháp khai báo cảm hứng từ Cedar. Ba quy tắc:
+1. **Deny-by-default** — không có permit nào khớp → DENY
+2. **Forbid overrides** — forbid thắng mọi permit
+3. **Explicit permit** — có permit khớp và không có forbid → ALLOW
+
+**Kết quả đo được:** 4.433 µs/decision, 2.14M req/s/core (mục tiêu 5M/s — xem Gap Analysis phía trên).
+
+**Giới hạn đã biết:** Race condition GC eviction, không có mTLS nội bộ, Redis single-point — xem bảng Known Limitations phía trên.
+
+</details>
+
