@@ -18,6 +18,13 @@ var (
 	ErrTypeMismatch     = errors.New("kiểu dữ liệu không đồng nhất giữa hai vế")
 )
 
+// boolTrue và boolFalse là các sentinel ValueNode toàn cục dùng chung — ZERO ALLOCATION.
+// Chúng là read-only: không caller nào được phép modify nội dung của chúng.
+var (
+	boolTrue  = &parser.ValueNode{ValType: parser.ValueTypeBool, BoolVal: true}
+	boolFalse = &parser.ValueNode{ValType: parser.ValueTypeBool, BoolVal: false}
+)
+
 // EvalContext chứa toàn bộ ngữ cảnh cần thiết cho một lượt đánh giá quyết định.
 type EvalContext struct {
 	Subject  string
@@ -172,7 +179,7 @@ func parseStringValue(val string, expectedType parser.ValueType) (*parser.ValueN
 // Evaluate thực hiện duyệt đệ quy cây AST và đánh giá kết quả của biểu thức.
 func Evaluate(node parser.Node, ctx *EvalContext) (*parser.ValueNode, error) {
 	if node == nil {
-		return &parser.ValueNode{ValType: parser.ValueTypeBool, BoolVal: true}, nil
+		return boolTrue, nil
 	}
 
 	switch n := node.(type) {
@@ -221,18 +228,18 @@ func Evaluate(node parser.Node, ctx *EvalContext) (*parser.ValueNode, error) {
 			leftVal, err := Evaluate(n.Left, ctx)
 			if err != nil {
 				// Lỗi (ví dụ thiếu thuộc tính) trả về false
-				return &parser.ValueNode{ValType: parser.ValueTypeBool, BoolVal: false}, nil
+				return boolFalse, nil
 			}
 			if leftVal.ValType != parser.ValueTypeBool {
 				return nil, ErrUnsupportedOp
 			}
 			if !leftVal.BoolVal {
-				return &parser.ValueNode{ValType: parser.ValueTypeBool, BoolVal: false}, nil
+				return boolFalse, nil
 			}
 
 			rightVal, err := Evaluate(n.Right, ctx)
 			if err != nil {
-				return &parser.ValueNode{ValType: parser.ValueTypeBool, BoolVal: false}, nil
+				return boolFalse, nil
 			}
 			if rightVal.ValType != parser.ValueTypeBool {
 				return nil, ErrUnsupportedOp
@@ -252,13 +259,13 @@ func Evaluate(node parser.Node, ctx *EvalContext) (*parser.ValueNode, error) {
 
 			// Nếu vế trái thành công và là true, đoản mạch ngay
 			if leftErr == nil && leftBool {
-				return &parser.ValueNode{ValType: parser.ValueTypeBool, BoolVal: true}, nil
+				return boolTrue, nil
 			}
 
 			rightVal, err := Evaluate(n.Right, ctx)
 			if err != nil {
 				// Nếu cả hai vế đều lỗi hoặc vế phải lỗi và vế trái không phải true -> trả về false
-				return &parser.ValueNode{ValType: parser.ValueTypeBool, BoolVal: false}, nil
+				return boolFalse, nil
 			}
 			if rightVal.ValType != parser.ValueTypeBool {
 				return nil, ErrUnsupportedOp
@@ -295,13 +302,13 @@ func evaluateComparison(n *parser.BinaryExprNode, ctx *EvalContext) (*parser.Val
 
 	if err != nil {
 		// Thiếu thuộc tính hoặc lỗi parse -> Fail-closed: Trả về false
-		return &parser.ValueNode{ValType: parser.ValueTypeBool, BoolVal: false}, nil
+		return boolFalse, nil
 	}
 
 	// Đọc vế phải
 	rightVal, err := Evaluate(n.Right, ctx)
 	if err != nil {
-		return &parser.ValueNode{ValType: parser.ValueTypeBool, BoolVal: false}, nil
+		return boolFalse, nil
 	}
 
 	// Thực hiện phép so sánh tương ứng
@@ -370,7 +377,10 @@ func evaluateComparison(n *parser.BinaryExprNode, ctx *EvalContext) (*parser.Val
 		}
 	}
 
-	return &parser.ValueNode{ValType: parser.ValueTypeBool, BoolVal: result}, nil
+	if result {
+		return boolTrue, nil
+	}
+	return boolFalse, nil
 }
 
 func compareEq(l, r *parser.ValueNode) bool {
