@@ -175,6 +175,7 @@ flowchart TD
 > - `[2]string` stack-array instead of `[]string{action, "any"}` slice literal in inner loop
 > - `ensureAnyInto()` scratch buffer on stack — eliminates `append()` side-effect
 > - Global sentinel `boolTrue`/`boolFalse` — eliminates 5–9 `*ValueNode` allocs per evaluation
+> - **FNV-1a 64-bit Hashing (String Interning):** Refactored Trie maps to `map[uint64]*Node`, replacing string keys with pre-computed FNV-1a hashes to bypass expensive string-map lookup overhead on the hot path.
 
 ### Gap Analysis — Why 2.14M/s Instead of 5M/s?
 
@@ -182,14 +183,12 @@ Actual throughput (**~3M req/s/core** after Layer 1-3 optimization, up from 2.14
 
 | Root Cause | Detail | Priority |
 |---|---|---|
-| **String-based Trie keys** | Map lookup still uses `string` keys. Replacing with `uint64` FNV-1a hashes eliminates per-lookup string hashing overhead | 🔴 High |
-| **Trie RWMutex contention** | Hot tenants still use `sync.RWMutex` per-lookup. At 1000+ concurrent readers, RLock has overhead | 🟡 Medium |
+| **Trie RWMutex contention** | Hot tenants still use `sync.RWMutex` per-lookup. At 1000+ concurrent readers, RLock has overhead | 🔴 High |
 | **Remaining 10 alloc/op** | `EvalContext` copy of context map, `subjectInherited` slice from DAG lookup, `fmt.Sprintf` for subject/resource strings in benchmark | 🟡 Medium |
 
 **Next optimization steps toward 5M/s:**
-1. String interning: replace Trie map keys with `uint64` FNV-1a hashes at write time
-2. Sharded Trie: 256 per-tenant shards — reduce contention by factor of 256
-3. Pool the `subjectInherited` slice from DAG via `sync.Pool`
+1. Sharded Trie: 256 per-tenant shards — reduce contention by factor of 256
+2. Pool the `subjectInherited` slice from DAG via `sync.Pool`
 
 ---
 
