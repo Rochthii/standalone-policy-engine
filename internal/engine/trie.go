@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"standalone-policy-engine/internal/parser"
 	"sync"
 )
@@ -30,9 +29,9 @@ func ReturnPolicySlice(s *[]*parser.PolicyNode) {
 type TrieRoot struct {
 	TenantID string
 
-	// Subjects map các định danh principal (ví dụ: "user:alice", "role:admin", hoặc "any")
+	// Subjects map mã băm FNV-1a của principal (ví dụ: hash("user:alice"))
 	// trỏ tới danh sách các tài nguyên tương ứng.
-	Subjects map[string]*SubjectNode
+	Subjects map[uint64]*SubjectNode
 
 	// GlobalPolicies chứa các chính sách toàn cục (Global Rules Partition)
 	// nơi cả principal và resource đều được thiết lập là 'any' (wildcard kép).
@@ -44,14 +43,14 @@ type TrieRoot struct {
 
 // SubjectNode đại diện cho phân cấp Subject trong Trie.
 type SubjectNode struct {
-	// Resources map các định danh resource (ví dụ: "file:report.pdf", "folder:finance", hoặc "any")
-	Resources map[string]*ResourceNode
+	// Resources map mã băm FNV-1a của resource (ví dụ: hash("file:report.pdf"))
+	Resources map[uint64]*ResourceNode
 }
 
 // ResourceNode đại diện cho phân cấp Resource trong Trie.
 type ResourceNode struct {
-	// Actions map các định danh action (ví dụ: "action:READ", "action:DELETE", hoặc "any")
-	Actions map[string]*ActionNode
+	// Actions map mã băm FNV-1a của action (ví dụ: hash("action:READ"))
+	Actions map[uint64]*ActionNode
 }
 
 // ActionNode đại diện cho phân cấp Action trong Trie (nút lá chứa chính sách).
@@ -63,20 +62,29 @@ type ActionNode struct {
 func NewTrieRoot(tenantID string) *TrieRoot {
 	return &TrieRoot{
 		TenantID:       tenantID,
-		Subjects:       make(map[string]*SubjectNode),
+		Subjects:       make(map[uint64]*SubjectNode),
 		GlobalPolicies: make([]*parser.PolicyNode, 0),
 		RoleDAG:        NewRoleDAG(),
 	}
 }
 
-// buildKey chuyển đổi ScopeNode tĩnh thành định dạng chuỗi khóa để lưu trữ trong Trie.
-// Ví dụ: user:"alice" -> "user:alice"
-// Ví dụ: any -> "any"
-func buildKey(scope *parser.ScopeNode) string {
-	if scope == nil || scope.Operator == parser.ScopeOpAny {
-		return "any"
+// fnvHash tính toán mã băm FNV-1a 64-bit cho chuỗi, tối ưu hóa zero-allocation.
+func fnvHash(s string) uint64 {
+	var hash uint64 = 14695981039346656037
+	for i := 0; i < len(s); i++ {
+		hash ^= uint64(s[i])
+		hash *= 1099511628211
 	}
-	return fmt.Sprintf("%s:%s", scope.EntityType, scope.EntityID)
+	return hash
+}
+
+// buildKeyHash chuyển đổi ScopeNode tĩnh thành mã băm uint64 trực tiếp.
+func buildKeyHash(scope *parser.ScopeNode) uint64 {
+	if scope == nil || scope.Operator == parser.ScopeOpAny {
+		return fnvHash("any")
+	}
+	// Tránh dùng fmt.Sprintf bằng cách tự nối chuỗi đơn giản
+	return fnvHash(scope.EntityType + ":" + scope.EntityID)
 }
 
 // AddPolicy nạp một chính sách đã compiled vào cây Trie.
@@ -95,30 +103,30 @@ func (t *TrieRoot) AddPolicy(policy *parser.PolicyNode) {
 		return
 	}
 
-	// 2. Đi theo luồng phân cấp: Subject -> Resource -> Action
-	subKey := buildKey(policy.Principal)
-	resKey := buildKey(policy.Resource)
-	actKey := buildKey(policy.Action)
+	// 2. Đi theo luồng phân cấp: Subject -> Resource -> Action (dùng uint64 hash)
+	subHash := buildKeyHash(policy.Principal)
+	resHash := buildKeyHash(policy.Resource)
+	actHash := buildKeyHash(policy.Action)
 
 	// Lấy hoặc tạo SubjectNode
-	subNode, exists := t.Subjects[subKey]
+	subNode, exists := t.Subjects[subHash]
 	if !exists {
-		subNode = &SubjectNode{Resources: make(map[string]*ResourceNode)}
-		t.Subjects[subKey] = subNode
+		subNode = &SubjectNode{Resources: make(map[uint64]*ResourceNode)}
+		t.Subjects[subHash] = subNode
 	}
 
 	// Lấy hoặc tạo ResourceNode
-	resNode, exists := subNode.Resources[resKey]
+	resNode, exists := subNode.Resources[resHash]
 	if !exists {
-		resNode = &ResourceNode{Actions: make(map[string]*ActionNode)}
-		subNode.Resources[resKey] = resNode
+		resNode = &ResourceNode{Actions: make(map[uint64]*ActionNode)}
+		subNode.Resources[resHash] = resNode
 	}
 
 	// Lấy hoặc tạo ActionNode
-	actNode, exists := resNode.Actions[actKey]
+	actNode, exists := resNode.Actions[actHash]
 	if !exists {
 		actNode = &ActionNode{Policies: make([]*parser.PolicyNode, 0)}
-		resNode.Actions[actKey] = actNode
+		resNode.Actions[actHash] = actNode
 	}
 
 	// Thêm chính sách vào danh sách nút lá
@@ -128,14 +136,9 @@ func (t *TrieRoot) AddPolicy(policy *parser.PolicyNode) {
 // LookupPolicies tra cứu và thu thập tất cả các chính sách khớp với ngữ cảnh tĩnh của yêu cầu.
 // Đây là API tương thích ngược, phân bổ slice mới mỗi lần.
 // Với hiệu năng cao hơn, dùng LookupPoliciesInto kết hợp GetPolicySlice/ReturnPolicySlice.
-//
-//   - subjects: danh sách các danh tính khớp của subject (ví dụ: ["user:alice", "role:operator", "any"])
-//   - resources: danh sách danh tính của resource (ví dụ: ["file:report.pdf", "any"])
-//   - action: hành động yêu cầu (ví dụ: "action:READ" hoặc "any")
 func (t *TrieRoot) LookupPolicies(subjects []string, resources []string, action string) []*parser.PolicyNode {
 	buf := GetPolicySlice()
 	t.LookupPoliciesInto(buf, subjects, resources, action)
-	// Sao chép ra slice độc lập trước khi trả về — caller không cần quản lý vòng đời pool.
 	result := make([]*parser.PolicyNode, len(*buf))
 	copy(result, *buf)
 	ReturnPolicySlice(buf)
@@ -144,37 +147,42 @@ func (t *TrieRoot) LookupPolicies(subjects []string, resources []string, action 
 
 // LookupPoliciesInto là phiên bản zero-allocation của LookupPolicies.
 // Kết quả được append vào buf thay vì tạo slice mới.
-// Caller phải lấy buf bằng GetPolicySlice() và trả về bằng ReturnPolicySlice() sau khi dùng xong.
+// Sử dụng so sánh các mã băm uint64 để có hiệu năng CPU vượt trội.
 func (t *TrieRoot) LookupPoliciesInto(buf *[]*parser.PolicyNode, subjects []string, resources []string, action string) {
 	// 1. Luôn gộp các chính sách toàn cục (Global Rules Partition)
 	*buf = append(*buf, t.GlobalPolicies...)
 
 	// Đảm bảo "any" luôn nằm trong danh sách để so khớp wildcard.
-	// Dùng scratch buffer trên stack để tránh heap allocation từ append.
 	var subScratch [8]string
 	var resScratch [8]string
 	subjectsWithAny := ensureAnyInto(subjects, &subScratch)
 	resourcesWithAny := ensureAnyInto(resources, &resScratch)
 
+	// Cache mã băm của action và "any" trên stack
+	actionHash := fnvHash(action)
+	anyHash := fnvHash("any")
+
 	// 2. Tra cứu trên cây Trie theo tất cả các tổ hợp danh tính hợp lệ
 	for _, subKey := range subjectsWithAny {
-		subNode, exists := t.Subjects[subKey]
+		subHash := fnvHash(subKey)
+		subNode, exists := t.Subjects[subHash]
 		if !exists {
 			continue
 		}
 
 		for _, resKey := range resourcesWithAny {
-			resNode, exists := subNode.Resources[resKey]
+			resHash := fnvHash(resKey)
+			resNode, exists := subNode.Resources[resHash]
 			if !exists {
 				continue
 			}
 
-			// Stack-allocated array — không heap, không GC pressure.
-			var actionsToTry [2]string
-			actionsToTry[0] = action
-			actionsToTry[1] = "any"
-			for _, actKey := range actionsToTry {
-				if actNode, exists := resNode.Actions[actKey]; exists {
+			// Thử khớp action cụ thể và action "any"
+			var actionsToTry [2]uint64
+			actionsToTry[0] = actionHash
+			actionsToTry[1] = anyHash
+			for _, actHash := range actionsToTry {
+				if actNode, exists := resNode.Actions[actHash]; exists {
 					*buf = append(*buf, actNode.Policies...)
 				}
 			}
