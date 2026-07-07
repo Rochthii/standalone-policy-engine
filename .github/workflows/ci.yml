@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  # ── Job 1: Build ───────────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Build all packages
+        run: go build ./...
+
+  # ── Job 2: Vet + Format check ──────────────────────────────────────────
+  vet:
+    name: Vet & Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: gofmt check
+        run: |
+          GOFMT_OUTPUT=$(gofmt -l .)
+          if [ -n "$GOFMT_OUTPUT" ]; then
+            echo "The following files are not gofmt-compliant:"
+            echo "$GOFMT_OUTPUT"
+            exit 1
+          fi
+
+  # ── Job 3: Unit Tests (in-memory, không cần DB/Redis) ─────────────────
+  unit-test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Run unit tests (race detector)
+        run: go test -v -race -count=1 ./internal/...
+
+  # ── Job 4: Benchmark (in-memory decision engine) ───────────────────────
+  benchmark:
+    name: Benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Run benchmarks
+        run: |
+          go test -bench=. -benchmem -benchtime=5s -count=1 ./tests/... \
+            | tee benchmark_results.txt
+          cat benchmark_results.txt
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.sha }}
+          path: benchmark_results.txt
+          retention-days: 90
