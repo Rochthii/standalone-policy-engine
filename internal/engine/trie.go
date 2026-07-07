@@ -3,7 +3,28 @@ package engine
 import (
 	"fmt"
 	"standalone-policy-engine/internal/parser"
+	"sync"
 )
+
+// policySlicePool tái sử dụng slice kết quả LookupPolicies để triệt tiêu heap allocation
+// trên hot path. Caller phải gọi ReturnPolicySlice() sau khi xử lý xong.
+var policySlicePool = sync.Pool{
+	New: func() any {
+		s := make([]*parser.PolicyNode, 0, 8)
+		return &s
+	},
+}
+
+// GetPolicySlice lấy một slice buffer từ pool. Caller PHẢI gọi ReturnPolicySlice sau khi dùng.
+func GetPolicySlice() *[]*parser.PolicyNode {
+	return policySlicePool.Get().(*[]*parser.PolicyNode)
+}
+
+// ReturnPolicySlice trả buffer về pool và reset độ dài về 0 (giữ nguyên capacity).
+func ReturnPolicySlice(s *[]*parser.PolicyNode) {
+	*s = (*s)[:0]
+	policySlicePool.Put(s)
+}
 
 // TrieRoot là nút gốc chỉ mục RAM cho một Tenant cụ thể.
 type TrieRoot struct {
@@ -105,56 +126,80 @@ func (t *TrieRoot) AddPolicy(policy *parser.PolicyNode) {
 }
 
 // LookupPolicies tra cứu và thu thập tất cả các chính sách khớp với ngữ cảnh tĩnh của yêu cầu.
-// Để hỗ trợ quan hệ kế thừa vai trò (RBAC) và wildcard, hàm nhận vào:
+// Đây là API tương thích ngược, phân bổ slice mới mỗi lần.
+// Với hiệu năng cao hơn, dùng LookupPoliciesInto kết hợp GetPolicySlice/ReturnPolicySlice.
+//
 //   - subjects: danh sách các danh tính khớp của subject (ví dụ: ["user:alice", "role:operator", "any"])
 //   - resources: danh sách danh tính của resource (ví dụ: ["file:report.pdf", "any"])
 //   - action: hành động yêu cầu (ví dụ: "action:READ" hoặc "any")
 func (t *TrieRoot) LookupPolicies(subjects []string, resources []string, action string) []*parser.PolicyNode {
-	matched := make([]*parser.PolicyNode, 0)
+	buf := GetPolicySlice()
+	t.LookupPoliciesInto(buf, subjects, resources, action)
+	// Sao chép ra slice độc lập trước khi trả về — caller không cần quản lý vòng đời pool.
+	result := make([]*parser.PolicyNode, len(*buf))
+	copy(result, *buf)
+	ReturnPolicySlice(buf)
+	return result
+}
 
+// LookupPoliciesInto là phiên bản zero-allocation của LookupPolicies.
+// Kết quả được append vào buf thay vì tạo slice mới.
+// Caller phải lấy buf bằng GetPolicySlice() và trả về bằng ReturnPolicySlice() sau khi dùng xong.
+func (t *TrieRoot) LookupPoliciesInto(buf *[]*parser.PolicyNode, subjects []string, resources []string, action string) {
 	// 1. Luôn gộp các chính sách toàn cục (Global Rules Partition)
-	matched = append(matched, t.GlobalPolicies...)
+	*buf = append(*buf, t.GlobalPolicies...)
 
-	// Đảm bảo "any" luôn nằm trong danh sách subjects và resources để so khớp wildcard
-	subjects = ensureAny(subjects)
-	resources = ensureAny(resources)
+	// Đảm bảo "any" luôn nằm trong danh sách để so khớp wildcard.
+	// Dùng scratch buffer trên stack để tránh heap allocation từ append.
+	var subScratch [8]string
+	var resScratch [8]string
+	subjectsWithAny := ensureAnyInto(subjects, &subScratch)
+	resourcesWithAny := ensureAnyInto(resources, &resScratch)
 
 	// 2. Tra cứu trên cây Trie theo tất cả các tổ hợp danh tính hợp lệ
-	for _, subKey := range subjects {
+	for _, subKey := range subjectsWithAny {
 		subNode, exists := t.Subjects[subKey]
 		if !exists {
 			continue
 		}
 
-		for _, resKey := range resources {
+		for _, resKey := range resourcesWithAny {
 			resNode, exists := subNode.Resources[resKey]
 			if !exists {
 				continue
 			}
 
-			// Thử khớp action cụ thể và action "any" (wildcard)
-			actionsToTry := []string{action, "any"}
+			// Stack-allocated array — không heap, không GC pressure.
+			var actionsToTry [2]string
+			actionsToTry[0] = action
+			actionsToTry[1] = "any"
 			for _, actKey := range actionsToTry {
 				if actNode, exists := resNode.Actions[actKey]; exists {
-					matched = append(matched, actNode.Policies...)
+					*buf = append(*buf, actNode.Policies...)
 				}
 			}
 		}
 	}
-
-	return matched
 }
 
-func ensureAny(list []string) []string {
-	hasAny := false
+// ensureAnyInto kiểm tra xem "any" đã có trong list chưa.
+// Nếu chưa, sao chép toàn bộ vào scratch buffer và thêm "any" — không tạo heap allocation.
+// scratch phải đủ lớn (ít nhất len(list)+1).
+func ensureAnyInto(list []string, scratch *[8]string) []string {
 	for _, item := range list {
 		if item == "any" {
-			hasAny = true
-			break
+			return list // Đã có "any" — trả về gốc, không cần copy.
 		}
 	}
-	if !hasAny {
-		return append(list, "any")
+	// Sao chép vào scratch (stack) và thêm "any".
+	n := copy(scratch[:], list)
+	if n < len(*scratch) {
+		scratch[n] = "any"
+		return scratch[:n+1]
 	}
-	return list
+	// Fallback nếu list quá dài (> 7 phần tử) — heap allocation nhưng rất hiếm.
+	result := make([]string, len(list)+1)
+	copy(result, list)
+	result[len(list)] = "any"
+	return result
 }
