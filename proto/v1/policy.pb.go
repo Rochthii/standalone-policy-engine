@@ -22,8 +22,9 @@ const (
 	CheckAccessResponse_ALLOW CheckAccessResponse_Decision = 1
 )
 
+// Lưu ý: decision KHÔNG dùng omitempty vì giá trị 0 (DENY) là hợp lệ và cần được serialize.
 type CheckAccessResponse struct {
-	Decision        CheckAccessResponse_Decision `json:"decision,omitempty"`
+	Decision        CheckAccessResponse_Decision `json:"decision"`
 	MatchedPolicyId string                       `json:"matched_policy_id,omitempty"`
 }
 
@@ -42,8 +43,9 @@ const (
 	ExplainResponse_ALLOW ExplainResponse_Decision = 1
 )
 
+// Lưu ý: decision KHÔNG dùng omitempty vì giá trị 0 (DENY) là hợp lệ.
 type ExplainResponse struct {
-	Decision    ExplainResponse_Decision `json:"decision,omitempty"`
+	Decision    ExplainResponse_Decision `json:"decision"`
 	FinalReason string                   `json:"final_reason,omitempty"`
 	Matched     []*PolicyMetadata        `json:"matched,omitempty"`
 }
