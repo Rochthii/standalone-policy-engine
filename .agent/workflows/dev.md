@@ -1,51 +1,35 @@
-# Môi trường Phát triển (Development Workflow)
+# Standalone Policy Engine - Development Workflow
 
-Tài liệu này hướng dẫn cách khởi động, phát triển và chạy thử nghiệm động cơ phân quyền độc lập **Standalone Policy Engine**.
-
----
-
-## 🚀 Khởi chạy Môi trường Local
-
-### 1. Cài đặt các thư viện cần thiết
-Dự án sử dụng gRPC và Protobuf. Để sinh code Go từ file `.proto`, hãy cài đặt:
-```bash
-go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-```
-
-### 2. Biên dịch Protobuf
-Mỗi khi có thay đổi trong file `proto/policy.proto`, chạy lệnh sau để sinh code mới:
-```bash
-protoc --go_out=. --go-grpc_out=. proto/policy.proto
-```
-
-### 3. Chạy Server ở chế độ Development
-Chạy trực tiếp từ thư mục gốc:
-```bash
-go run main.go
-```
-Mặc định server sẽ lắng nghe gRPC tại cổng `50051`.
-
----
-
-## ⚡ Kiểm thử Hiệu năng & Đo đạc Latency
-
-Để đo đạc độ trễ và khả năng đáp ứng RPS cực lớn, chúng ta sử dụng công cụ benchmark chuyên dụng:
-1. **Kiểm tra đơn lẻ qua gRPC CLI:**
-   Sử dụng công cụ `grpcurl` để gọi test trực tiếp:
+## 🚀 Setup & Run Local
+1. **Prerequisites**:
    ```bash
-   grpcurl -plaintext -d '{"subject": "user:alice", "action": "DELETE", "resource": "file:doc.pdf"}' localhost:50051 policy.PolicyDecisionPoint/CheckPermission
+   go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+   ```
+2. **Compile Protobuf**:
+   ```bash
+   protoc --go_out=. --go-grpc_out=. proto/v1/policy.proto
+   ```
+3. **Run Server (Insecure Mode)**:
+   ```bash
+   go run cmd/pdp-server/main.go
+   ```
+4. **Run Server (OpenZiti Dark Mode)**:
+   ```bash
+   USE_ZITI=true ZITI_IDENTITY_PATH=docker/identities/pdp-dev.json ZITI_SERVICE_NAME=policy-decision-service go run cmd/pdp-server/main.go
    ```
 
-2. **Chạy Stress Test bằng ghz:**
-   Sử dụng công cụ `ghz` (gRPC benchmarking tool) để tải giả lập 10,000 requests song song:
+## ⚡ Performance Testing & Benchmark
+1. **gRPC CLI Verification**:
+   ```bash
+   grpcurl -plaintext -d '{"tenant_id": "tenant-a", "subject": "user:alice", "action": "READ", "resource": "balance"}' localhost:50051 policy.v1.PolicyDecisionPoint/CheckAccess
+   ```
+2. **Stress Test (ghz)**:
    ```bash
    ghz --insecure \
-     --proto=proto/policy.proto \
-     --call=policy.PolicyDecisionPoint.CheckPermission \
-     -d '{"subject":"user:alice", "action":"DELETE", "resource":"file:doc.pdf"}' \
+     --proto=proto/v1/policy.proto \
+     --call=policy.v1.PolicyDecisionPoint.CheckAccess \
+     -d '{"tenant_id": "tenant-a", "subject":"user:alice", "action":"READ", "resource":"balance"}' \
      -c 100 -n 100000 localhost:50051
    ```
-   **Chỉ tiêu chấp nhận (Acceptance Criteria):**
-   - Latency P99 < 1.0 ms
-   - Success rate = 100%
+   *Target*: Latency P99 < 1.0 ms. Success rate = 100%.
