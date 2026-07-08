@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"standalone-policy-engine/internal/audit"
@@ -13,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/openziti/sdk-golang/ziti"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -88,13 +91,61 @@ func main() {
 	syncer.Start(ctxServer)
 	log.Println("[PDP-Server] Khởi chạy Syncer đồng bộ cache nóng thành công.")
 
-	// 6. Khởi chạy gRPC Server (cổng 50051)
-	grpcPort := 50051
-	grpcServer, err := server.StartGRPCServer(grpcPort, eng, auditLogger)
+	// 6. Khởi tạo net.Listener (TCP truyền thống hoặc Ziti Dark Service)
+	var listener net.Listener
+	useZiti := strings.EqualFold(os.Getenv("USE_ZITI"), "true")
+
+	if useZiti {
+		identityPath := os.Getenv("ZITI_IDENTITY_PATH")
+		if identityPath == "" {
+			identityPath = "docker/identities/pdp-dev.json"
+		}
+		serviceName := os.Getenv("ZITI_SERVICE_NAME")
+		if serviceName == "" {
+			serviceName = "policy-decision-service"
+		}
+
+		log.Printf("[PDP-Server] Đang kết nối mạng ảo OpenZiti overlay bằng Identity: %s...", identityPath)
+		if _, err := os.Stat(identityPath); os.IsNotExist(err) {
+			log.Fatalf("[PDP-Server] Lỗi cấu hình Ziti: Không tìm thấy file identity tại %s", identityPath)
+		}
+
+		zCfg, err := ziti.NewConfigFromFile(identityPath)
+		if err != nil {
+			log.Fatalf("[PDP-Server] Load cấu hình Ziti thất bại: %v", err)
+		}
+
+		zCtx, err := ziti.NewContext(zCfg)
+		if err != nil {
+			log.Fatalf("[PDP-Server] Tạo Ziti Context thất bại: %v", err)
+		}
+		defer zCtx.Close()
+
+		if err := zCtx.Authenticate(); err != nil {
+			log.Fatalf("[PDP-Server] Xác thực Ziti Controller thất bại: %v", err)
+		}
+
+		log.Printf("[PDP-Server] Đang lắng nghe trên OpenZiti Dark Service: '%s'...", serviceName)
+		listener, err = zCtx.Listen(serviceName)
+		if err != nil {
+			log.Fatalf("[PDP-Server] Không thể lắng nghe trên Ziti service %s: %v", serviceName, err)
+		}
+		log.Println("[PDP-Server] PDP Dark Service đã khởi chạy thành công. Tất cả cổng TCP inbound công cộng đều được đóng!")
+	} else {
+		grpcPort := 50051
+		addr := fmt.Sprintf(":%d", grpcPort)
+		log.Printf("[PDP-Server] Đang chạy chế độ local: lắng nghe trên TCP %s...", addr)
+		var err error
+		listener, err = net.Listen("tcp", addr)
+		if err != nil {
+			log.Fatalf("[PDP-Server] Lắng nghe cổng TCP %s thất bại: %v", addr, err)
+		}
+	}
+
+	grpcServer, err := server.StartGRPCServer(listener, eng, auditLogger)
 	if err != nil {
 		log.Fatalf("[PDP-Server] Không thể chạy gRPC server: %v", err)
 	}
-	log.Printf("[PDP-Server] gRPC Server đang lắng nghe tại cổng :%d...", grpcPort)
 
 	// Lắng nghe tín hiệu dừng chương trình (Graceful Shutdown)
 	sigChan := make(chan os.Signal, 1)
