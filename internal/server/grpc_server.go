@@ -2,9 +2,12 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -18,6 +21,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -249,12 +253,9 @@ func (s *GRPCServer) ExplainDecision(ctx context.Context, req *policyv1.ExplainR
 	}, nil
 }
 
-// StartGRPCServer cấu hình mTLS, Keepalive và khởi chạy gRPC Server tại cổng chỉ định.
-func StartGRPCServer(port int, eng *engine.EngineWithGC, logger *audit.AuditLogger) (*grpc.Server, error) {
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
-	if err != nil {
-		return nil, fmt.Errorf("lắng nghe cổng %d thất bại: %v", port, err)
-	}
+// StartGRPCServer cấu hình mTLS, Keepalive và khởi chạy gRPC Server bằng listener được truyền vào.
+// mTLS được bật tự động khi biến môi trường PDP_TLS_CERT, PDP_TLS_KEY, PDP_TLS_CA được đặt.
+func StartGRPCServer(lis net.Listener, eng *engine.EngineWithGC, logger *audit.AuditLogger) (*grpc.Server, error) {
 
 	// Cấu hình Keepalive parameters tối ưu persistent connection siêu tốc
 	kaep := keepalive.EnforcementPolicy{
@@ -276,9 +277,21 @@ func StartGRPCServer(port int, eng *engine.EngineWithGC, logger *audit.AuditLogg
 		grpc.UnaryInterceptor(traceInterceptor),
 	}
 
-	// Trong môi trường Production, cấu hình TLS tại đây
-	// creds, err := credentials.NewServerTLSFromFile("cert.pem", "key.pem")
-	// if err == nil { opts = append(opts, grpc.Creds(creds)) }
+	// Kích hoạt mTLS nếu các biến môi trường TLS được đặt đầy đủ
+	tlsCert := os.Getenv("PDP_TLS_CERT")
+	tlsKey := os.Getenv("PDP_TLS_KEY")
+	tlsCA := os.Getenv("PDP_TLS_CA")
+
+	if tlsCert != "" && tlsKey != "" && tlsCA != "" {
+		creds, tlsErr := loadMTLSServerCredentials(tlsCert, tlsKey, tlsCA)
+		if tlsErr != nil {
+			return nil, fmt.Errorf("cấu hình mTLS thất bại: %w", tlsErr)
+		}
+		opts = append(opts, grpc.Creds(creds))
+		log.Printf("[PDP-Server] mTLS được bật: cert=%s, key=%s, ca=%s", tlsCert, tlsKey, tlsCA)
+	} else {
+		log.Println("[PDP-Server] WARNING: Không có TLS — chậy Insecure (chỉ dùng môi trường dev)")
+	}
 
 	grpcServer := grpc.NewServer(opts...)
 	srv := NewGRPCServer(eng, logger)
@@ -317,5 +330,37 @@ func traceInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServ
 
 	resp, err := handler(ctx, req)
 	return resp, err
+}
+
+// loadMTLSServerCredentials tải mTLS server credentials từ file cert/key/CA.
+// Server yêu cầu client phải xuất trình cert hợp lệ (RequireAndVerifyClientCert).
+// CA cert dùng để xác thực client cert của API Gateway.
+func loadMTLSServerCredentials(certFile, keyFile, caFile string) (credentials.TransportCredentials, error) {
+	// Tải server cert
+	serverCert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return nil, fmt.Errorf("không thể tải server cert/key (%s, %s): %w", certFile, keyFile, err)
+	}
+
+	// Tải CA cert để xác thực client cert của Gateway
+	caCert, err := os.ReadFile(caFile)
+	if err != nil {
+		return nil, fmt.Errorf("không thể đọc CA cert file %s: %w", caFile, err)
+	}
+
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM(caCert) {
+		return nil, fmt.Errorf("CA cert từ %s không hợp lệ hoặc không phải PEM format", caFile)
+	}
+
+	tlsCfg := &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+		ClientCAs:    certPool,
+		// RequireAndVerifyClientCert: PDP từ chối kết nối nếu Gateway không có cert hợp lệ
+		ClientAuth: tls.RequireAndVerifyClientCert,
+		MinVersion: tls.VersionTLS12,
+	}
+
+	return credentials.NewTLS(tlsCfg), nil
 }
 
