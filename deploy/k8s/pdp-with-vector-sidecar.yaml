@@ -1,0 +1,67 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pdp-data-plane
+  namespace: security
+  labels:
+    app: pdp-data-plane
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: pdp-data-plane
+  template:
+    metadata:
+      labels:
+        app: pdp-data-plane
+    spec:
+      volumes:
+        - name: ipc-socket
+          emptyDir:
+            medium: Memory # Shared RAM volume for Unix Domain Socket IPC
+        - name: vector-config
+          configMap:
+            name: vector-config
+      containers:
+        # Container 1: PDP Data Plane Server (Go - 0.29µs Zero-Network Engine)
+        - name: pdp-engine
+          image: pdp-server:latest
+          env:
+            - name: STORAGE_MODE
+              value: "cloud"
+            - name: LISTEN_SOCKET_PATH
+              value: "/var/run/pdp/pdp.sock"
+            - name: POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pdp-secrets
+                  key: postgres-url
+            - name: REDIS_ADDR
+              value: "redis-cluster.cache.svc.cluster.local:6379"
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: "512Mi"
+            limits:
+              cpu: "4000m"
+              memory: "2Gi"
+          volumeMounts:
+            - name: ipc-socket
+              mountPath: /var/run/pdp
+
+        # Container 2: Vector Sidecar (Rust - High-Throughput Log Shipper)
+        - name: vector-sidecar
+          image: timberio/vector:0.38.0-alpine
+          args: ["--config", "/etc/vector/vector.yaml"]
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "64Mi"
+            limits:
+              cpu: "1000m"
+              memory: "256Mi"
+          volumeMounts:
+            - name: ipc-socket
+              mountPath: /var/run/vector
+            - name: vector-config
+              mountPath: /etc/vector

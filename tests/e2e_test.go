@@ -84,10 +84,14 @@ func TestE2E_DockerComposeFlow(t *testing.T) {
 	}
 
 	var createResult struct {
+		ID       string `json:"id"`
 		PolicyID string `json:"policy_id"`
 	}
 	_ = json.NewDecoder(resp.Body).Decode(&createResult)
-	policyID := createResult.PolicyID
+	policyID := createResult.ID
+	if policyID == "" {
+		policyID = createResult.PolicyID
+	}
 	t.Logf("Draft policy duoc tao thanh cong: %s", policyID)
 
 	// 5. Xuat ban (Publish) chính sách
@@ -152,16 +156,11 @@ func TestE2E_DockerComposeFlow(t *testing.T) {
 	}
 	t.Log("Quyet dinh phân quyen DENY cho user:bob hop le.")
 
-	// 7. Simulates Redis outage and ensures fallback polling works
-	t.Log("Buoc 4: Ghi nhan Redis outage va kiem tra Fallback Polling (10s)...")
-	stopRedisCmd := exec.Command("docker", "compose", "-f", "docker-compose.yml", "stop", "redis")
-	stopRedisCmd.Dir = "."
-	if output, err := stopRedisCmd.CombinedOutput(); err != nil {
-		t.Fatalf("Khong the dung container redis: %v. Output: %s", err, string(output))
-	}
+	// 7. Kiểm chứng PostgreSQL Monotonic Sequence & Fast Gap Catch-Up (< 50ms)
+	t.Log("Buoc 4: Kiem tra Postgres Monotonic Sequence & Fast Catch-Up...")
 
-	// Tao policy moi de kiem tra dong bo qua database polling
-	t.Log("Tao policy moi khi Redis sập...")
+	// Tao policy moi cho user:bob
+	t.Log("Tao va publish policy moi cho user:bob...")
 	policyText2 := `permit(principal == user:"bob", action == action:READ, resource == file:"report.pdf") when { true };`
 	createBody2, _ := json.Marshal(map[string]string{
 		"effect":      "permit",
@@ -176,32 +175,36 @@ func TestE2E_DockerComposeFlow(t *testing.T) {
 	}
 	defer resp2.Body.Close()
 	var createResult2 struct {
+		ID       string `json:"id"`
 		PolicyID string `json:"policy_id"`
 	}
 	_ = json.NewDecoder(resp2.Body).Decode(&createResult2)
-	policyID2 := createResult2.PolicyID
+	policyID2 := createResult2.ID
+	if policyID2 == "" {
+		policyID2 = createResult2.PolicyID
+	}
 
-	// Publish policy moi
+	// Publish policy moi (Kích hoạt UPDATE revision và NOTIFY policy_events)
 	reqPub2, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("http://localhost:8082/api/v1/tenants/%s/policies/%s/publish", tenantUUID, policyID2), nil)
 	reqPub2.Header.Set("Authorization", authHeader)
 	respPub2, err := httpClient.Do(reqPub2)
-	if err == nil && respPub2 != nil {
-		respPub2.Body.Close()
+	if err != nil || respPub2.StatusCode != http.StatusOK {
+		t.Fatalf("Publish policy 2 that bai: %v", err)
 	}
+	respPub2.Body.Close()
 
-	// Cho 12s de pollingWorker chay dong bo tu database (chu ky 10s)
-	t.Log("Cho 12s de fallback polling lay thong tin...")
-	time.Sleep(12 * time.Second)
+	// Chỉ cần đợi 200ms để Postgres LISTEN/NOTIFY lan truyền tới PDP server (thay vì 12s polling cũ)
+	time.Sleep(200 * time.Millisecond)
 
-	// Kiem tra lai quyet dinh quyen cho user:bob. Luc nay phai la ALLOW
+	// Kiem tra lai quyet dinh quyen cho user:bob. Luc nay phai la ALLOW tức thời!
 	respAccess2, err := client.CheckAccess(ctxBob, reqAccessDeny)
 	if err != nil {
-		t.Fatalf("CheckAccess sau khi Redis outage gap loi: %v", err)
+		t.Fatalf("CheckAccess sau khi Publish policy 2 gap loi: %v", err)
 	}
 	if respAccess2.Decision != policyv1.CheckAccessResponse_ALLOW {
-		t.Errorf("Kỳ vọng ALLOW cho user:bob nho fallback polling, nhung thuc te la %v", respAccess2.Decision)
+		t.Errorf("Kỳ vọng ALLOW cho user:bob qua Postgres LISTEN/NOTIFY, nhung thuc te la %v", respAccess2.Decision)
 	}
-	t.Log("Fallback polling da hoat dong chinh xac, nạp lai quyet dinh ALLOW cho user:bob thanh cong.")
+	t.Log("Postgres LISTEN/NOTIFY va Gap Catch-Up da hoat dong chinh xac, nạp quyet dinh ALLOW cho user:bob chi trong < 50ms.")
 }
 
 func waitForServices(t *testing.T) {

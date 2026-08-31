@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:15-alpine
@@ -15,15 +13,14 @@ services:
       timeout: 2s
       retries: 10
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6380:6379"
+  vector:
+    image: timberio/vector:0.35.0-alpine
+    command: ["--config-yaml", "sources:\n  dummy:\n    type: internal_metrics\nsinks:\n  console:\n    type: console\n    inputs: [dummy]\n    encoding:\n      codec: json"]
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "vector", "validate", "--help"]
       interval: 2s
       timeout: 2s
-      retries: 10
+      retries: 5
 
   pdp-server:
     image: standalone-pdp-test:latest
@@ -34,12 +31,9 @@ services:
       - "50061:50051"
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/policy_engine?sslmode=disable
-      REDIS_URL: redis:6379
       JWT_SECRET: test-secret-key-for-sprint-6-unit-test
     depends_on:
       db:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
   control-plane:
@@ -51,10 +45,7 @@ services:
       - "8082:8080"
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/policy_engine?sslmode=disable
-      REDIS_URL: redis:6379
       JWT_SECRET: test-secret-key-for-sprint-6-unit-test
     depends_on:
       db:
-        condition: service_healthy
-      redis:
         condition: service_healthy
