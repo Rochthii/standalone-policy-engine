@@ -232,3 +232,38 @@ func TestCompiler_ASTDepthLimit(t *testing.T) {
 		t.Errorf("Thông điệp lỗi sai: %v", err)
 	}
 }
+
+func TestCompiler_RequiredAttributesExtraction(t *testing.T) {
+	input := `permit(principal == user:"alice", action == action:READ, resource == any)
+when {
+	context.ip_address in "192.168.1.0/24" &&
+	context.age >= 18 &&
+	principal.dept == "engineering" &&
+	resource.classification == "confidential"
+};`
+
+	l := NewLexer(input)
+	p := NewParser(l)
+	policies := p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Lỗi cú pháp: %v", p.Errors())
+	}
+
+	c := NewCompiler()
+	compiled, err := c.Compile(policies[0])
+	if err != nil {
+		t.Fatalf("Lỗi compile: %v", err)
+	}
+
+	expected := []string{"age", "classification", "dept", "ip_address"}
+	if len(compiled.RequiredAttributes) != len(expected) {
+		t.Fatalf("Số lượng thuộc tính trích xuất sai: mong đợi=%d, thực tế=%d (%v)", len(expected), len(compiled.RequiredAttributes), compiled.RequiredAttributes)
+	}
+
+	for i, exp := range expected {
+		if compiled.RequiredAttributes[i] != exp {
+			t.Errorf("Thuộc tính thứ %d sai: mong đợi=%s, thực tế=%s", i, exp, compiled.RequiredAttributes[i])
+		}
+	}
+}

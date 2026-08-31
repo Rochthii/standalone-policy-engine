@@ -122,9 +122,11 @@ type PolicyNode struct {
 	Principal *ScopeNode // Điều khoản phạm vi principal
 	Action    *ScopeNode // Điều khoản phạm vi action
 	Resource  *ScopeNode // Điều khoản phạm vi resource
-	Condition Node       // Biểu thức điều kiện when/unless (nil nếu không có mệnh đề điều kiện)
-	IsUnless  bool       // true nếu dùng từ khóa "unless" (đảo logic), false nếu "when"
-	pos       Position
+	Condition          Node       // Biểu thức điều kiện when/unless (nil nếu không có mệnh đề điều kiện)
+	IsUnless           bool       // true nếu dùng từ khóa "unless" (đảo logic), false nếu "when"
+	ExplanationList    []string   // Pre-allocated immutable slice [ID] để đạt Zero Allocation ở Decision
+	RequiredAttributes []string   // Danh sách các thuộc tính biến được trích xuất từ AST điều kiện tại compile-time
+	pos                Position
 }
 
 func (p *PolicyNode) Type() NodeType { return NodePolicy }

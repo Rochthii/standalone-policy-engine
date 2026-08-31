@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"net"
+	"sort"
 	"strings"
 	"time"
 )
@@ -42,13 +43,53 @@ func (c *Compiler) Compile(policy *PolicyNode) (*PolicyNode, error) {
 
 		// 2. Tiền xử lý (Pre-parse) các chuỗi IP, DateTime và thực hiện Constant Folding
 		policy.Condition = c.optimizeNode(policy.Condition)
+
+		// 3. Trích xuất danh sách các thuộc tính biến được sử dụng (Compile-Time Attribute Extraction)
+		policy.RequiredAttributes = c.extractRequiredAttributes(policy.Condition)
 	}
 
 	if len(c.errors) > 0 {
 		return nil, fmt.Errorf("phát hiện lỗi trong quá trình biên dịch AST")
 	}
 
+	policy.ExplanationList = []string{policy.ID}
 	return policy, nil
+}
+
+// extractRequiredAttributes duyệt đệ quy cây AST để thu thập danh sách các thuộc tính biến (VariableNode.Field).
+func (c *Compiler) extractRequiredAttributes(node Node) []string {
+	if node == nil {
+		return nil
+	}
+
+	attrMap := make(map[string]bool)
+	var collect func(n Node)
+	collect = func(n Node) {
+		if n == nil {
+			return
+		}
+		switch val := n.(type) {
+		case *VariableNode:
+			attrMap[val.Field] = true
+		case *BinaryExprNode:
+			collect(val.Left)
+			collect(val.Right)
+		case *UnaryExprNode:
+			collect(val.Child)
+		}
+	}
+	collect(node)
+
+	if len(attrMap) == 0 {
+		return nil
+	}
+
+	attrs := make([]string, 0, len(attrMap))
+	for k := range attrMap {
+		attrs = append(attrs, k)
+	}
+	sort.Strings(attrs)
+	return attrs
 }
 
 // checkDepth kiểm tra đệ quy độ sâu của AST để phòng chống lỗi Stack Overflow.
