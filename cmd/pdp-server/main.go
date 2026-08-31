@@ -8,34 +8,26 @@ import (
 	"os"
 	"os/signal"
 	"standalone-policy-engine/internal/audit"
+	"standalone-policy-engine/internal/config"
 	"standalone-policy-engine/internal/engine"
 	"standalone-policy-engine/internal/server"
 	"standalone-policy-engine/internal/storage"
-	"strings"
 	"syscall"
-	"time"
 
 	"github.com/openziti/sdk-golang/ziti"
-	"github.com/redis/go-redis/v9"
 )
 
 func main() {
 	log.Println("[PDP-Server] Đang khởi chạy Standalone Policy Decision Point (Data Plane)...")
 
-	// Đọc cấu hình từ biến môi trường
-	dbConnStr := os.Getenv("DATABASE_URL")
-	if dbConnStr == "" {
-		// Mặc định cho môi trường dev cục bộ
-		dbConnStr = "postgres://postgres:postgres@localhost:5432/policy_engine?sslmode=disable"
-	}
-
-	redisAddr := os.Getenv("REDIS_URL")
-	if redisAddr == "" {
-		redisAddr = "localhost:6379"
+	// Nạp cấu hình tập trung và xác thực fail-fast
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("[PDP-Server] Lỗi cấu hình hệ thống: %v", err)
 	}
 
 	// 1. Khởi tạo Database Storage
-	store, err := storage.NewStorage(dbConnStr)
+	store, err := storage.NewStorage(cfg.Database.URL)
 	if err != nil {
 		log.Fatalf("[PDP-Server] Khởi tạo DB Storage thất bại: %v", err)
 	}
@@ -45,55 +37,47 @@ func main() {
 	ctxServer, stopServer := context.WithCancel(context.Background())
 	defer stopServer()
 
-	// 2. Khởi tạo Redis Universal Client (hỗ trợ Single/Sentinel/Cluster)
-	rdb := initRedis()
-
-	// 3. Khởi tạo Core Engine có GC dọn dẹp RAM dựa trên biến môi trường
-	disableGC := os.Getenv("DISABLE_GC") == "true"
-	gcIntervalStr := os.Getenv("GC_INTERVAL")
-	gcIdleStr := os.Getenv("GC_IDLE_TIMEOUT")
-
-	gcInterval := 1 * time.Hour
-	if gcIntervalStr != "" {
-		if d, err := time.ParseDuration(gcIntervalStr); err == nil {
-			gcInterval = d
-		}
-	}
-	gcIdle := 24 * time.Hour
-	if gcIdleStr != "" {
-		if d, err := time.ParseDuration(gcIdleStr); err == nil {
-			gcIdle = d
-		}
-	}
-
+	// 2. Khởi tạo Core Engine có GC dọn dẹp RAM
 	eng := engine.NewEngineWithGC(engine.GCConfig{
-		Enabled:     !disableGC,
-		Interval:    gcInterval,
-		IdleTimeout: gcIdle,
+		Enabled:     !cfg.Engine.DisableGC,
+		Interval:    cfg.Engine.GCInterval,
+		IdleTimeout: cfg.Engine.GCIdle,
 	})
 	eng.StartGC(ctxServer)
 
-	// 4. Khởi tạo Audit Logger bất đồng bộ
-	spillDir := "./spill-logs"
-	auditLogger := audit.NewAuditLogger(store, spillDir, 5000)
-	auditLogger.Start(ctxServer)
-	log.Println("[PDP-Server] Khởi chạy Audit Logger bất đồng bộ (Spill-to-Disk) thành công.")
+	// 3. Khởi tạo Cloud-Native Decoupled Stream Audit Logger
+	auditLogger := audit.NewStreamAuditLogger(os.Stdout)
+	log.Println("[PDP-Server] Khởi chạy Cloud-Native Stream Audit Logger (Stdout/UDS, Zero-GC) thành công.")
 
-	// 5. Khởi tạo Syncer đồng bộ cache nóng
-	syncer := engine.NewSyncer(eng, store, rdb)
-	
+	// 4. Khởi tạo Syncer đồng bộ cache nóng qua PostgreSQL LISTEN/NOTIFY
+	syncer := engine.NewSyncer(eng, store)
+
+	if cfg.Engine.StorageMode == "edge" {
+		badgerStore, err := storage.NewBadgerStore(cfg.Engine.BadgerDir)
+		if err != nil {
+			log.Printf("[PDP-Server] Cảnh báo: Khởi tạo BadgerStore thất bại: %v", err)
+		} else {
+			defer badgerStore.Close()
+			syncer.SetBadgerStore(badgerStore)
+			log.Printf("[PDP-Server] Chế độ EDGE STORAGE kích hoạt: lưu snapshot tại %s", cfg.Engine.BadgerDir)
+		}
+	} else {
+		log.Println("[PDP-Server] Chạy chế độ CLOUD NATIVE: 100% Stateless Pod (Không tạo file BadgerDB cục bộ).")
+	}
+
 	// Đăng ký lazyLoader callback để tự động tải lại Tenant từ Postgres khi bị GC unload
 	eng.SetLazyLoader(func(ctx context.Context, tenantID string) error {
 		syncer.SyncTenant(ctx, tenantID)
 		return nil
 	})
-	
+
 	syncer.Start(ctxServer)
 	log.Println("[PDP-Server] Khởi chạy Syncer đồng bộ cache nóng thành công.")
 
-	// 6. Khởi tạo net.Listener (TCP truyền thống hoặc Ziti Dark Service)
+	// 6. Khởi tạo net.Listener (TCP truyền thống, Unix Domain Socket hoặc Ziti Dark Service)
 	var listener net.Listener
-	useZiti := strings.EqualFold(os.Getenv("USE_ZITI"), "true")
+	useZiti := cfg.Server.UseZiti
+	socketPath := cfg.Server.SocketPath
 
 	if useZiti {
 		identityPath := os.Getenv("ZITI_IDENTITY_PATH")
@@ -131,6 +115,14 @@ func main() {
 			log.Fatalf("[PDP-Server] Không thể lắng nghe trên Ziti service %s: %v", serviceName, err)
 		}
 		log.Println("[PDP-Server] PDP Dark Service đã khởi chạy thành công. Tất cả cổng TCP inbound công cộng đều được đóng!")
+	} else if socketPath != "" {
+		_ = os.Remove(socketPath)
+		var err error
+		listener, err = net.Listen("unix", socketPath)
+		if err != nil {
+			log.Fatalf("[PDP-Server] Lắng nghe Unix Domain Socket %s thất bại: %v", socketPath, err)
+		}
+		log.Printf("[PDP-Server] Đang lắng nghe trên Unix Domain Socket (UDS Sidecar IPC): %s", socketPath)
 	} else {
 		grpcPort := 50051
 		addr := fmt.Sprintf(":%d", grpcPort)
@@ -156,51 +148,10 @@ func main() {
 	grpcServer.GracefulStop()
 	syncer.Stop()
 	auditLogger.Stop()
+	if socketPath != "" {
+		_ = os.Remove(socketPath)
+	}
 	log.Println("[PDP-Server] Dừng dịch vụ hoàn tất. Tạm biệt!")
 }
 
-// initRedis khởi tạo UniversalClient hỗ trợ chế độ Cluster, Sentinel hoặc Single.
-func initRedis() redis.UniversalClient {
-	mode := os.Getenv("REDIS_MODE") // cluster, sentinel, single (mặc định)
-	redisAddr := os.Getenv("REDIS_URL")
-	if redisAddr == "" {
-		redisAddr = "localhost:6379"
-	}
 
-	var rdb redis.UniversalClient
-	switch mode {
-	case "cluster":
-		addrs := strings.Split(redisAddr, ",")
-		rdb = redis.NewClusterClient(&redis.ClusterOptions{
-			Addrs: addrs,
-		})
-		log.Printf("[PDP-Server] Khởi tạo Redis CLUSTER tại %v", addrs)
-	case "sentinel":
-		sentinelAddrs := os.Getenv("REDIS_SENTINEL_ADDRS")
-		addrs := strings.Split(sentinelAddrs, ",")
-		masterName := os.Getenv("REDIS_MASTER_NAME")
-		if masterName == "" {
-			masterName = "mymaster"
-		}
-		rdb = redis.NewFailoverClient(&redis.FailoverOptions{
-			MasterName:    masterName,
-			SentinelAddrs: addrs,
-		})
-		log.Printf("[PDP-Server] Khởi tạo Redis SENTINEL tại %v (Master: %s)", addrs, masterName)
-	default:
-		rdb = redis.NewClient(&redis.Options{
-			Addr: redisAddr,
-		})
-		log.Printf("[PDP-Server] Khởi tạo Redis SINGLE tại %s", redisAddr)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	if err := rdb.Ping(ctx).Err(); err != nil {
-		log.Printf("[PDP-Server] Cảnh báo: Không thể ping kết nối Redis (%v). Chạy chế độ Polling fallback.", err)
-		return nil
-	}
-	log.Println("[PDP-Server] Ping Redis thành công.")
-	return rdb
-}
