@@ -12,6 +12,7 @@ Serve ultra-fast `CheckAccess` and `ExplainDecision` requests with multi-tenant 
 1. **gRPC Protocol & Codec**:
    - Registered custom JSON codec: `"json"` via `grpc.CallContentSubtype("json")`.
    - Never use `omitempty` on `Decision` enum (`DENY = 0`, `ALLOW = 1`).
+   - Contract fields: `CheckAccessResponse` returns `decision`, `matched_policy_id`, `repeated string obligations` (`REQUIRE_HUMAN_APPROVAL`, `AUDIT_SENSITIVE_TOOL_CALL`), and `map<string, string> advice`.
    - Timeout: Enforce 100ms per-request timeout context to prevent thread starvation.
 2. **Multi-Tenant JWT Isolation**:
    - Extract `claims["tenant_id"]` from `Authorization: Bearer <token>`.

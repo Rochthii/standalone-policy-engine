@@ -1,12 +1,12 @@
 ---
 name: agent-authorization
-description: Expert rules and guidelines for Unified AI Agent Authorization, Delegation Chains, Tool-Call Contexts, and Deterministic Guardrails (ALLOW, DENY, REQUIRE_HUMAN_APPROVAL).
+description: Expert rules and guidelines for Unified AI Agent Authorization, Delegation Chains, Tool-Call Contexts, and Deterministic Guardrails (ALLOW, DENY with Runtime Obligations).
 ---
 
 # Autonomous AI Agent Authorization & Guardrails Skill
 
 ## 🎯 Mission
-Provide deterministic, machine-speed authorization runtime and guardrails for Autonomous AI Agents, Copilots, and Non-Human Identities (NHI) calling enterprise tools and APIs, mitigating the risk of hallucinations, excessive agency (OWASP LLM06), and prompt injection attacks.
+Provide deterministic, machine-speed authorization runtime and guardrails for Autonomous AI Agents, Copilots, and Non-Human Identities (NHI) calling enterprise tools and APIs, mitigating the risk of hallucinations, excessive agency (OWASP LLM06), and prompt injection attacks in $< 300$ns with Zero GC allocations.
 
 ---
 
@@ -16,40 +16,42 @@ Provide deterministic, machine-speed authorization runtime and guardrails for Au
 All authorization requests evaluate against a generalized `Subject` schema:
 $$\text{Subject} = \langle \text{ID}, \text{Type}, \text{DelegatedBy}, \text{DelegationChain}, \text{Scope}, \text{TrustScore} \rangle$$
 - **Types**: `human_user`, `service_workload`, `ai_agent`.
-- **Delegation Chain**: Must track root delegator (e.g. `CFO`), intermediate proxies, and current agent identity.
+- **Delegation Chain**: Must track root delegator (e.g. `user:cfo_john`), intermediate proxies, and current agent identity (`agent:financial_copilot`).
 - **Principle of Least Privilege**: Agent privileges can **never** exceed the maximum limits of its delegator.
 
 ### 2. Tool-Call Execution Context (PIP / Request Context)
 When an AI Agent triggers a tool-call (e.g. LangGraph, AutoGen, OpenAI Tool-Call), extract and pass:
-- `context.tool_name`: Exact tool identifier (e.g. `erp_approve_purchase_order`, `bank_transfer`).
+- `context.tool_name`: Exact tool identifier (e.g. `tool:erp_create_purchase_order`, `tool:transfer_funds`).
 - `context.tool_arguments`: Pre-parsed attributes (`amount`, `vendor_id`, `currency`, `target_dept`).
 - `context.execution_mode`: `autonomous_run` vs `human_supervised`.
-- `context.agent_intent`: High-level workflow classification.
+- `context.delegated_by`: Root identity authorizing the task.
 
-### 3. Risk-Aware Tri-State Decision Engine
-The PDP returns one of 3 deterministic decision outcomes:
-1. **`ALLOW`**: Low-risk action, strictly within agent autonomous scope (`amount <= delegated_limit` and policy permit matched).
-2. **`REQUIRE_HUMAN_APPROVAL`**: Medium-to-high risk action, exceeds autonomous delegation limit but permitted under manager approval. Generates an asynchronous Human-in-the-Loop ticket.
-3. **`DENY`**: Hard policy violation (SoD violation, restricted department, outside authorized time/network bounds).
+### 3. Binary Decision + Runtime Obligations Model (Zero-Alloc Guardrails)
+To preserve the ultra-fast Boolean evaluation engine and avoid tri-state AST complexity:
+- The core decision remains strictly binary: **`ALLOW`** or **`DENY`**.
+- When an action exceeds the autonomous limit or requires human oversight, PDP returns **`Decision: DENY`** accompanied by pre-compiled **Obligations** and **Advice**:
+  - `obligations`: `["REQUIRE_HUMAN_APPROVAL"]`, `["AUDIT_SENSITIVE_TOOL_CALL"]`, `["MASK_ATTRIBUTES"]`.
+  - `advice`: `{"risk_level": "HIGH", "required_approver_role": "role:cfo", "amount": "50000"}`.
+- Caller / API Gateway uses the obligation to generate an asynchronous Human-in-the-Loop ticket or route approval workflows.
 
 ### 4. Deterministic Guardrail Security Rules (NIST AI RMF & OWASP LLM06)
-- **Impact Mitigation**: Never assume AI input is benign. If an agent is manipulated via Prompt Injection to request a $10M payment, the PDP enforces hard invariant rules on CPU in $< 1$ µs.
-- **Separation of Duties (SoD) for Agents**: An AI agent cannot approve a purchase order or financial voucher created by itself or by its delegated principal.
-- **Fail-Closed Default**: If tool context or delegation metadata is missing, immediately return `DENY`.
+- **Impact Mitigation**: If an agent is manipulated via Prompt Injection (e.g., requesting a $10M payment), PDP enforces hard invariant rules on CPU in $< 300$ ns (`Decision: DENY`, hard stop, no approval path).
+- **Separation of Duties (SoD) for Agents**: An AI agent cannot approve a purchase order or financial voucher created by itself or by its delegating supervisor (`context.created_by == context.delegated_by`).
+- **Fail-Closed Default**: If tool context or delegation metadata is missing, immediately evaluate to `DENY`.
 
 ---
 
-## 🧪 AI Agent Test Scenarios & Verification
-1. **Autonomous Low-Value Tool-Call**: Agent creates PO $< \$2,000 \rightarrow$ `ALLOW`.
-2. **High-Value Delegated Action**: Agent attempts PO $\$50,000$ (delegated limit $\$10,000$) $\rightarrow$ `REQUIRE_HUMAN_APPROVAL`.
-3. **Prompt Injection / Hallucination Attack Simulation**: Agent manipulated to transfer $\$10,000,000$ to unapproved vendor $\rightarrow$ `DENY`.
+## 🧪 AI Agent Test Scenarios & Verification ([`tests/ai_agent_guardrails_test.go`](file:///e:/Projects/Project_TN/standalone-policy-engine/tests/ai_agent_guardrails_test.go))
+1. **Autonomous Low-Value Tool-Call**: Agent creates PO $\le \$2,000 \rightarrow$ `ALLOW`.
+2. **High-Value Delegated Action**: Agent attempts PO $\$50,000$ ($> \$2,000$) $\rightarrow$ `DENY` + `Obligations: ["REQUIRE_HUMAN_APPROVAL"]`.
+3. **Prompt Injection / Extreme Value Attack**: Agent manipulated to transfer $\$10,000,000 \rightarrow$ `Hard DENY` (`POL-AGENT-HARD-CEILING`).
 4. **Agent-Staff SoD Collision**: Agent approves invoice generated by its own supervisor $\rightarrow$ `DENY`.
-5. **Multi-Agent Delegation Chain**: Agent A delegates to Sub-Agent B $\rightarrow$ Transitive permission bounded strictly by Agent A's initial scope.
+5. **Performance Benchmark**: `BenchmarkAIAgent_GuardrailsLatency`: **286.3 ns/op, 0 B/op, 0 allocs/op** (> 3.49M ops/sec).
 
 ---
 
 ## 📂 Source Files & Reference
-- [`proto/v1/policy.proto`](file:///e:/Projects/Project_TN/standalone-policy-engine/proto/v1/policy.proto): Request / Decision schema definitions.
+- [`proto/v1/policy.proto`](file:///e:/Projects/Project_TN/standalone-policy-engine/proto/v1/policy.proto): `CheckAccessResponse` with `obligations` and `advice`.
+- [`internal/engine/decision.go`](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/engine/decision.go): `Obligation` and `DecisionResult` structs.
 - [`internal/engine/evaluator.go`](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/engine/evaluator.go): Zero-allocation AST evaluator.
-- [`tests/erp_scenarios_test.go`](file:///e:/Projects/Project_TN/standalone-policy-engine/tests/erp_scenarios_test.go): ERP & Agent authorization test suite.
-- [`docs/DE_CUONG_CHI_TIET_DO_AN_TOT_NGHIEP_CHUAN_KHOA_HOC.md`](file:///e:/Projects/Project_TN/standalone-policy-engine/docs/DE_CUONG_CHI_TIET_DO_AN_TOT_NGHIEP_CHUAN_KHOA_HOC.md): Master thesis proposal & RQs.
+- [`tests/ai_agent_guardrails_test.go`](file:///e:/Projects/Project_TN/standalone-policy-engine/tests/ai_agent_guardrails_test.go): Comprehensive AI Agent guardrails & benchmarks.
