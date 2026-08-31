@@ -1,75 +1,110 @@
-# Lộ Trình Căn Tính: Kỹ Thuật Phần Mềm & Kiến Trúc ERP (SAP & Odoo) Kỷ Nguyên AI
+# LỘ TRÌNH CHIẾN LƯỢC: TỪ KỸ SƯ PHẦN MỀM BẢO MẬT (PTIT) ĐẾN CHUYÊN GIA GIẢI PHÁP ERP QUỐC TẾ
 
-> **Định hướng chiến lược:** Bản thiết kế lộ trình phát triển duy nhất dành cho sinh viên Kỹ thuật Phần mềm (SE) có mục tiêu làm chủ hệ sinh thái ERP (SAP & Odoo), tận dụng sức mạnh AI Vibe Coding từ Năm 3 đến vị trí **Enterprise Solutions Architect**.
+> **Tầm nhìn:** Định hình vị thế Enterprise Solutions Architect dẫn đầu thị trường Quốc tế (Phnom Penh / Đông Nam Á / Global)  
+> **Nền tảng:** Chương trình Chất lượng cao Kỹ thuật Phần mềm — Học viện Công nghệ Bưu chính Viễn thông (PTIT)  
+> **Bộ 3 Trụ Cột Kỹ Thuật:** `standalone-policy-engine` ⨁ `secure-multitenant-saas` ⨁ `secure-fapi-zta-darkservices`
 
 ---
 
-## 🎯 1. Bản Thể Luận & Căn Tính Cốt Lõi (First Principles)
+## 🏛️ PHẦN 1. PHÂN TÍCH TẦM NHÌN VÀ VỊ THẾ CHIẾN LƯỢC
 
-Lộ trình này được xây dựng dựa trên sự giao thoa của **3 trụ cột căn tính không thể thay thế**:
+Trong một thị trường nhân sự đang dần bão hòa, sự kết hợp giữa tư duy **Kỹ thuật Phần mềm (Software Engineering)** và **Bảo mật hệ thống chuyên sâu (Deep Systems Security)** không chỉ là một lợi thế — đó là **"Competitive Moat" (Hào bảo vệ cạnh tranh)** độc nhất giúp bạn tách biệt hoàn toàn với nhóm kỹ thuật viên chỉ biết cấu hình nghiệp vụ thông thường.
+
+Đối với một Chuyên gia Giải pháp ERP quốc tế, khả năng **tái cấu trúc kernel hệ thống để đạt mức bảo mật và hiệu năng cấp ngân hàng** chính là tấm vé bước vào các tập đoàn đa quốc gia và hệ thống tài chính tại các thị trường năng động như Campuchia (Trung tâm tài chính Phnom Penh, hệ thống thanh toán quốc gia **NBC Bakong**).
+
+```mermaid
+flowchart TD
+    subgraph CorePillars["BỘ 3 TRỤ CỘT DI SẢN KỸ THUẬT PTIT"]
+        P1["1. standalone-policy-engine\n• Sub-0.35ms In-Memory Engine\n• FNV-1a Hashing & Role DAG O(1)\n• Zero Heap Allocations"]
+        P2["2. secure-multitenant-saas\n• PostgreSQL RLS P99 nhanh hơn 11.7x\n• WORM Audit Ledger & Hash-chain\n• O(log N_tenant) Scaling"]
+        P3["3. secure-fapi-zta-darkservices\n• OpenZiti Dark Service (0 Open Ports)\n• FAPI 2.0 Security Profile\n• mTLS Cross-Layer Binding"]
+    end
+
+    subgraph Transformation["CẦU NỐI CHUYỂN HÓA SANG ENTERPRISE ERP"]
+        T1["Tối ưu hóa Kernel ERP (Odoo/SAP)\n& Pricing/Approval Engine"]
+        T2["Cô lập dữ liệu chi nhánh tuyệt đối\n& Sổ cái kế toán chống gian lận"]
+        T3["Dark ERP & Tích hợp Cổng thanh toán\nNgân hàng Quốc gia (NBC Bakong)"]
+    end
+
+    subgraph Target["VỊ THẾ ĐÍCH ĐẾN"]
+        Architect["GLOBAL ENTERPRISE SOLUTIONS ARCHITECT\n(Phnom Penh Financial Center → Global)"]
+    end
+
+    P1 --> T1
+    P2 --> T2
+    P3 --> T3
+    T1 & T2 & T3 --> Architect
+
+    style CorePillars fill:#1e3a5f,color:#fff
+    style Transformation fill:#0d4f3c,color:#fff
+    style Target fill:#7b1fa2,color:#fff
+```
+
+### Đối Chiếu Chuẩn Đầu Ra Kỹ Sư CLC PTIT (LO1 — LO10):
+* **Năng lực thiết kế thực nghiệm (LO5):** Khả năng A/B testing hiệu năng ERP dưới tải trọng cực lớn ($> 1.000.000$ RPS), đảm bảo hệ thống không sụp đổ khi xử lý hàng triệu bản ghi.
+* **Tư duy hệ thống và mô hình hóa (LO4, LO7):** Chuyển đổi các bài toán kinh tế, dòng tiền P2P/O2C và kế toán kép (LO6) thành các tiến trình kỹ thuật tối ưu.
+* **Sự giao thoa kỹ thuật — bảo mật (LO2, LO3):** Am hiểu sâu sắc về kiến trúc máy tính và an toàn mạng để xây dựng giải pháp phòng thủ đa tầng (*Defense-in-depth*).
+* **Thích ứng toàn cầu (LO9, LO10):** Chuyển đổi linh hoạt từ lý thuyết academic sang ứng dụng thực tế với năng lực tiếng Anh chuyên môn thành thạo (IELTS 6.5+).
+
+---
+
+## ⚙️ PHẦN 2. DI SẢN KỸ THUẬT: MAPPING 3 TRỤ CỘT PROJECT SANG HỆ THỐNG ERP
+
+| Dự án nguồn tại PTIT | Di sản kỹ thuật cốt lõi | Ứng dụng kiến trúc vào ERP (Solution Architect) |
+|---|---|---|
+| **`standalone-policy-engine`** | • PBAC/ABAC, Trie lookup FNV-1a 64-bit.<br>• String Interning & Role DAG Closure.<br>• Zero Heap Allocation on Hot-path. | • Thiết kế Engine tính giá (Pricing Engine) phức tạp.<br>• Luồng phê duyệt đa tầng thời gian thực $< 0.35$ms.<br>• Chốt chặn tiền định ngăn AI Agent vượt quyền. |
+| **`secure-multitenant-saas`** | • PostgreSQL Row-Level Security (RLS).<br>• WORM Audit Ledger & Hash-chaining.<br>• $O(\log N_{\text{tenant}})$ B-Tree Index Scaling. | • Cô lập dữ liệu tuyệt đối giữa các chi nhánh tập đoàn.<br>• Chống gian lận sổ cái tài chính theo ISO/IEC 27017.<br>• P99 nhanh hơn truy vấn JOIN truyền thống 11.7 lần. |
+| **`secure-fapi-zta-darkservices`** | • FAPI 2.0 Security Profile.<br>• OpenZiti Zero Open Ports (Dark Service).<br>• mTLS & Cross-Layer Binding. | • Tích hợp API ngân hàng & Gateway (NBC Bakong).<br>• Xây dựng **"Dark ERP"** hoàn toàn vô hình trước các cuộc tấn công quét cổng trên Internet. |
+
+---
+
+## 🔄 PHẦN 3. CHUYỂN ĐỔI TECHNICAL STACK: TỪ GO/NEXT.JS SANG ODOO & SAP
+
+* **Từ Go sang Python (Odoo 17):** Tư duy *"Zero Allocation"* và tối ưu hóa bộ nhớ trong Go giúp bạn viết các Odoo Custom Addons cực kỳ tinh gọn. Ứng dụng **OpenZiti** biến Odoo Deployment thành một hệ thống vô hình trước mạng internet công cộng.
+* **Từ C++/Java sang ABAP & CAP (SAP S/4HANA):** Nền tảng lập trình hướng đối tượng vững chắc tại PTIT là bàn đạp làm chủ SAP ABAP. Tư duy hệ thống phân tán được chuyển hóa thành khả năng tối ưu hóa **SAP HANA In-Memory Database**.
+* **Tái cấu trúc Business Rules:** Thay vì dùng các vòng lặp nested loop chậm chạp trong ERP, bạn triển khai các bộ lọc logic trong RAM (Trie/DAG) từ `standalone-policy-engine` để đạt hiệu năng xử lý hằng số $O(1)$.
+
+---
+
+## 🤖 PHẦN 4. PHƯƠNG PHÁP "CONTROLLED VIBE CODING" & QUẢN TRỊ TRI THỨC
+
+Trong kỷ nguyên AI, **AI là trợ thủ gia tăng năng suất 10x nhưng Kiến trúc sư phải là người cầm lái tuyệt đối (*Absolute Grounding*)**:
+1. **Kiểm soát bằng Source Context:** Tuyệt đối không để AI tự quyết định cấu trúc bảo mật. Bạn áp dụng mTLS, DPoP và WORM Ledger dựa trên kiến thức mật mã học đã thực hiện.
+2. **Reverse Engineering bằng Code Graph:** Sử dụng AI để bóc tách luồng dữ liệu của các module ERP phức tạp hàng chục nghìn dòng code.
+3. **Architect-First, AI-Second:** Thiết kế bộ khung cấu trúc bảng dữ liệu và luồng kiểm soát quyền trước; AI chỉ làm nhiệm vụ sinh mã boilerplate.
+
+---
+
+## 🗺️ PHẦN 5. LỘ TRÌNH HÀNH ĐỘNG 4 GIAI ĐOẠN (ROADMAP TO CAMBODIA & GLOBAL)
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                      3 TRỤ CỘT CĂN TÍNH TRONG KỶ NGUYÊN AI                  │
+│  GIAI ĐOẠN 1 (NĂM 3 PTIT - HIỆN TẠI): CỦNG CỐ DI SẢN KỸ THUẬT               │
+│  • Hoàn thiện 3 dự án core với tài liệu kỹ thuật chuẩn quốc tế.             │
+│  • Đạt chứng chỉ tiếng Anh IELTS 6.5+ (tận dụng chương trình CLC).          │
+│  • Thực hành sâu Database Internals & 4 chu trình kinh tế (P2P, O2C).       │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  1. CĂN TÍNH KINH TẾ (ERP Domain Truth):                                    │
-│     • Hiểu thấu đáo cách tiền, tài sản, kho hàng và báo cáo tài chính vận   │
-│       hành trong thế giới thực. AI không thể tự bịa ra luật thuế hay SoD.    │
-│                                                                             │
-│  2. CĂN TÍNH KỸ THUẬT (Software Engineering Rigor):                         │
-│     • Kiến trúc hệ thống phân tán, giao thức mạng (gRPC/OData), ACID,       │
-│       bộ nhớ in-memory, con trỏ nguyên tử, và kiểm chứng đo lường định lượng│
-│                                                                             │
-│  3. CĂN TÍNH THỜI ĐẠI (AI Agentic Orchestration):                           │
-│     • Bạn là Kiến trúc sư trưởng đưa ra đặc tả và luật lệ; AI là trợ lý     │
-│       lập trình thực thi với tốc độ gấp 10 lần.                             │
+│  GIAI ĐOẠN 2 (NĂM 4 - THỰC TẬP & TỐT NGHIỆP): CHUYÊN NGHIỆP HÓA DOANH NGHIỆP│
+│  • Thực tập tại các Vendor ERP (FPT, Viettel, Big 4, Odoo/SAP Partners).    │
+│  • Lấy chứng chỉ chính thức: SAP Certified Associate / openSAP Records.     │
+│  • Bảo vệ Đồ án tốt nghiệp: Đạt 9.5-10 với Live Demo PDP 1M+ RPS & Guardrail│
+├─────────────────────────────────────────────────────────────────────────────┤
+│  GIAI ĐOẠN 3 (RA TRƯỜNG: THỊ TRƯỜNG PHNOM PENH & REGIONAL): BỨT PHÁ THỰC ĐỊA│
+│  • Gia nhập các tập đoàn đa quốc gia, ngân hàng hoặc Fintech tại Phnom Penh.│
+│  • Tích hợp ERP với hệ thống thanh toán quốc gia Bakong (NBC) qua FAPI 2.0. │
+│  • Triển khai "Dark ERP" an toàn tuyệt đối cho các tổ chức tài chính lớn.   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  GIAI ĐOẠN 4 (3-5 NĂM: GLOBAL SOLUTIONS ARCHITECT): KHẲNG ĐỊNH VỊ THẾ       │
+│  • Chuyên gia tư vấn cấp cao về kiến trúc ERP Multi-Tenant toàn cầu.        │
+│  • Nắm giữ mức thu nhập Top 5% ngành CNTT trong khu vực.                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🗺️ 2. Sơ Đồ Tổng Quan 4 Giai Đoạn
+## 📋 CHECKLIST HÀNH ĐỘNG 30 NGÀY TỚI
 
-```mermaid
-flowchart LR
-    P1["GIAI ĐOẠN 1 (Năm 3: T1 - T3)\n• Khai phá Odoo Open-Source\n• 4 Luồng nghiệp vụ ERP\n• Custom Module + Go PDP"] 
-    --> P2["GIAI ĐOẠN 2 (Hè Năm 3: T4 - T6)\n• Tiếp cận Chuẩn SAP S/4HANA\n• SAP BTP & OData APIs\n• Two-Tier ERP Architecture"]
-    --> P3["GIAI ĐOẠN 3 (Năm 4: T7 - T12)\n• Đồ Án Tốt Nghiệp Xuất Sắc\n• Live Demo 1M+ RPS\n• Săn Offer Thực Tập Sớm"]
-    --> P4["GIAI ĐOẠN 4 (Ra Trường: 1-3 Năm)\n• Bứt tốc với AI Vibe Coding\n• Chứng chỉ quốc tế SAP/Cloud\n• Enterprise Solutions Architect"]
-
-    style P1 fill:#f3e5f5,stroke:#7b1fa2,color:#4a148c
-    style P2 fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
-    style P3 fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
-    style P4 fill:#fff3e0,stroke:#e65100,color:#e65100
-```
-
----
-
-## 📑 3. Bản Đồ Tài Liệu Chi Tiết
-
-Mỗi giai đoạn được đặc tả chi tiết trong một file tài liệu độc lập với đầy đủ: **Mục tiêu $\rightarrow$ Cần học gì $\rightarrow$ Cần làm gì $\rightarrow$ Sản phẩm đầu ra $\rightarrow$ Bộ câu hỏi phỏng vấn**:
-
-| STT | Tài liệu chi tiết | Trọng tâm giai đoạn | Sản phẩm bàn giao cốt lõi |
-|---|---|---|---|
-| 01 | [**`01_PHASE_1_ODOO_FOUNDATION.md`**](file:///e:/Projects/Project_TN/standalone-policy-engine/docs/career-roadmap/01_PHASE_1_ODOO_FOUNDATION.md) | Làm chủ Odoo, PostgreSQL và tích hợp Go PDP | Module Odoo tùy biến kết nối gRPC PDP |
-| 02 | [**`02_PHASE_2_SAP_ENTERPRISE.md`**](file:///e:/Projects/Project_TN/standalone-policy-engine/docs/career-roadmap/02_PHASE_2_SAP_ENTERPRISE.md) | Tiếp cận chuẩn mực tập đoàn SAP S/4HANA & BTP | Mô hình tích hợp Two-Tier ERP Odoo $\leftrightarrow$ SAP |
-| 03 | [**`03_PHASE_3_CAPSTONE_INTERNSHIP.md`**](file:///e:/Projects/Project_TN/standalone-policy-engine/docs/career-roadmap/03_PHASE_3_CAPSTONE_INTERNSHIP.md) | Đồ án tốt nghiệp xuất sắc & Săn việc làm | Thuyết minh đồ án 100 trang + Offer thực tập |
-| 04 | [**`04_PHASE_4_ENTERPRISE_ARCHITECT.md`**](file:///e:/Projects/Project_TN/standalone-policy-engine/docs/career-roadmap/04_PHASE_4_ENTERPRISE_ARCHITECT.md) | Nâng tầm thành Kiến trúc sư giải pháp doanh nghiệp | Lộ trình thăng tiến Senior/Lead Architect |
-
----
-
-## ⚖️ 4. Bảng So Sánh Chiến Lược: Odoo vs SAP Trong Sự Nghiệp
-
-```text
-┌─────────────────────────┬───────────────────────────────┬───────────────────────────────┐
-│ TIÊU CHÍ                │ HỆ SINH THÁI ODOO             │ HỆ SINH THÁI SAP              │
-├─────────────────────────┼───────────────────────────────┼───────────────────────────────┤
-│ Phân khúc khách hàng    │ Doanh nghiệp vừa & nhỏ (SME)  │ Tập đoàn tỷ USD, Đa quốc gia  │
-│ Mã nguồn & Khả năng học │ 100% Open-Source (Python/PG)  │ Enterprise Cloud (SAP BTP)    │
-│ Vai trò của bạn         │ Nắm bản chất ruột gan code    │ Định hình kiến trúc tập đoàn  │
-│ Độ linh hoạt tùy biến   │ Cực kỳ nhanh và linh hoạt     │ Tuân thủ chặt chẽ Clean Core  │
-│ Mức thu nhập thị trường │ Khá - Cao ($800 - $2,500)     │ Rất cao ($1,500 - $5,000+)    │
-└─────────────────────────┴───────────────────────────────┴───────────────────────────────┘
-```
-
-👉 **Giá trị độc nhất của bạn:** Khi kết hợp cả **Odoo (Hiểu sâu code)** + **SAP (Nắm chuẩn tập đoàn)** + **Engine phân quyền Go hiệu năng cao**, bạn trở thành nhân sự hiếm hoi có khả năng thiết kế và tích hợp các hệ thống **Two-Tier ERP** phức tạp nhất thị trường.
+1. [ ] **Mapping Nghiệp Vụ:** Lấy 5 bảng dữ liệu chính trong Odoo Accounting (`account_move`, `account_move_line`, `purchase_order`, `res_partner`, `res_company`) mapping trực tiếp vào cấu trúc RLS trong dự án SaaS.
+2. [ ] **Thực Hành Lab Odoo 17:** Khởi chạy `E:\Projects\ERP_Mastery_Hub\01_Odoo_Lab\docker-compose.yml`, kiểm thử module gọi sang Go PDP Engine.
+3. [ ] **Đăng Ký openSAP & SAP Learning:** Hoàn thành khóa học *"Discovering SAP S/4HANA"* và *"Building Side-by-Side Extensions on SAP BTP"*.
+4. [ ] **Thuyết Trình Kỹ Thuật (English Demo):** Quay video ngắn 5 phút demo bằng tiếng Anh giải thích về Latency Budget và Benchmark 1M+ RPS của Policy Engine.
