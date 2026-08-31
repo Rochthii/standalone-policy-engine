@@ -23,6 +23,7 @@ High-performance In-Memory Policy Decision Point (PDP) in Go.
 - [**Storage & Audit**](file:///e:/Projects/Project_TN/standalone-policy-engine/.agents/skills/storage-audit/SKILL.md): PostgreSQL `pgx.CopyFrom`, Ring Buffer, Spill-to-Disk, Redis Pub/Sub, BadgerDB.
 - [**ERP Testing & Benchmark**](file:///e:/Projects/Project_TN/standalone-policy-engine/.agents/skills/erp-testing/SKILL.md): ERP ABAC scenarios (PO limits, SoD, Multi-Branch, Payroll), Micro-benchmarks.
 - [**AI Agent Authorization**](file:///e:/Projects/Project_TN/standalone-policy-engine/.agents/skills/agent-authorization/SKILL.md): Unified Subject Model, Delegation Chains, Tool-Call Contexts, Tri-State Decisions (`ALLOW`/`DENY`/`REQUIRE_HUMAN_APPROVAL`), Deterministic Guardrails (NIST AI RMF / OWASP LLM06).
+- [**Critical Advisor**](file:///e:/Projects/Project_TN/standalone-policy-engine/.agents/skills/critical-advisor/SKILL.md): Zero Sycophancy, Blindspot Spotting, Multi-Perspective Stress-Testing, Information Completeness Gate.
 
 ---
 
