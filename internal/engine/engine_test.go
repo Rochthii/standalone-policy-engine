@@ -246,3 +246,64 @@ func compileHelper(t *testing.T, c *parser.Compiler, id string, dsl string) *par
 
 	return compiled
 }
+
+func TestEngine_RevisionTracking(t *testing.T) {
+	eng := NewEngine()
+	compiler := parser.NewCompiler()
+
+	tenantID := "tenant-rev-test"
+	p1 := compileHelper(t, compiler, "P-1", `permit(principal == any, action == any, resource == any);`)
+
+	if rev := eng.GetTenantRevision(tenantID); rev != 0 {
+		t.Fatalf("Mong đợi revision = 0 cho tenant chưa tồn tại, thực tế: %d", rev)
+	}
+
+	// Update lần 1 với revision cụ thể = 100
+	if err := eng.UpdateTenantPoliciesWithRevision(tenantID, []*parser.PolicyNode{p1}, nil, 100); err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
+	if rev := eng.GetTenantRevision(tenantID); rev != 100 {
+		t.Fatalf("Mong đợi revision = 100, thực tế: %d", rev)
+	}
+
+	// Update lần 2 tự động tăng revision lên 101
+	if err := eng.UpdateTenantPolicies(tenantID, []*parser.PolicyNode{p1}, nil); err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
+	if rev := eng.GetTenantRevision(tenantID); rev != 101 {
+		t.Fatalf("Mong đợi revision = 101, thực tế: %d", rev)
+	}
+}
+
+func TestEngine_SchemaAggregation(t *testing.T) {
+	eng := NewEngine()
+	compiler := parser.NewCompiler()
+
+	tenantID := "tenant-schema-test"
+	p1 := compileHelper(t, compiler, "P-1", `permit(principal == any, action == any, resource == any) when { context.ip_address in "10.0.0.0/8" && principal.dept == "IT" };`)
+	p2 := compileHelper(t, compiler, "P-2", `permit(principal == any, action == any, resource == any) when { resource.security_level >= 3 && context.ip_address in "192.168.1.0/24" };`)
+
+	if err := eng.UpdateTenantPolicies(tenantID, []*parser.PolicyNode{p1, p2}, nil); err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
+
+	schema := eng.GetTenantSchema(tenantID)
+	expectedAttrs := []string{"dept", "ip_address", "security_level"}
+
+	if len(schema) != len(expectedAttrs) {
+		t.Fatalf("Số lượng thuộc tính schema không khớp: mong đợi=%d, thực tế=%d (%v)", len(expectedAttrs), len(schema), schema)
+	}
+
+	for _, exp := range expectedAttrs {
+		found := false
+		for _, act := range schema {
+			if act == exp {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Thuộc tính %s bị thiếu trong schema tổng hợp: %v", exp, schema)
+		}
+	}
+}

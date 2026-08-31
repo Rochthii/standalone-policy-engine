@@ -42,12 +42,34 @@ func (e *Engine) GetTenantTrie(tenantID string) (*TrieRoot, bool) {
 	return trie, exists
 }
 
-// UpdateTenantPolicies cập nhật tập luật và phân cấp vai trò cho một Tenant cụ thể.
+// GetTenantRevision lấy số hiệu phiên bản (Revision ID) hiện tại của một Tenant.
+func (e *Engine) GetTenantRevision(tenantID string) uint64 {
+	if trie, exists := e.GetTenantTrie(tenantID); exists {
+		return trie.Revision
+	}
+	return 0
+}
+
+// GetTenantSchema trả về danh sách các thuộc tính biến mà tập chính sách của Tenant này thực sự cần.
+func (e *Engine) GetTenantSchema(tenantID string) []string {
+	if trie, exists := e.GetTenantTrie(tenantID); exists {
+		return trie.RequiredAttributes
+	}
+	return nil
+}
+
+// UpdateTenantPolicies cập nhật tập luật và phân cấp vai trò cho một Tenant cụ thể (tự động tăng revision).
+func (e *Engine) UpdateTenantPolicies(tenantID string, policies []*parser.PolicyNode, inheritances [][2]string) error {
+	currentRev := e.GetTenantRevision(tenantID)
+	return e.UpdateTenantPoliciesWithRevision(tenantID, policies, inheritances, currentRev+1)
+}
+
+// UpdateTenantPoliciesWithRevision cập nhật tập luật và phân cấp vai trò cho một Tenant với số hiệu Revision cụ thể.
 // Áp dụng cơ chế Copy-On-Write (COW):
 //  1. Nhân bản map Tenants cũ sang map mới.
 //  2. Xây dựng lại toàn bộ TrieRoot mới cho Tenant cần cập nhật (nạp vai trò và chính sách).
 //  3. Hoán đổi con trỏ nguyên tử (Atomic Pointer Swap) sang state mới.
-func (e *Engine) UpdateTenantPolicies(tenantID string, policies []*parser.PolicyNode, inheritances [][2]string) error {
+func (e *Engine) UpdateTenantPoliciesWithRevision(tenantID string, policies []*parser.PolicyNode, inheritances [][2]string, revision uint64) error {
 	oldState := e.GetState()
 
 	// 1. Tạo EngineState mới
@@ -64,6 +86,9 @@ func (e *Engine) UpdateTenantPolicies(tenantID string, policies []*parser.Policy
 
 	// 3. Xây dựng mới hoàn toàn TrieRoot cho Tenant được cập nhật
 	newTrie := NewTrieRoot(tenantID)
+	if revision > 0 {
+		newTrie.Revision = revision
+	}
 
 	// Nạp phân cấp vai trò DAG trước
 	for _, pair := range inheritances {
@@ -74,7 +99,7 @@ func (e *Engine) UpdateTenantPolicies(tenantID string, policies []*parser.Policy
 		}
 	}
 
-	// Nạp các chính sách vào Trie
+	// Nạp các chính sách vào Trie (tự động tổng hợp RequiredAttributes)
 	for _, policy := range policies {
 		newTrie.AddPolicy(policy)
 	}

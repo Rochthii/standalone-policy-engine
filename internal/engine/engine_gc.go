@@ -157,8 +157,32 @@ func (e *EngineWithGC) CheckPermission(ctx context.Context, tenantID, subject, a
 	return CheckPermission(ctx, trie, subject, action, resource, ctxMap)
 }
 
+// GetTenantRevision lấy số hiệu phiên bản (Revision ID) hiện tại của một Tenant.
+func (e *EngineWithGC) GetTenantRevision(tenantID string) uint64 {
+	state := e.GetState()
+	if trie, exists := state.Tenants[tenantID]; exists {
+		return trie.Revision
+	}
+	return 0
+}
+
+// GetTenantSchema trả về danh sách các thuộc tính biến mà tập chính sách của Tenant này thực sự cần.
+func (e *EngineWithGC) GetTenantSchema(tenantID string) []string {
+	state := e.GetState()
+	if trie, exists := state.Tenants[tenantID]; exists {
+		return trie.RequiredAttributes
+	}
+	return nil
+}
+
 // UpdateTenantPolicies cập nhật tập luật cho Tenant sử dụng COW.
 func (e *EngineWithGC) UpdateTenantPolicies(tenantID string, policies []*parser.PolicyNode, inheritances [][2]string) error {
+	currentRev := e.GetTenantRevision(tenantID)
+	return e.UpdateTenantPoliciesWithRevision(tenantID, policies, inheritances, currentRev+1)
+}
+
+// UpdateTenantPoliciesWithRevision cập nhật tập luật cho Tenant với số hiệu Revision cụ thể.
+func (e *EngineWithGC) UpdateTenantPoliciesWithRevision(tenantID string, policies []*parser.PolicyNode, inheritances [][2]string, revision uint64) error {
 	oldState := e.GetState()
 
 	newState := &EngineState{
@@ -171,6 +195,10 @@ func (e *EngineWithGC) UpdateTenantPolicies(tenantID string, policies []*parser.
 	}
 
 	newTrie := NewTrieRoot(tenantID)
+	if revision > 0 {
+		newTrie.Revision = revision
+	}
+
 	for _, pair := range inheritances {
 		if err := newTrie.RoleDAG.AddInheritance(pair[0], pair[1]); err != nil {
 			return err
@@ -208,6 +236,26 @@ func (e *EngineWithGC) UnloadTenant(tenantID string) {
 	atomic.StorePointer(&e.state, unsafe.Pointer(newState))
 	e.accessRecords.Delete(tenantID)
 	log.Printf("[GC-Engine] Đã unload Tenant %s ra khỏi RAM để giải phóng bộ nhớ.", tenantID)
+}
+
+// SimulateDecision đánh giá phân quyền giả lập với một chính sách thử nghiệm mà không làm thay đổi state.
+func (e *EngineWithGC) SimulateDecision(ctx context.Context, tenantID string, simPolicy *parser.PolicyNode, subject, action, resource string, ctxMap map[string]string) DecisionResult {
+	trie, exists := e.GetTenantTrie(ctx, tenantID)
+	
+	simTrie := NewTrieRoot(tenantID)
+	if exists && trie != nil {
+		for k, v := range trie.Subjects {
+			simTrie.Subjects[k] = v
+		}
+		simTrie.GlobalPolicies = append(simTrie.GlobalPolicies, trie.GlobalPolicies...)
+		simTrie.RoleDAG = trie.RoleDAG
+	}
+
+	if simPolicy != nil {
+		simTrie.AddPolicy(simPolicy)
+	}
+
+	return CheckPermission(ctx, simTrie, subject, action, resource, ctxMap)
 }
 
 // touchTenant cập nhật thời gian truy cập cuối của Tenant.
