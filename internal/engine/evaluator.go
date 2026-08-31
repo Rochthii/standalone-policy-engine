@@ -2,7 +2,6 @@ package engine
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"standalone-policy-engine/internal/parser"
 	"strconv"
@@ -38,18 +37,32 @@ type EvalContext struct {
 	// Cache lưu danh sách các vai trò đã kế thừa của Subject để tối ưu hóa tra cứu
 	subjectInherited []string
 	once             sync.Once
+
+	// scratchNodes lưu trữ sẵn các ValueNode trên RAM để tái sử dụng trong quá trình đánh giá (Zero Allocation)
+	scratchNodes [64]parser.ValueNode
+	scratchIPs   [64][16]byte
+	scratchCount int
+}
+
+// allocValueNode mượn một ValueNode tạm thời từ scratch buffer của EvalContext.
+func (ctx *EvalContext) allocValueNode() *parser.ValueNode {
+	if ctx.scratchCount < len(ctx.scratchNodes) {
+		node := &ctx.scratchNodes[ctx.scratchCount]
+		ctx.scratchCount++
+		*node = parser.ValueNode{}
+		return node
+	}
+	return &parser.ValueNode{}
 }
 
 // sync.Pool giúp tái sử dụng các đối tượng EvalContext để triệt tiêu allocation.
 var contextPool = sync.Pool{
 	New: func() interface{} {
-		return &EvalContext{
-			Context: make(map[string]string),
-		}
+		return &EvalContext{}
 	},
 }
 
-// GetEvalContext lấy một EvalContext từ pool và thiết lập các giá trị.
+// GetEvalContext lấy một EvalContext từ pool và thiết lập các giá trị (Zero-Copy Context).
 func GetEvalContext(subject, action, resource string, context map[string]string, dag *RoleDAG) *EvalContext {
 	ctx := contextPool.Get().(*EvalContext)
 	ctx.Subject = subject
@@ -58,28 +71,23 @@ func GetEvalContext(subject, action, resource string, context map[string]string,
 	ctx.RoleDAG = dag
 	ctx.subjectInherited = nil
 	ctx.once = sync.Once{}
-
-	// Sao chép context map
-	for k, v := range context {
-		ctx.Context[k] = v
-	}
+	ctx.scratchCount = 0
+	ctx.Context = context // Gán trực tiếp con trỏ map, không sao chép lại từng phần tử
 
 	return ctx
 }
 
 // Release trả EvalContext về pool sau khi dùng xong.
 func (ctx *EvalContext) Release() {
-	// Xóa sạch map để tránh rò rỉ bộ nhớ
-	for k := range ctx.Context {
-		delete(ctx.Context, k)
-	}
+	ctx.Context = nil
 	ctx.RoleDAG = nil
 	ctx.subjectInherited = nil
+	ctx.scratchCount = 0
 	contextPool.Put(ctx)
 }
 
-// getInheritedRoles thu thập các vai trò kế thừa của Subject (kèm cache).
-func (ctx *EvalContext) getInheritedRoles() []string {
+// resolveInheritedRoles trả về danh sách các vai trò kế thừa của Subject hiện tại một cách an toàn.
+func (ctx *EvalContext) resolveInheritedRoles() []string {
 	ctx.once.Do(func() {
 		if ctx.RoleDAG != nil {
 			ctx.subjectInherited = ctx.RoleDAG.GetInheritedRoles(ctx.Subject)
@@ -95,46 +103,59 @@ func (ctx *EvalContext) GetAttribute(scope parser.VarScope, field string, expect
 	switch scope {
 	case parser.VarScopePrincipal:
 		if field == "id" {
-			return &parser.ValueNode{ValType: parser.ValueTypeString, StrVal: ctx.Subject}, nil
+			node := ctx.allocValueNode()
+			node.ValType = parser.ValueTypeString
+			node.StrVal = ctx.Subject
+			return node, nil
 		}
 		// Thử tìm trong Context map với tiền tố principal.
-		val, exists := ctx.Context["principal."+field]
-		if !exists {
-			// Fallback tìm trực tiếp
-			val, exists = ctx.Context[field]
-		}
-		if exists {
-			return parseStringValue(val, expectedType)
+		if ctx.Context != nil {
+			val, exists := ctx.Context["principal."+field]
+			if !exists {
+				// Fallback tìm trực tiếp
+				val, exists = ctx.Context[field]
+			}
+			if exists {
+				return ctx.parseStringValue(val, expectedType)
+			}
 		}
 
 	case parser.VarScopeResource:
 		if field == "id" {
-			return &parser.ValueNode{ValType: parser.ValueTypeString, StrVal: ctx.Resource}, nil
+			node := ctx.allocValueNode()
+			node.ValType = parser.ValueTypeString
+			node.StrVal = ctx.Resource
+			return node, nil
 		}
 		// Thử tìm trong Context map với tiền tố resource.
-		val, exists := ctx.Context["resource."+field]
-		if !exists {
-			val, exists = ctx.Context[field]
-		}
-		if exists {
-			return parseStringValue(val, expectedType)
+		if ctx.Context != nil {
+			val, exists := ctx.Context["resource."+field]
+			if !exists {
+				val, exists = ctx.Context[field]
+			}
+			if exists {
+				return ctx.parseStringValue(val, expectedType)
+			}
 		}
 
 	case parser.VarScopeContext:
-		val, exists := ctx.Context[field]
-		if !exists {
-			val, exists = ctx.Context["context."+field]
-		}
-		if exists {
-			return parseStringValue(val, expectedType)
+		if ctx.Context != nil {
+			val, exists := ctx.Context[field]
+			if !exists {
+				val, exists = ctx.Context["context."+field]
+			}
+			if exists {
+				return ctx.parseStringValue(val, expectedType)
+			}
 		}
 	}
 
 	return nil, ErrMissingAttribute
 }
 
-func parseStringValue(val string, expectedType parser.ValueType) (*parser.ValueNode, error) {
-	node := &parser.ValueNode{ValType: expectedType}
+func (ctx *EvalContext) parseStringValue(val string, expectedType parser.ValueType) (*parser.ValueNode, error) {
+	node := ctx.allocValueNode()
+	node.ValType = expectedType
 	switch expectedType {
 	case parser.ValueTypeString:
 		node.StrVal = val
@@ -154,11 +175,10 @@ func parseStringValue(val string, expectedType parser.ValueType) (*parser.ValueN
 		node.BoolVal = boolVal
 		return node, nil
 	case parser.ValueTypeIP:
-		ip := net.ParseIP(val)
-		if ip == nil {
+		node.IPVal = parseIPv4FastInto(val, &ctx.scratchIPs[ctx.scratchCount-1])
+		if node.IPVal == nil {
 			return nil, errors.New("định dạng IP không hợp lệ")
 		}
-		node.IPVal = ip
 		return node, nil
 	case parser.ValueTypeIPNet:
 		_, ipnet, err := net.ParseCIDR(val)
@@ -209,20 +229,20 @@ func Evaluate(node parser.Node, ctx *EvalContext) (*parser.ValueNode, error) {
 			if childVal.ValType != parser.ValueTypeBool {
 				return nil, ErrUnsupportedOp
 			}
-			return &parser.ValueNode{
-				ValType: parser.ValueTypeBool,
-				BoolVal: !childVal.BoolVal,
-			}, nil
+			if childVal.BoolVal {
+				return boolFalse, nil
+			}
+			return boolTrue, nil
 		}
 
 		if n.Op == parser.UnaryOpNeg {
 			if childVal.ValType != parser.ValueTypeInt {
 				return nil, ErrUnsupportedOp
 			}
-			return &parser.ValueNode{
-				ValType: parser.ValueTypeInt,
-				IntVal:  -childVal.IntVal,
-			}, nil
+			node := ctx.allocValueNode()
+			node.ValType = parser.ValueTypeInt
+			node.IntVal = -childVal.IntVal
+			return node, nil
 		}
 
 	case *parser.BinaryExprNode:
@@ -434,25 +454,89 @@ func tryParseIPOrCIDR(s string) (net.IP, *net.IPNet, bool) {
 }
 
 func tryParseDateTimeOrTime(s string) (int64, bool) {
+	// 1. Thử parse nhanh định dạng Time (HH:MM:SS, HH:MM:SSZ, HH:MM) - Zero Allocation
+	if val, ok := parseFastTime(s); ok {
+		return val, true
+	}
+
+	// 2. Thử parse định dạng RFC3339 DateTime
 	if t, err := time.Parse(time.RFC3339, s); err == nil {
 		return t.UnixNano(), true
 	}
 
-	var hour, min, sec int
-	var err error
-	if strings.HasSuffix(s, "Z") {
-		_, err = fmt.Sscanf(s, "%d:%d:%dZ", &hour, &min, &sec)
-	} else {
-		_, err = fmt.Sscanf(s, "%d:%d:%d", &hour, &min, &sec)
-	}
-
-	if err == nil && hour >= 0 && hour < 24 && min >= 0 && min < 60 && sec >= 0 && sec < 60 {
-		return int64(hour*3600 + min*60 + sec), true
-	}
-
-	if _, err = fmt.Sscanf(s, "%d:%d", &hour, &min); err == nil && hour >= 0 && hour < 24 && min >= 0 && min < 60 {
-		return int64(hour*3600 + min*60), true
-	}
-
 	return 0, false
+}
+
+func parseFastTime(s string) (int64, bool) {
+	s = strings.TrimSuffix(s, "Z")
+	// Định dạng "HH:MM:SS" (8 ký tự)
+	if len(s) == 8 && s[2] == ':' && s[5] == ':' {
+		h0, h1 := s[0]-'0', s[1]-'0'
+		m0, m1 := s[3]-'0', s[4]-'0'
+		s0, s1 := s[6]-'0', s[7]-'0'
+		if h0 <= 9 && h1 <= 9 && m0 <= 9 && m1 <= 9 && s0 <= 9 && s1 <= 9 {
+			h := int64(h0)*10 + int64(h1)
+			m := int64(m0)*10 + int64(m1)
+			sec := int64(s0)*10 + int64(s1)
+			if h < 24 && m < 60 && sec < 60 {
+				return h*3600 + m*60 + sec, true
+			}
+		}
+	} else if len(s) == 5 && s[2] == ':' {
+		// Định dạng "HH:MM" (5 ký tự)
+		h0, h1 := s[0]-'0', s[1]-'0'
+		m0, m1 := s[3]-'0', s[4]-'0'
+		if h0 <= 9 && h1 <= 9 && m0 <= 9 && m1 <= 9 {
+			h := int64(h0)*10 + int64(h1)
+			m := int64(m0)*10 + int64(m1)
+			if h < 24 && m < 60 {
+				return h*3600 + m*60, true
+			}
+		}
+	}
+	return 0, false
+}
+
+// parseIPv4FastInto phân giải địa chỉ IPv4 trực tiếp vào bộ đệm cố định trên RAM mà không cấp phát heap.
+func parseIPv4FastInto(s string, dst *[16]byte) net.IP {
+	var p [4]byte
+	n := 0
+	val := 0
+	digits := 0
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= '0' && c <= '9' {
+			val = val*10 + int(c-'0')
+			digits++
+			if val > 255 || digits > 3 {
+				return nil
+			}
+		} else if c == '.' {
+			if digits == 0 || n >= 3 {
+				return nil
+			}
+			p[n] = byte(val)
+			n++
+			val = 0
+			digits = 0
+		} else {
+			return nil
+		}
+	}
+	if n != 3 || digits == 0 {
+		// Thử fallback sang net.ParseIP nếu là định dạng IPv6 hoặc đặc biệt
+		if ip := net.ParseIP(s); ip != nil {
+			copy(dst[:], ip)
+			return net.IP((*dst)[:len(ip)])
+		}
+		return nil
+	}
+	p[3] = byte(val)
+
+	// Biểu diễn IPv4 dưới dạng chuẩn 16-byte IPv4-mapped IPv6 (tương thích net.IP)
+	dst[0], dst[1], dst[2], dst[3] = 0, 0, 0, 0
+	dst[4], dst[5], dst[6], dst[7] = 0, 0, 0, 0
+	dst[8], dst[9], dst[10], dst[11] = 0, 0, 0xff, 0xff
+	dst[12], dst[13], dst[14], dst[15] = p[0], p[1], p[2], p[3]
+	return net.IP((*dst)[:])
 }
