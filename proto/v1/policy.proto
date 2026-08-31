@@ -30,6 +30,8 @@ message CheckAccessResponse {
   }
   Decision decision = 1;        // Quyết định cuối cùng (ALLOW hoặc DENY)
   string matched_policy_id = 2; // ID chính sách quyết định cuối cùng (ALLOW hoặc FORBID)
+  repeated string obligations = 3; // Danh sách nghĩa vụ (ví dụ: "REQUIRE_HUMAN_APPROVAL", "AUDIT_HIGH_RISK")
+  map<string, string> advice = 4;  // Metadata phụ hướng dẫn client (ví dụ: risk_level="HIGH")
 }
 
 // Yêu cầu giải thích chi tiết quyết định

@@ -26,6 +26,8 @@ const (
 type CheckAccessResponse struct {
 	Decision        CheckAccessResponse_Decision `json:"decision"`
 	MatchedPolicyId string                       `json:"matched_policy_id,omitempty"`
+	Obligations     []string                     `json:"obligations,omitempty"`
+	Advice          map[string]string            `json:"advice,omitempty"`
 }
 
 type ExplainRequest struct {
