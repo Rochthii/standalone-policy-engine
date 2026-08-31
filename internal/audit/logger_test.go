@@ -1,114 +1,87 @@
-package audit
+﻿package audit
 
 import (
-	"context"
-	"errors"
-	"io/ioutil"
-	"os"
+	"bytes"
 	"sync"
 	"testing"
-	"time"
 )
 
-type mockBatchWriter struct {
-	mu    sync.Mutex
-	err   error
-	calls int
-	logs  []*LogEntry
+type noopWriter struct{}
+
+func (n *noopWriter) Write(p []byte) (int, error) {
+	return len(p), nil
 }
 
-func (m *mockBatchWriter) InsertAuditLogsBatch(ctx context.Context, logs []*LogEntry) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.calls++
-	m.logs = append(m.logs, logs...)
-	return m.err
+func TestAuditLogger_BinaryPackagingAndDecoding(t *testing.T) {
+	buf := &bytes.Buffer{}
+	logger := NewStreamAuditLogger(buf)
+	defer logger.Stop()
+
+	ctxMap := map[string]string{
+		"ip":     "192.168.1.100",
+		"device": "ios_secure",
+	}
+
+	logger.Log("tenant-123", "user:alice", "READ", "file:secret.pdf", "ALLOW", "P-ALLOW-1", ctxMap)
+
+	if buf.Len() == 0 {
+		t.Fatal("Buffer không được rỗng sau khi ghi log")
+	}
+
+	entry, err := DecodeBinaryLogEntry(buf.Bytes())
+	if err != nil {
+		t.Fatalf("Decode binary log entry lỗi: %v", err)
+	}
+
+	if entry.TenantID != "tenant-123" {
+		t.Errorf("TenantID không khớp: %s", entry.TenantID)
+	}
+	if entry.Subject != "user:alice" || entry.Action != "READ" || entry.Resource != "file:secret.pdf" {
+		t.Errorf("Dữ liệu Subject/Action/Resource không khớp: %+v", entry)
+	}
+	if entry.Decision != "ALLOW" {
+		t.Errorf("Decision không khớp: %s", entry.Decision)
+	}
+	if entry.MatchedPolicyID != "P-ALLOW-1" {
+		t.Errorf("MatchedPolicyID không khớp: %s", entry.MatchedPolicyID)
+	}
+	if entry.Context["ip"] != "192.168.1.100" || entry.Context["device"] != "ios_secure" {
+		t.Errorf("Context map không khớp: %+v", entry.Context)
+	}
 }
 
-func TestAuditLogger_SpillToDiskAndSizeLimit(t *testing.T) {
-	tempDir, err := ioutil.TempDir("", "audit_spill_test")
-	if err != nil {
-		t.Fatalf("Không thể tạo temp dir: %v", err)
+func TestAuditLogger_ConcurrentZeroBlock(t *testing.T) {
+	logger := NewStreamAuditLogger(&noopWriter{})
+	defer logger.Stop()
+
+	var wg sync.WaitGroup
+	// 50 goroutines ghi đồng thời
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 100; j++ {
+				logger.Log("tenant-stress", "user:bob", "WRITE", "doc:data", "DENY", "P-DENY", map[string]string{
+					"key": "val",
+				})
+			}
+		}()
 	}
-	defer os.RemoveAll(tempDir)
-
-	writer := &mockBatchWriter{}
-	// Khởi tạo logger với buffer size cực nhỏ = 1, dung lượng đĩa tối đa 150 bytes
-	l := NewAuditLogger(writer, tempDir, 1)
-	l.maxSpillDirSize = 250
-
-	// Ghi 3 logs trực tiếp xuống SSD bằng spillToDisk
-	// Đảm bảo thời gian khác nhau để thứ tự ModTime khác biệt rõ ràng và được ghi vào các file khác nhau
-	entry1 := &LogEntry{TenantID: "t1", Subject: "u1", Action: "a1", Resource: "r1", Decision: "ALLOW", EvaluatedAt: time.Now().Add(-48 * time.Hour)}
-	entry2 := &LogEntry{TenantID: "t2", Subject: "u2", Action: "a2", Resource: "r2", Decision: "DENY", EvaluatedAt: time.Now().Add(-24 * time.Hour)}
-	entry3 := &LogEntry{TenantID: "t3", Subject: "u3", Action: "a3", Resource: "r3", Decision: "ALLOW", EvaluatedAt: time.Now()}
-
-	l.spillToDisk(entry1)
-	l.spillToDisk(entry2)
-	l.spillToDisk(entry3)
-
-	// Vì maxSpillDirSize = 150 bytes (nhỏ hơn kích thước của 3 entry gộp lại), 
-	// hệ thống bắt buộc phải kích hoạt enforceSizeLimit() tự động xóa bớt file cũ nhất.
-	files, err := ioutil.ReadDir(tempDir)
-	if err != nil {
-		t.Fatalf("Đọc thư mục spill thất bại: %v", err)
-	}
-
-	// Đảm bảo thư mục không trống và kích thước tổng nhỏ hơn 150 bytes
-	totalSize, err := l.getDirSize()
-	if err != nil {
-		t.Fatalf("Lấy kích thước thư mục thất bại: %v", err)
-	}
-
-	if totalSize > l.maxSpillDirSize {
-		t.Errorf("Tổng dung lượng (%d bytes) vượt quá giới hạn cấu hình (%d bytes)", totalSize, l.maxSpillDirSize)
-	}
-
-	t.Logf("Tổng dung lượng thực tế sau giới hạn: %d bytes, Số lượng file log: %d", totalSize, len(files))
+	wg.Wait()
 }
 
-func TestAuditLogger_ReplayBackoff(t *testing.T) {
-	tempDir, err := ioutil.TempDir("", "audit_backoff_test")
-	if err != nil {
-		t.Fatalf("Không thể tạo temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+func BenchmarkAuditLogger_LogZeroAlloc(b *testing.B) {
+	logger := NewStreamAuditLogger(&noopWriter{})
+	defer logger.Stop()
 
-	// DB bị sập
-	writer := &mockBatchWriter{err: errors.New("PostgreSQL connection refused")}
-	l := NewAuditLogger(writer, tempDir, 10)
-
-	// Ghi 1 log vào file spill
-	entry := &LogEntry{TenantID: "t1", Subject: "u1", Action: "a1", Resource: "r1", Decision: "ALLOW", EvaluatedAt: time.Now()}
-	l.spillToDisk(entry)
-
-	// Chạy thử replay lần đầu -> bị lỗi
-	ctx := context.Background()
-	errReplay := l.replayLogs(ctx)
-	if errReplay == nil {
-		t.Fatal("Kỳ vọng lỗi khi DB sập nhưng không gặp lỗi")
+	ctxMap := map[string]string{
+		"ip": "10.0.0.1",
 	}
 
-	// Xác nhận file log thô vẫn còn lưu trên SSD
-	files, _ := ioutil.ReadDir(tempDir)
-	if len(files) == 0 {
-		t.Error("File log thô không được bị xóa khi DB gặp lỗi")
-	}
+	b.ResetTimer()
+	b.ReportAllocs()
 
-	// DB phục hồi
-	writer.mu.Lock()
-	writer.err = nil
-	writer.mu.Unlock()
-
-	// Chạy replay tiếp theo -> thành công
-	errReplay = l.replayLogs(ctx)
-	if errReplay != nil {
-		t.Fatalf("Kỳ vọng thành công sau khi DB phục hồi, thực tế lỗi: %v", errReplay)
-	}
-
-	// Xác nhận file log thô đã được xóa sau khi đồng bộ thành công
-	files, _ = ioutil.ReadDir(tempDir)
-	if len(files) > 0 {
-		t.Error("File log thô phải được xóa sau khi đồng bộ thành công")
+	for i := 0; i < b.N; i++ {
+		logger.Log("tenant-bench", "user:alice", "READ", "resource:doc", "ALLOW", "P-1", ctxMap)
 	}
 }
