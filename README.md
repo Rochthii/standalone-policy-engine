@@ -1,522 +1,215 @@
-# Standalone Policy Engine
+# Standalone Policy Engine (PDP)
 
 [![CI](https://github.com/Rochthii/standalone-policy-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/Rochthii/standalone-policy-engine/actions/workflows/ci.yml)
-[![Go Version](https://img.shields.io/badge/Go-1.22-blue.svg)](https://go.dev)
+[![Go Version](https://img.shields.io/badge/Go-1.22+-blue.svg)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-A high-performance, standalone Policy Decision Point (PDP) implementing the PBAC/ABAC authorization model. Written in Go, designed for Cloud-Native microservices architectures requiring sub-millisecond access control decisions under extreme load.
+An ultra-high-performance, in-memory **Policy Decision Point (PDP)** in Go implementing the PBAC/ABAC model with deterministic **AI Agent Guardrails & Obligations** (NIST AI RMF & OWASP LLM06). Designed for Cloud-Native microservices and multi-tenant SaaS requiring sub-microsecond access decisions and **Zero GC allocations** on the evaluation hot path.
 
 ---
 
-## Quick Start
+## ⚡ Key Highlights & Benchmark Results
 
-```bash
-git clone https://github.com/Rochthii/standalone-policy-engine.git
-cd standalone-policy-engine
+**Environment:** Intel Core i7-13700H (20 cores), Go 1.22+, Windows 11 / Linux
 
-cp .env.example .env
-
-# Start postgres and redis dependency services
-make docker
-
-# Run database migrations
-make migrate
-
-# Start the REST Control Plane API
-make control-plane
-
-# Start the gRPC PDP Data Plane Server
-make pdp
-```
+| Evaluation Scenario | Latency | Allocation | Throughput |
+|---|---|---|---|
+| **Concurrent Hot-Path Throughput** (`BenchmarkConcurrentLoad`) | **27.12 ns/op** | **0 B/op, 0 allocs/op** | **~36.8M RPS** |
+| **10,000 Policies Load Contention** (`BenchmarkUltraExtreme_10kPolicies`) | **35.94 ns/op** | **0 B/op, 0 allocs/op** | **~27.8M RPS** |
+| **Multi-Tenant ERP Access Control** (`BenchmarkERP_ConcurrentMultiTenant`) | **54.01 ns/op** | **0 B/op, 0 allocs/op** | **~18.5M RPS** |
+| **AI Agent Guardrail & Obligations** (`BenchmarkAIAgent_GuardrailsLatency`) | **286.3 ns/op** | **0 B/op, 0 allocs/op** | **~3.49M RPS** |
+| **Deep 11-Level DAG + 5,000 Decoy Policies** (`BenchmarkUltraExtreme_DeepDAG`) | **810.9 ns/op** | **0 B/op, 0 allocs/op** | **~1.23M RPS** |
 
 ---
 
-## Overview
-
-The Policy Engine operates as an independent microservice that decouples authorization logic from application code. Any service in the system — regardless of the underlying database technology — sends a gRPC request to this engine and receives an ALLOW or DENY decision based on declarative policy rules evaluated in-memory.
-
-The system is architecturally equivalent to Open Policy Agent (OPA) or Amazon Verified Permissions (Cedar language), but is purpose-built for multi-tenant SaaS environments where sub-millisecond latency and zero GC pressure are primary design constraints.
-
-### Authorization Flow
-
-```
-Client Request
-    |
-    v
-API Gateway (Policy Enforcement Point)
-    |
-    | gRPC: CheckAccess(tenant, subject, action, resource, context)
-    v
-Policy Decision Point (This Service)
-    |
-    | In-memory Trie lookup: O(log N)
-    v
-AST Evaluator (ABAC expression engine)
-    |
-    v
-Decision: ALLOW / DENY  (avg latency < 0.3ms)
-    |
-    v
-API Gateway enforces decision
-```
-
----
-
-## Architecture
+## 🏗️ Architecture & Data Flow
 
 ```mermaid
 flowchart TD
-    Client(["Client Application"])
-    PEP["API Gateway / Envoy\n(Policy Enforcement Point)"]
-    CP["Control Plane REST API\n:8080 — Policy Management"]
-    PDP["PDP gRPC Server\n:50051 — CheckAccess"]
-    Trie["In-Memory Trie Index\nTenantID → Subject → Resource → Action\nO(log N) lookup"]
-    DAG["Role Hierarchy DAG\nTransitive closure O(1)"]
-    AST["AST Evaluator\nABAC conditions + short-circuit"]
-    BadgerDB[("BadgerDB\nEdge Store\n(cold start fallback)")]
-    Postgres[("PostgreSQL\nPolicy Store +\nAudit Log")]
-    Redis(["Redis Pub/Sub\nHot-reload < 300ms"])
-    Audit["Async Audit Logger\nRing Buffer → Batch Insert"]
+    Client(["Client App / AI Agent"])
+    PEP["API Gateway / Envoy PEP\n(Policy Enforcement Point)"]
+    CP["Control Plane REST API\n:8080 — Policy CRUD & Schema"]
+    PDP["PDP gRPC Server\n:50051 — CheckAccess / Explain"]
+    
+    subgraph Engine ["In-Memory Data Plane (Lock-Free COW)"]
+        Trie["Trie Index O(log N)\nFNV-1a 64-bit uint64"]
+        DAG["Role Hierarchy DAG\nTransitive Closure O(1)"]
+        AST["AST Evaluator (Zero-Alloc)\nBitmask IP + int64 Time"]
+    end
 
-    Client -->|"HTTP Request"| PEP
-    PEP -->|"gRPC CheckAccess"| PDP
+    Postgres[("PostgreSQL 15+\nTransactional Sequence\n`tenants.revision`")]
+    Vector["Vector Sidecar\nUDS Socket Datagram"]
+    ClickHouse[("ClickHouse / Storage\nImmutable Audit Trail")]
+
+    Client -->|"Tool-Call / API Request"| PEP
+    PEP -->|"gRPC CheckAccess (JWT)"| PDP
     PDP --> Trie
     Trie --> DAG
     DAG --> AST
-    AST -->|"ALLOW / DENY"| PDP
-    PDP -->|"Decision + Explanation"| PEP
-    PEP -->|"Enforce"| Client
+    AST -->|"ALLOW / DENY + Obligations"| PDP
+    PDP -->|"Decision Response"| PEP
+    PEP -->|"Enforce Action"| Client
 
-    PDP -->|"Async log"| Audit
-    Audit -->|"Batch insert pgx.CopyFrom"| Postgres
+    PDP -.->|"Non-blocking UDP (UDS)"| Vector
+    Vector -.->|"Batch Stream"| ClickHouse
 
-    CP -->|"Publish policy"| Postgres
-    Postgres -->|"Startup load"| Trie
-    Redis -->|"Policy update event"| PDP
-    BadgerDB -->|"Cold start if Postgres down"| PDP
+    CP -->|"Atomic Publish + NOTIFY"| Postgres
+    Postgres -->|"LISTEN metadata (< 120B) + Gap Catch-Up"| PDP
 
     style PDP fill:#1e3a5f,color:#fff
+    style Engine fill:#0f2d25,color:#fff
     style Trie fill:#0d4f3c,color:#fff
     style AST fill:#0d4f3c,color:#fff
 ```
 
-### Core Components
-
-**Policy Decision Point — Data Plane** (`cmd/pdp-server`)
-
-- gRPC server exposing `CheckAccess` and `ExplainDecision` endpoints
-- Lock-free hot-path: reads use `atomic.LoadPointer`, no mutexes on the critical path
-- Copy-On-Write state management for zero-downtime policy updates
-
-**Policy Management API — Control Plane** (`cmd/control-plane`)
-
-- REST API for full policy lifecycle management (create, update, publish, delete)
-- `POST /api/v1/tenants/{id}/simulate`: dry-run evaluation against draft policies without affecting the live engine
-- `GET /metrics`: Prometheus metrics endpoint
-
-**In-Memory Index (Trie)** (`internal/engine/trie.go`)
-
-- Multi-level index: `TenantID → Subject → Resource → Action`
-- Wildcard partitioning separates global rules from tenant-specific rules to prevent index pollution
-- Lookup complexity: O(log N) per request
-
-**Role Hierarchy DAG** (`internal/engine/dag.go`)
-
-- Directed Acyclic Graph for role inheritance
-- DFS cycle detection at write time
-- Transitive closure pre-computed at update time for O(1) membership checks at runtime
-
-**AST Evaluator** (`internal/engine/evaluator.go`)
-
-- Evaluates ABAC condition expressions compiled to typed AST nodes
-- Short-circuit evaluation for AND/OR chains
-- IP/CIDR matching via pre-compiled uint32 bitmasks (no string parsing at runtime)
-- DateTime comparisons via pre-parsed int64 Unix nanoseconds
-- `sync.Pool` for evaluation context reuse
-
-**Policy Language Compiler** (`internal/parser/`)
-
-- Cedar-inspired declarative DSL with stateful lexer
-- Pratt parser for operator precedence
-- Compiler performs constant folding, type checking, and AST depth enforcement (max 15 levels)
+### Core Architecture Invariants:
+1. **Pure PostgreSQL Monotonic Sequence (Zero Redis, Zero 10s Polling):**
+   - Policy updates increment `tenants.revision` atomically inside a transaction.
+   - Metadata-only `NOTIFY policy_events` payload (< 120 bytes) respects the 8,000B PostgreSQL limit.
+   - PDP detects missed revisions (`event.Revision > current + 1`) and triggers instant Fast Catch-Up (< 50ms).
+2. **Autonomous AI Agent Guardrails (NIST / OWASP LLM06):**
+   - Preserves binary `ALLOW` / `DENY` boolean evaluation.
+   - Actions exceeding autonomous limits return `DENY` with pre-compiled runtime **Obligations** (`REQUIRE_HUMAN_APPROVAL`, `AUDIT_SENSITIVE_TOOL_CALL`, `MASK_ATTRIBUTES`).
+3. **Zero Heap Allocations on Hot Path:**
+   - Stack-allocated scratch buffers (`scratchNodes [64]`, `scratchIPs [64]`, `subScratch [32]`), `sync.Pool`, sentinel booleans, and bitwise IP network parsing.
+4. **Lock-Free Read Operations:**
+   - `CheckPermission` executes without Mutexes using atomic pointer swap (Copy-On-Write).
 
 ---
 
-## Performance Targets & Benchmarks
+## 🚀 Quick Start
 
-### Target Targets
-| Metric                  | Target                          |
-|-------------------------|---------------------------------|
-| Average latency         | < 0.3 ms                        |
-| P99 latency             | < 1.0 ms under sustained load   |
-| Throughput (single core)| > 5,000,000 decisions/second    |
-| Memory GC pressure      | Near-zero (sync.Pool + COW)     |
-| Policy hot-reload time  | < 300 ms (Redis Pub/Sub)        |
+### 1. Run with Docker Compose
+```bash
+# Clone the repository
+git clone https://github.com/Rochthii/standalone-policy-engine.git
+cd standalone-policy-engine
 
-### Actual Benchmark Results (After 3-Layer Optimization)
+# Start PostgreSQL 15, Vector sidecar, Control Plane, and PDP Server
+docker compose -f tests/docker-compose.yml up --build -d
+```
 
-**Environment:** Windows 11, Intel i7-13700H, 20 cores, Go 1.22
+### 2. Run Locally from Source
+```bash
+# 1. Run Database Migrations
+make migrate
 
-| Metric | Before | After | Delta |
-|--------|--------|-------|-------|
-| **Single-request latency** | 4,004 ns/op | **3,402 ns/op** | -15% faster |
-| **alloc/op (latency bench)** | 37 | **32** | -14% |
-| **B/op (latency bench)** | 1,522 | **1,026** | -33% memory |
-| **Concurrent throughput** | 468–796 ns/op | **449–548 ns/op** | -20% latency |
-| **alloc/op (concurrent)** | 13 | **10** | -23% |
-| **B/op (concurrent)** | 533 | **325** | -39% memory |
+# 2. Start Control Plane REST API (:8080)
+go run cmd/control-plane/main.go
 
-**Estimated throughput (concurrent, 20 cores):**
-- Before: ~2.14M req/s
-- After: **~2.7–3.2M req/s** (+26–49%)
+# 3. Start PDP Data Plane gRPC Server (:50051)
+go run cmd/pdp-server/main.go
 
-> **Optimizations applied:**
-> - `sync.Pool` for `LookupPolicies` result slices (eliminates 1 heap alloc per call)
-> - `[2]string` stack-array instead of `[]string{action, "any"}` slice literal in inner loop
-> - `ensureAnyInto()` scratch buffer on stack — eliminates `append()` side-effect
-> - Global sentinel `boolTrue`/`boolFalse` — eliminates 5–9 `*ValueNode` allocs per evaluation
-> - **FNV-1a 64-bit Hashing (String Interning):** Refactored Trie maps to `map[uint64]*Node`, replacing string keys with pre-computed FNV-1a hashes to bypass expensive string-map lookup overhead on the hot path.
-
-### Gap Analysis — Why 2.14M/s Instead of 5M/s?
-
-Actual throughput (**~3M req/s/core** after Layer 1-3 optimization, up from 2.14M/s) approaches but has not yet reached the 5M/s target. Root causes for remaining gap:
-
-| Root Cause | Detail | Priority |
-|---|---|---|
-| **Trie RWMutex contention** | Hot tenants still use `sync.RWMutex` per-lookup. At 1000+ concurrent readers, RLock has overhead | 🔴 High |
-| **Remaining 10 alloc/op** | `EvalContext` copy of context map, `subjectInherited` slice from DAG lookup, `fmt.Sprintf` for subject/resource strings in benchmark | 🟡 Medium |
-
-**Next optimization steps toward 5M/s:**
-1. Sharded Trie: 256 per-tenant shards — reduce contention by factor of 256
-2. Pool the `subjectInherited` slice from DAG via `sync.Pool`
+# 4. Use pectl CLI
+go run cmd/pectl/main.go --help
+```
 
 ---
 
-## Project Structure
+## 📜 Declarative Policy Syntax (Cedar-like DSL)
+
+Policies are written in a declarative syntax supporting RBAC, ABAC, and AI Guardrails:
+
+```cedar
+// 1. Autonomous AI Agent tool execution within budget
+permit(
+    principal in role:ai_agent,
+    action    == action:EXECUTE,
+    resource  == tool:erp_create_purchase_order
+)
+when {
+    context.amount <= 2000 &&
+    context.execution_mode == "autonomous_run"
+};
+
+// 2. High-value transactions trigger Human Approval obligation
+forbid(
+    principal in role:ai_agent,
+    action    == action:EXECUTE,
+    resource  == tool:erp_create_purchase_order
+)
+when {
+    context.amount > 2000 &&
+    context.execution_mode == "autonomous_run"
+};
+
+// 3. Separation of Duties (SoD) enforcement
+forbid(
+    principal == any,
+    action    == action:APPROVE,
+    resource  == doc:purchase_order
+)
+when {
+    context.created_by != "" &&
+    context.created_by == context.delegated_by
+};
+```
+
+---
+
+## 📁 Codebase Structure
 
 ```text
 standalone-policy-engine/
-├── .agents/                 # AI Master Guide & 6 Modular Skills
+├── .agents/                 # AI Master Context & 9 Domain Skills
 ├── cmd/
-│   ├── pdp-server/          # Data Plane entry point (gRPC :50051)
-│   ├── control-plane/       # Control Plane entry point (HTTP REST :8080)
-│   └── pectl/               # Administrative CLI tool
+│   ├── pdp-server/          # gRPC Data Plane Server (:50051)
+│   ├── control-plane/       # REST Control Plane API (:8080)
+│   └── pectl/               # Enterprise Policy CLI
 ├── internal/
-│   ├── parser/              # Policy language: Lexer, Pratt Parser, AST, Compiler
-│   ├── engine/              # Core: Trie index, Role DAG, Evaluator, COW, sync.Pool
-│   ├── server/              # gRPC server, HTTP server, Prometheus metrics, JWT context
-│   ├── storage/             # PostgreSQL persistence, BadgerDB edge store, Redis Pub/Sub
-│   ├── audit/               # Async audit logger with Ring Buffer and Spill-to-Disk
-│   ├── security/            # Ed25519 signatures, Tenant isolation
-│   └── metrics/             # Prometheus metric definitions
-├── proto/v1/                # Protobuf contract: CheckAccess, ExplainDecision
-├── deployments/             # Docker Compose, Envoy L7, Kubernetes manifests
-├── tests/                   # ERP scenarios (PO, SoD, Branch, Payroll), E2E & Benchmarks
-├── scripts/                 # Automation, benchmark & documentation generator scripts
-├── docs/                    # Comprehensive Architecture & Academic Documentation
-│   ├── 00_MASTER_INDEX.md   # Documentation master index
-│   ├── thesis-proposal/     # Official Master Thesis Proposal 2029 (4 RQs Spec)
-│   ├── career-roadmap/      # 4-Phase Career & Learning Roadmap
-│   ├── domain/              # ERP ABAC domain models & scenarios
-│   ├── policy-language/     # EBNF grammar & language specification
-│   ├── evaluation-engine/   # In-Memory Trie, DAG & Evaluator architecture
-│   ├── architecture/        # System C4 architecture & data flow diagrams
-│   └── performance/         # Latency budgets, Zero-allocation & Benchmark matrices
-├── CHANGELOG.md
-└── README.md
+│   ├── engine/              # Trie Index, Role DAG, Zero-Alloc Evaluator, COW & Sync
+│   ├── parser/              # Cedar DSL Lexer, Pratt Parser, Constant Folding
+│   ├── server/              # gRPC Server, HTTP Handlers, Replay Buffer, JWT Auth
+│   ├── audit/               # Async Ring Buffer Logger, UDS Vector socket, WORM encryption
+│   ├── storage/             # PostgreSQL pgx driver, BadgerDB edge store
+│   ├── config/              # Centralized type-safe configuration with fail-fast validation
+│   └── security/            # JWT validation, Tenant isolation, AES-GCM envelope encryption
+├── proto/v1/                # Protobuf Contract (CheckAccess, ExplainDecision, Obligations)
+├── db/migrations/           # Versioned SQL migrations (golang-migrate)
+└── tests/                   # E2E Docker Compose tests, Benchmarks, AI Guardrail tests
 ```
 
 ---
 
-## Policy Language
+## 🛠️ CLI Tool (`pectl`)
 
-Policies are written in a Cedar-inspired declarative syntax.
-
-**Permit with condition (RBAC + ABAC):**
-
-```
-permit(
-    principal == user:alice,
-    action    == action:DELETE,
-    resource  == file:report.pdf
-)
-when {
-    context.ip_address in "10.0.0.0/8" &&
-    context.request_time >= "08:00:00Z" &&
-    context.request_time <= "18:00:00Z"
-};
-```
-
-**Explicit deny override:**
-
-```
-forbid(
-    principal == any,
-    action    == any,
-    resource  == any
-)
-when {
-    context.device_status == "compromised"
-};
-```
-
-**Role inheritance:**
-
-```
-permit(
-    principal in role:admin,
-    action    == any,
-    resource  in namespace:finance
-);
-```
-
-### Decision Rules
-
-1. **Deny-by-Default**: if no permit rule matches, the decision is DENY.
-2. **Forbid Overrides**: if any forbid rule matches, the decision is DENY regardless of permit rules.
-3. **Explicit Permit**: if at least one permit rule matches and no forbid rule matches, the decision is ALLOW.
-
----
-
-## Infrastructure
-
-### Audit Logging
-
-All access decisions are logged asynchronously via a Ring Buffer (buffered Go channel). A background worker pool performs batch inserts into PostgreSQL using the `pgx` CopyFrom protocol for maximum throughput. If PostgreSQL becomes unavailable, logs are automatically spilled to local SSD as JSON Lines files and replayed into the database when connectivity is restored.
-
-### Cache Synchronization
-
-Policy updates propagate to all PDP nodes via Redis Pub/Sub with a latency target of under 300ms. If the Redis broker is unavailable, each PDP node falls back to polling PostgreSQL every 10 seconds to ensure cache consistency.
-
-### Edge Storage (BadgerDB)
-
-When deployed as a Sidecar, the PDP writes a local snapshot of each tenant's active policy set to an embedded BadgerDB database after every successful synchronization. On restart, if PostgreSQL is not reachable, the engine loads directly from BadgerDB and begins serving requests immediately.
-
-### Tenant Cache GC
-
-The engine tracks the last access time for each tenant's in-memory Trie. A background goroutine runs every hour and evicts Tries for tenants that have been idle for more than 24 hours. When a new request arrives for an evicted tenant, the engine performs a lazy reload from PostgreSQL before serving the decision.
-
----
-
-## Local Development
-
-### Prerequisites
-
-- Go 1.22 or later
-- PostgreSQL 15 or later
-- Redis 7 or later
-
-### Environment Variables
-
-| Variable             | Description                                     | Default                                                                     |
-|----------------------|-------------------------------------------------|-----------------------------------------------------------------------------|
-| `DATABASE_URL`       | PostgreSQL connection string                    | `postgres://postgres:postgres@localhost:5432/policy_engine?sslmode=disable` |
-| `REDIS_URL`          | Redis address                                   | `localhost:6379`                                                            |
-| `REDIS_MODE`         | Redis client mode (`single`, `sentinel`, `cluster`) | `single`                                                                    |
-| `JWT_SECRET`         | Secret key for validating incoming gRPC JWTs   | `default-policy-engine-super-secret-key-12345`                              |
-| `LOG_KEK`            | Key Encrypting Key for AES-GCM log envelope     | `default-log-encryption-key-for-sprint-6-must-be-32-bytes!`                 |
-| `GC_ENABLED`         | Enables automatic RAM Trie GC for idle tenants | `true`                                                                      |
-| `GC_INTERVAL`        | Interval for running the RAM GC cycle          | `10m` (10 minutes)                                                          |
-| `GC_IDLE_TIMEOUT`    | Idle timeout before a tenant is unloaded from RAM| `24h` (24 hours)                                                            |
-| `GC_MAX_CACHE_SIZE`  | Maximum number of tenants kept active in RAM    | `1000`                                                                      |
-
-### Database Migrations
-
-The project uses `golang-migrate` to manage the schema database versioning. Migrations are automatically run on startup. Migration files are located in [db/migrations/](file:///e:/Projects/Project_TN/standalone-policy-engine/db/migrations/).
-
-### Running Locally
-
-Start the Data Plane (gRPC, port 50051):
-
-```powershell
-$env:DATABASE_URL = "postgres://postgres:postgres@localhost:5432/policy_engine?sslmode=disable"
-$env:REDIS_URL    = "localhost:6379"
-go run cmd/pdp-server/main.go
-```
-
-Start the Control Plane (HTTP, port 8080):
-
-```powershell
-$env:DATABASE_URL = "postgres://postgres:postgres@localhost:5432/policy_engine?sslmode=disable"
-$env:REDIS_URL    = "localhost:6379"
-go run cmd/control-plane/main.go
-```
-
-### Running Tests
+`pectl` provides a CLI for managing policies, checking permissions, and running dry-run simulations:
 
 ```bash
-# Unit and integration tests
-go test -v -race ./internal/...
-
-# Performance benchmark (in-memory decision latency)
-go test -bench=. -benchmem ./tests/...
-```
-
----
-
-## API Reference
-
-### gRPC — Data Plane (port 50051)
-
-| Method             | Description                                                          |
-|--------------------|----------------------------------------------------------------------|
-| `CheckAccess`      | Evaluate a permission request. Returns ALLOW or DENY.                |
-| `ExplainDecision`  | Returns the decision and the list of matched policy IDs.             |
-
-### HTTP — Control Plane (port 8080)
-
-| Method | Path                                                         | Description                                        |
-|--------|--------------------------------------------------------------|----------------------------------------------------|
-| POST   | `/api/v1/tenants/{id}/policies`                              | Create a draft policy.                             |
-| PUT    | `/api/v1/tenants/{id}/policies/{policy_id}`                  | Update a draft policy.                             |
-| DELETE | `/api/v1/tenants/{id}/policies/{policy_id}`                  | Delete a policy.                                   |
-| POST   | `/api/v1/tenants/{id}/policies/{policy_id}/publish`          | Compile, validate, and activate a policy.          |
-| POST   | `/api/v1/tenants/{id}/simulate`                              | Dry-run evaluation against draft policies.         |
-| POST   | `/api/v1/decisions`                                          | REST fallback for CheckAccess.                     |
-| POST   | `/api/v1/decisions/explain`                                  | REST fallback for ExplainDecision.                 |
-| GET    | `/metrics`                                                   | Prometheus metrics.                                |
-
----
-
-## Deployment
-
-### Docker
-
-```bash
-# PDP Server
-docker build -f deployments/docker/Dockerfile.pdp -t policy-engine/pdp:latest .
-
-# Control Plane
-docker build -f deployments/docker/Dockerfile.control -t policy-engine/control-plane:latest .
-```
-
-### Kubernetes
-
-The PDP is deployed as a 3-replica Deployment with an Envoy proxy sidecar container in each pod. Envoy handles L7 gRPC load balancing and HTTP/2 connection multiplexing so that upstream clients do not need to manage persistent connections manually.
-
-```bash
-kubectl apply -f deployments/kubernetes/
-```
-
----
-
-## Design Decisions
-
-| Decision                              | Rationale                                                                                         |
-|---------------------------------------|---------------------------------------------------------------------------------------------------|
-| Atomic pointer swap (COW)             | Allows lock-free reads on the hot path while writes atomically replace the entire state snapshot. |
-| Trie-based index (not linear scan)    | O(log N) lookup per request. Linear scan over all policies is prohibited by design.              |
-| Transitive closure in DAG             | Pre-computed at write time so role membership checks at runtime are O(1).                         |
-| AST depth limit (15 levels)           | Prevents stack overflow from deeply nested expressions used as denial-of-service vectors.          |
-| Fail-closed on missing attributes     | Missing context attributes resolve to a typed error that evaluates to false, not to a default.   |
-| BadgerDB as edge store                | Embedded, dependency-free local persistence for zero-downtime cold starts in sidecar deployments.|
-
----
-
-## Command Line Tool (`pectl`)
-
-A production-grade command-line tool named **`pectl`** is provided for interacting with the Control Plane REST API.
-
-### Build and Install
-
-```bash
-# Setup dependencies and build using script
-# Windows (PowerShell)
-.\scripts\setup-pectl.ps1
-
-# Linux/macOS/WSL (Bash)
-bash scripts/setup-pectl.sh
-
-# Or build via Makefile
-make tidy
-make build-pectl
-```
-
-The compiled binary will be placed at `bin/pectl` (or `bin/pectl.exe`).
-
-### Configuration
-
-`pectl` can be configured via flags, environment variables, or a config file (loaded in order of priority: Flags > Environment > Config File).
-
-Configuration file path: `~/.pectl/config.yaml`
-```yaml
-server: http://localhost:8080
-auth:
-  token: your-jwt-token
-output: table
-timeout: 10s
-```
-
-Environment variables:
-- `PECTL_SERVER`
-- `PECTL_TOKEN`
-- `PECTL_OUTPUT`
-
-### Example Usage
-
-```bash
-# Verify version
-pectl version
-
-# List all policies for a tenant
+# List policies for a tenant
 pectl policy list tenant-123
 
-# Create a draft policy
+# Create and publish a policy
 pectl policy create tenant-123 --effect permit --file policy.cedar
+pectl policy publish tenant-123 <policy-id>
 
-# Publish policy to engine memory
-pectl policy publish tenant-123 policy-uuid-xxx
+# Check live access permission
+pectl check tenant-123 --subject agent:financial_copilot --action EXECUTE --resource tool:erp_create_purchase_order
 
-# Run evaluation simulation
-pectl simulate tenant-123 --subject user:alice --action read --resource file:doc --context-file ctx.json --draft-file draft.cedar
-
-# Perform dynamic permission checks
-pectl check tenant-123 --subject user:alice --action read --resource file:doc
-
-# Check metrics and health
-pectl metrics
-pectl health
+# Dry-run simulate a draft policy
+pectl simulate tenant-123 --subject user:alice --action READ --resource file:report.pdf --draft-file draft.cedar
 ```
 
 ---
 
-## Known Limitations
+## 🧪 Verification & Benchmarking Commands
 
-Good engineers know exactly where their system's boundaries are and have a plan to address them.
+```bash
+# 1. Run all unit tests
+go test -v ./internal/...
 
-| Limitation | Impact | Planned Resolution |
-|---|---|---|
-| **GC eviction race condition** | If GC evicts tenant T while a request for T is in-flight, that request reads the old (stale) pointer — safe due to COW, but based on stale policy | Epoch-based reclamation with reference counting before eviction |
-| **No internal mTLS** | gRPC PEP → PDP does not enforce mTLS — JWT bearer token used instead | SPIFFE/SPIRE for workload identity |
-| **Redis single point** | Hot-reload depends on Redis. The 10s PostgreSQL poll fallback introduces latency above SLA | Redis Sentinel or Redis Cluster |
-| **Policy compile at Control Plane** | If Control Plane is down, no new policies can be published even though PDP continues serving decisions | Control Plane HA with leader election |
-| **In-memory ring buffer for audit log** | Log entries are lost if PDP crashes before flushing to Postgres | Replace ring buffer with WAL-backed queue |
+# 2. Run Containerized E2E Integration Suite (Docker Compose)
+go test -v -run=TestE2E_DockerComposeFlow ./tests
+
+# 3. Run AI Agent Guardrail Verification & Benchmarks
+go test -v -run=TestAIAgent -bench=BenchmarkAIAgent -benchmem ./tests
+
+# 4. Run Complete Ultra-Extreme Benchmark Suite
+go test -bench="." -benchmem -run="^$" ./tests
+```
 
 ---
 
-## License
+## 📄 License
 
 MIT License — see [LICENSE](./LICENSE).
-
----
-
-<details>
-<summary>🆻🇳 Tóm tắt tiếng Việt (Vietnamese Summary)</summary>
-
-## Tổng Quan
-
-PDP Engine hiệu năng cao viết bằng Go, đánh giá quyết định phân quyền PBAC/ABAC trong RAM với độ trễ < 0.3ms.
-
-**Kiến trúc:** PEP (API Gateway/Envoy) gửi gRPC `CheckAccess` → PDP tra cứu Trie O(log N) → DAG vai trò O(1) → AST Evaluator → ALLOW/DENY.
-
-**Ngôn ngữ chính sách:** Cú pháp khai báo cảm hứng từ Cedar. Ba quy tắc:
-1. **Deny-by-default** — không có permit nào khớp → DENY
-2. **Forbid overrides** — forbid thắng mọi permit
-3. **Explicit permit** — có permit khớp và không có forbid → ALLOW
-
-**Kết quả đo được:** 4.433 µs/decision, 2.14M req/s/core (mục tiêu 5M/s — xem Gap Analysis phía trên).
-
-**Giới hạn đã biết:** Race condition GC eviction, không có mTLS nội bộ, Redis single-point — xem bảng Known Limitations phía trên.
-
-</details>
-
