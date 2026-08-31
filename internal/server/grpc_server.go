@@ -153,9 +153,18 @@ func (s *GRPCServer) CheckAccess(ctx context.Context, req *policyv1.CheckAccessR
 		decisionVal = policyv1.CheckAccessResponse_ALLOW
 	}
 
+	var obligations []string
+	if len(res.Obligations) > 0 {
+		obligations = make([]string, len(res.Obligations))
+		for i, ob := range res.Obligations {
+			obligations[i] = ob.Type
+		}
+	}
+
 	return &policyv1.CheckAccessResponse{
 		Decision:        decisionVal,
 		MatchedPolicyId: matchedPolicyID,
+		Obligations:     obligations,
 	}, nil
 }
 

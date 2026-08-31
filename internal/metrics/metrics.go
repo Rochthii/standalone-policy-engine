@@ -28,6 +28,12 @@ var (
 		Help: "Số lượng chính sách đang được nạp trên bộ nhớ RAM của PDP Engine.",
 	}, []string{"tenant_id"})
 
+	// AuditLogsStreamedTotal đếm số lượng audit log được stream ra Stdout / UDS.
+	AuditLogsStreamedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "audit_logs_streamed_total",
+		Help: "Tổng số lượng audit log được stream ra Stdout / UDS.",
+	}, []string{"tenant_id"})
+
 	// AuditLogsSpilledTotal đếm số lượng audit log bị kích hoạt cơ chế Spill-to-Disk do DB nghẽn.
 	AuditLogsSpilledTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "audit_logs_spilled_total",
