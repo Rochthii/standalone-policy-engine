@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"fmt"
 	"standalone-policy-engine/internal/parser"
 	"strings"
 )
@@ -23,13 +22,43 @@ func (d Decision) String() string {
 	return "DENY"
 }
 
+// Obligation đại diện cho một nghĩa vụ hoặc rào chắn bắt buộc mà PEP/Caller phải thực thi
+// (ví dụ: yêu cầu con người phê duyệt, che giấu dữ liệu nhạy cảm, ghi log kiểm toán mở rộng).
+type Obligation struct {
+	Type    string            `json:"type"`    // REQUIRE_HUMAN_APPROVAL, MASK_ATTRIBUTES, AUDIT_SENSITIVE_TOOL_CALL
+	Message string            `json:"message"`
+	Payload map[string]string `json:"payload,omitempty"`
+}
+
+const (
+	ObligationTypeRequireApproval = "REQUIRE_HUMAN_APPROVAL"
+	ObligationTypeAuditSensitive  = "AUDIT_SENSITIVE_TOOL_CALL"
+	ObligationTypeMaskAttributes  = "MASK_ATTRIBUTES"
+)
+
 // DecisionResult chứa thông tin quyết định phân quyền cuối cùng.
 type DecisionResult struct {
 	Decision Decision
 	Reason   string
 	// Explanations chứa danh sách ID các chính sách trực tiếp dẫn đến quyết định này.
 	Explanations []string
+	// Obligations chứa danh sách các nghĩa vụ/rào chắn đính kèm (chuẩn NIST/OWASP cho AI Guardrails).
+	Obligations []Obligation
 }
+
+var (
+	emptyExplanations = []string{}
+	emptyObligations  = []Obligation{}
+)
+
+const (
+	ReasonDenyCanceled       = "Yêu cầu bị hủy hoặc hết thời gian chờ"
+	ReasonDenyTenantNotFound = "Không tìm thấy tập chính sách cho Tenant"
+	ReasonDenyNoMatch        = "Không có chính sách nào khớp với phạm vi yêu cầu"
+	ReasonDenyForbid         = "Yêu cầu bị từ chối bởi luật cấm tường minh"
+	ReasonAllowPermit        = "Yêu cầu được chấp thuận bởi luật cho phép"
+	ReasonDenyDefault        = "Không tìm thấy luật cho phép nào thỏa mãn điều kiện"
+)
 
 // CheckPermission thực hiện tra cứu chỉ mục Trie trên RAM, đánh giá các biểu thức AST
 // và đưa ra quyết định phân quyền cuối cùng dựa trên các quy tắc:
@@ -39,8 +68,8 @@ func (e *Engine) CheckPermission(ctx context.Context, tenantID, subject, action,
 	if err := ctx.Err(); err != nil {
 		return DecisionResult{
 			Decision:     DecisionDeny,
-			Reason:       "Yêu cầu bị hủy hoặc hết thời gian chờ: " + err.Error(),
-			Explanations: []string{},
+			Reason:       ReasonDenyCanceled,
+			Explanations: emptyExplanations,
 		}
 	}
 
@@ -49,85 +78,12 @@ func (e *Engine) CheckPermission(ctx context.Context, tenantID, subject, action,
 	if !exists {
 		return DecisionResult{
 			Decision:     DecisionDeny,
-			Reason:       "Không tìm thấy tập chính sách cho Tenant",
-			Explanations: []string{},
+			Reason:       ReasonDenyTenantNotFound,
+			Explanations: emptyExplanations,
 		}
 	}
 
-	// 2. Thu thập danh tính của Subject dựa trên đồ thị phân cấp vai trò
-	subjects := trie.RoleDAG.GetInheritedRoles(subject)
-
-	// Chuẩn hóa resource và action
-	resources := []string{resource}
-	actKey := normalizeAction(action)
-
-	// 3. Tra cứu nhanh trên Trie để lấy các chính sách khớp tĩnh
-	matchedPolicies := trie.LookupPolicies(subjects, resources, actKey)
-	if len(matchedPolicies) == 0 {
-		return DecisionResult{
-			Decision:     DecisionDeny,
-			Reason:       "Không có chính sách nào khớp với phạm vi yêu cầu",
-			Explanations: []string{},
-		}
-	}
-
-	// 4. Khởi tạo ngữ cảnh đánh giá từ sync.Pool
-	evalCtx := GetEvalContext(subject, action, resource, context, trie.RoleDAG)
-	defer evalCtx.Release()
-
-	forbidMatched := make([]string, 0)
-	permitMatched := make([]string, 0)
-
-	// 5. Đánh giá từng chính sách khớp
-	for _, policy := range matchedPolicies {
-		// Đánh giá biểu thức logic
-		val, err := Evaluate(policy.Condition, evalCtx)
-		
-		// Xử lý logic Condition
-		isConditionSatisfied := false
-		if err == nil && val.ValType == parser.ValueTypeBool {
-			// unless đảo ngược giá trị logic của when
-			if policy.IsUnless {
-				isConditionSatisfied = !val.BoolVal
-			} else {
-				isConditionSatisfied = val.BoolVal
-			}
-		}
-
-		if isConditionSatisfied {
-			if policy.Effect == parser.EffectForbid {
-				forbidMatched = append(forbidMatched, policy.ID)
-			} else if policy.Effect == parser.EffectPermit {
-				permitMatched = append(permitMatched, policy.ID)
-			}
-		}
-	}
-
-	// 6. Áp dụng bảng chân trị quyết định
-	// Forbid Overrides: Nếu có bất kỳ luật cấm nào thỏa mãn, trả về DENY ngay lập tức
-	if len(forbidMatched) > 0 {
-		return DecisionResult{
-			Decision:     DecisionDeny,
-			Reason:       fmt.Sprintf("Yêu cầu bị từ chối bởi luật cấm tường minh: %s", strings.Join(forbidMatched, ", ")),
-			Explanations: forbidMatched,
-		}
-	}
-
-	// Nếu không có luật cấm, và có ít nhất một luật cho phép thỏa mãn
-	if len(permitMatched) > 0 {
-		return DecisionResult{
-			Decision:     DecisionAllow,
-			Reason:       fmt.Sprintf("Yêu cầu được chấp thuận bởi luật: %s", strings.Join(permitMatched, ", ")),
-			Explanations: permitMatched,
-		}
-	}
-
-	// Mặc định cấm (Deny-by-Default)
-	return DecisionResult{
-		Decision:     DecisionDeny,
-		Reason:       "Không tìm thấy luật cho phép nào thỏa mãn điều kiện",
-		Explanations: []string{},
-	}
+	return evaluatePermission(ctx, trie, subject, action, resource, context)
 }
 
 func normalizeAction(act string) string {
@@ -143,33 +99,57 @@ func CheckPermission(ctx context.Context, trie *TrieRoot, subject, action, resou
 	if err := ctx.Err(); err != nil {
 		return DecisionResult{
 			Decision:     DecisionDeny,
-			Reason:       "Yêu cầu bị hủy hoặc hết thời gian chờ: " + err.Error(),
-			Explanations: []string{},
+			Reason:       ReasonDenyCanceled,
+			Explanations: emptyExplanations,
 		}
 	}
 
-	// Thu thập danh tính Subject
-	subjects := trie.RoleDAG.GetInheritedRoles(subject)
-	resources := []string{resource}
+	if trie == nil {
+		return DecisionResult{
+			Decision:     DecisionDeny,
+			Reason:       ReasonDenyTenantNotFound,
+			Explanations: emptyExplanations,
+		}
+	}
+
+	return evaluatePermission(ctx, trie, subject, action, resource, ctxMap)
+}
+
+func evaluatePermission(ctx context.Context, trie *TrieRoot, subject, action, resource string, context map[string]string) DecisionResult {
+	// 1. Thu thập danh tính Subject (Zero-Allocation stack scratch)
+	var subScratch [16]string
+	subjects := trie.RoleDAG.GetInheritedRolesInto(subject, &subScratch)
+
+	var resScratch [1]string
+	resScratch[0] = resource
+	resources := resScratch[:]
 	actKey := normalizeAction(action)
 
-	matchedPolicies := trie.LookupPolicies(subjects, resources, actKey)
+	// 2. Tra cứu nhanh trên Trie bằng Buffer Pool
+	policyBuf := GetPolicySlice()
+	defer ReturnPolicySlice(policyBuf)
+	trie.LookupPoliciesInto(policyBuf, subjects, resources, actKey)
+
+	matchedPolicies := *policyBuf
 	if len(matchedPolicies) == 0 {
 		return DecisionResult{
 			Decision:     DecisionDeny,
-			Reason:       "Không có chính sách nào khớp với phạm vi yêu cầu",
-			Explanations: []string{},
+			Reason:       ReasonDenyNoMatch,
+			Explanations: emptyExplanations,
 		}
 	}
 
-	evalCtx := GetEvalContext(subject, action, resource, ctxMap, trie.RoleDAG)
+	// 3. Khởi tạo ngữ cảnh đánh giá từ sync.Pool
+	evalCtx := GetEvalContext(subject, action, resource, context, trie.RoleDAG)
 	defer evalCtx.Release()
 
-	forbidMatched := make([]string, 0)
-	permitMatched := make([]string, 0)
+	var firstForbidPolicy *parser.PolicyNode
+	var firstPermitPolicy *parser.PolicyNode
 
+	// 4. Đánh giá từng chính sách khớp
 	for _, policy := range matchedPolicies {
 		val, err := Evaluate(policy.Condition, evalCtx)
+
 		isConditionSatisfied := false
 		if err == nil && val.ValType == parser.ValueTypeBool {
 			if policy.IsUnless {
@@ -181,33 +161,44 @@ func CheckPermission(ctx context.Context, trie *TrieRoot, subject, action, resou
 
 		if isConditionSatisfied {
 			if policy.Effect == parser.EffectForbid {
-				forbidMatched = append(forbidMatched, policy.ID)
-			} else if policy.Effect == parser.EffectPermit {
-				permitMatched = append(permitMatched, policy.ID)
+				firstForbidPolicy = policy
+				break // Forbid Overrides: ngắt ngay lập tức (Short-Circuit)
+			} else if policy.Effect == parser.EffectPermit && firstPermitPolicy == nil {
+				firstPermitPolicy = policy
 			}
 		}
 	}
 
-	if len(forbidMatched) > 0 {
+	// 5. Áp dụng bảng chân trị quyết định
+	if firstForbidPolicy != nil {
+		exps := firstForbidPolicy.ExplanationList
+		if len(exps) == 0 {
+			exps = []string{firstForbidPolicy.ID}
+		}
 		return DecisionResult{
 			Decision:     DecisionDeny,
-			Reason:       fmt.Sprintf("Yêu cầu bị từ chối bởi luật cấm tường minh: %s", strings.Join(forbidMatched, ", ")),
-			Explanations: forbidMatched,
+			Reason:       ReasonDenyForbid,
+			Explanations: exps,
 		}
 	}
 
-	if len(permitMatched) > 0 {
+	if firstPermitPolicy != nil {
+		exps := firstPermitPolicy.ExplanationList
+		if len(exps) == 0 {
+			exps = []string{firstPermitPolicy.ID}
+		}
 		return DecisionResult{
 			Decision:     DecisionAllow,
-			Reason:       fmt.Sprintf("Yêu cầu được chấp thuận bởi luật: %s", strings.Join(permitMatched, ", ")),
-			Explanations: permitMatched,
+			Reason:       ReasonAllowPermit,
+			Explanations: exps,
 		}
 	}
 
+	// Mặc định cấm (Deny-by-Default)
 	return DecisionResult{
 		Decision:     DecisionDeny,
-		Reason:       "Không tìm thấy luật cho phép nào thỏa mãn điều kiện",
-		Explanations: []string{},
+		Reason:       ReasonDenyDefault,
+		Explanations: emptyExplanations,
 	}
 }
 
