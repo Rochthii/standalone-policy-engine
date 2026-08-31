@@ -2,7 +2,9 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -150,19 +152,55 @@ func (s *Storage) UpdatePolicy(ctx context.Context, policyID, policyText string)
 	return nil
 }
 
-// PublishPolicy xuất bản một chính sách: đổi status sang ACTIVE, lưu AST JSON và tăng version.
+// DBPolicyUpdateEvent cấu trúc tin nhắn thông báo cập nhật qua PostgreSQL NOTIFY.
+type DBPolicyUpdateEvent struct {
+	TenantID string `json:"tenant_id"`
+	PolicyID string `json:"policy_id"`
+	Action   string `json:"action"`
+	Revision uint64 `json:"revision"`
+}
+
+// PublishPolicy xuất bản một chính sách: đổi status sang ACTIVE, lưu AST JSON, tăng version và tăng revision của Tenant nguyên tử trong Transaction.
 func (s *Storage) PublishPolicy(ctx context.Context, policyID string, astJSON []byte) (int, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+
 	var version int
+	var tenantID string
 	query := `UPDATE policies 
               SET status = 'ACTIVE', ast_json = $1, version = version + 1, updated_at = CURRENT_TIMESTAMP 
-              WHERE id = $2 RETURNING version;`
-	err := s.pool.QueryRow(ctx, query, astJSON, policyID).Scan(&version)
+              WHERE id = $2 RETURNING version, tenant_id;`
+	err = tx.QueryRow(ctx, query, astJSON, policyID).Scan(&version, &tenantID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return 0, fmt.Errorf("không tìm thấy policy để publish: %s", policyID)
 		}
 		return 0, err
 	}
+
+	var newRevision uint64
+	revQuery := `UPDATE tenants 
+                 SET revision = revision + 1, updated_at = CURRENT_TIMESTAMP 
+                 WHERE id = $1 RETURNING revision;`
+	err = tx.QueryRow(ctx, revQuery, tenantID).Scan(&newRevision)
+	if err != nil {
+		// Fallback nếu bảng tenants chưa có dòng hoặc lỗi
+		newRevision = 1
+	}
+
+	// Phát thông báo pg_notify (chỉ được gửi khi Transaction commit thành công)
+	notifyQuery := fmt.Sprintf(`NOTIFY policy_events, '{"tenant_id":"%s","policy_id":"%s","action":"UPDATE","revision":%d}';`, tenantID, policyID, newRevision)
+	if _, err := tx.Exec(ctx, notifyQuery); err != nil {
+		log.Printf("[Storage] Cảnh báo lỗi NOTIFY: %v", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+
 	return version, nil
 }
 
@@ -180,17 +218,81 @@ func (s *Storage) GetPolicy(ctx context.Context, policyID string) (*DBPolicy, er
 	return p, nil
 }
 
-// DeletePolicy xóa bỏ một chính sách khỏi DB.
+// DeletePolicy xóa bỏ một chính sách và tăng revision của Tenant nguyên tử trong Transaction.
 func (s *Storage) DeletePolicy(ctx context.Context, policyID string) error {
-	query := `DELETE FROM policies WHERE id = $1;`
-	tag, err := s.pool.Exec(ctx, query, policyID)
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
-	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("không tìm thấy policy để xóa: %s", policyID)
+	defer tx.Rollback(ctx)
+
+	var tenantID string
+	query := `DELETE FROM policies WHERE id = $1 RETURNING tenant_id;`
+	err = tx.QueryRow(ctx, query, policyID).Scan(&tenantID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return fmt.Errorf("không tìm thấy policy để xóa: %s", policyID)
+		}
+		return err
 	}
-	return nil
+
+	var newRevision uint64
+	revQuery := `UPDATE tenants 
+                 SET revision = revision + 1, updated_at = CURRENT_TIMESTAMP 
+                 WHERE id = $1 RETURNING revision;`
+	err = tx.QueryRow(ctx, revQuery, tenantID).Scan(&newRevision)
+	if err != nil {
+		newRevision = 1
+	}
+
+	notifyQuery := fmt.Sprintf(`NOTIFY policy_events, '{"tenant_id":"%s","policy_id":"%s","action":"DELETE","revision":%d}';`, tenantID, policyID, newRevision)
+	if _, err := tx.Exec(ctx, notifyQuery); err != nil {
+		log.Printf("[Storage] Cảnh báo lỗi NOTIFY: %v", err)
+	}
+
+	return tx.Commit(ctx)
+}
+
+// GetTenantRevision lấy số hiệu phiên bản revision hiện tại của một Tenant từ PostgreSQL.
+func (s *Storage) GetTenantRevision(ctx context.Context, tenantID string) (uint64, error) {
+	var revision uint64
+	query := `SELECT COALESCE(revision, 1) FROM tenants WHERE id = $1;`
+	err := s.pool.QueryRow(ctx, query, tenantID).Scan(&revision)
+	if err != nil {
+		return 1, nil // Fallback mặc định
+	}
+	return revision, nil
+}
+
+// ListenPolicyEvents mở kết nối chuyên dụng để lắng nghe kênh 'policy_events' của PostgreSQL.
+func (s *Storage) ListenPolicyEvents(ctx context.Context, callback func(event DBPolicyUpdateEvent)) error {
+	conn, err := s.pool.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("lỗi acquire kết nối lắng nghe: %w", err)
+	}
+	defer conn.Release()
+
+	_, err = conn.Exec(ctx, "LISTEN policy_events;")
+	if err != nil {
+		return fmt.Errorf("lỗi thực thi LISTEN policy_events: %w", err)
+	}
+
+	log.Println("[Storage] Đang lắng nghe kênh PostgreSQL 'policy_events'...")
+
+	for {
+		notification, err := conn.Conn().WaitForNotification(ctx)
+		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			return fmt.Errorf("lỗi WaitForNotification: %w", err)
+		}
+
+		var ev DBPolicyUpdateEvent
+		if err := json.Unmarshal([]byte(notification.Payload), &ev); err == nil {
+			callback(ev)
+		}
+	}
 }
 
 // GetActivePolicies lấy danh sách tất cả các chính sách đang hoạt động (ACTIVE) của một Tenant.
