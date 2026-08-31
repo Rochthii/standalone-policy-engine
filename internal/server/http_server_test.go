@@ -23,7 +23,7 @@ func TestHTTPServer_TenantIsolation(t *testing.T) {
 		Interval:    1 * time.Hour,
 		IdleTimeout: 1 * time.Hour,
 	})
-	srv := NewHTTPServer(store, eng, nil)
+	srv := NewHTTPServer(store, eng)
 	mux := srv.ConfigureMux()
 
 	makeToken := func(tenantID string) string {
@@ -63,6 +63,24 @@ func TestHTTPServer_TenantIsolation(t *testing.T) {
 
 		if rr.Code != http.StatusUnauthorized {
 			t.Errorf("Mong doi 401 Unauthorized, thuc te %d", rr.Code)
+		}
+	})
+
+	t.Run("Get Schema - Matched Tenant ID and Valid Token", func(t *testing.T) {
+		token := makeToken("tenant-schema")
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/tenant-schema/schema", nil)
+		req.SetPathValue("tenant_id", "tenant-schema")
+		req.Header.Set("Authorization", "Bearer "+token)
+		rr := httptest.NewRecorder()
+
+		mux.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("Mong doi 200 OK, thuc te %d (body: %s)", rr.Code, rr.Body.String())
+		}
+
+		if !strings.Contains(rr.Body.String(), `"tenant_id":"tenant-schema"`) {
+			t.Errorf("Body khong chua tenant_id dung: %s", rr.Body.String())
 		}
 	})
 }
