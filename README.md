@@ -194,27 +194,36 @@ Actual throughput (**~3M req/s/core** after Layer 1-3 optimization, up from 2.14
 
 ## Project Structure
 
-```
+```text
 standalone-policy-engine/
+├── .agents/                 # AI Master Guide & 6 Modular Skills
 ├── cmd/
-│   ├── pdp-server/          # Data Plane entry point (gRPC)
-│   └── control-plane/       # Control Plane entry point (HTTP REST)
+│   ├── pdp-server/          # Data Plane entry point (gRPC :50051)
+│   ├── control-plane/       # Control Plane entry point (HTTP REST :8080)
+│   └── pectl/               # Administrative CLI tool
 ├── internal/
-│   ├── parser/              # Policy language: Lexer, Parser, AST, Compiler
-│   ├── engine/              # Core: Trie index, DAG, Evaluator, Decision, COW, GC
-│   ├── server/              # gRPC server, HTTP server, Prometheus metrics
-│   ├── storage/             # PostgreSQL persistence, BadgerDB edge store
+│   ├── parser/              # Policy language: Lexer, Pratt Parser, AST, Compiler
+│   ├── engine/              # Core: Trie index, Role DAG, Evaluator, COW, sync.Pool
+│   ├── server/              # gRPC server, HTTP server, Prometheus metrics, JWT context
+│   ├── storage/             # PostgreSQL persistence, BadgerDB edge store, Redis Pub/Sub
 │   ├── audit/               # Async audit logger with Ring Buffer and Spill-to-Disk
+│   ├── security/            # Ed25519 signatures, Tenant isolation
 │   └── metrics/             # Prometheus metric definitions
 ├── proto/v1/                # Protobuf contract: CheckAccess, ExplainDecision
-├── deployments/
-│   ├── docker/              # Multi-stage Dockerfiles (pdp, control-plane)
-│   ├── envoy/               # Envoy L7 proxy configuration for gRPC load balancing
-│   └── kubernetes/          # Kubernetes Deployment manifests (PDP + Envoy sidecar)
-├── tests/
-│   └── performance_test.go  # Go benchmark tests for in-memory decision latency
-├── docs/                    # Architecture and design documentation
-└── CHANGELOG.md
+├── deployments/             # Docker Compose, Envoy L7, Kubernetes manifests
+├── tests/                   # ERP scenarios (PO, SoD, Branch, Payroll), E2E & Benchmarks
+├── scripts/                 # Automation, benchmark & documentation generator scripts
+├── docs/                    # Comprehensive Architecture & Academic Documentation
+│   ├── 00_MASTER_INDEX.md   # Documentation master index
+│   ├── thesis-proposal/     # Official Master Thesis Proposal 2029 (4 RQs Spec)
+│   ├── career-roadmap/      # 4-Phase Career & Learning Roadmap
+│   ├── domain/              # ERP ABAC domain models & scenarios
+│   ├── policy-language/     # EBNF grammar & language specification
+│   ├── evaluation-engine/   # In-Memory Trie, DAG & Evaluator architecture
+│   ├── architecture/        # System C4 architecture & data flow diagrams
+│   └── performance/         # Latency budgets, Zero-allocation & Benchmark matrices
+├── CHANGELOG.md
+└── README.md
 ```
 
 ---

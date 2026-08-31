@@ -35,9 +35,13 @@ local.env
 .DS_Store
 Thumbs.db
 
-# Spill logs and Badger local storage
+# Spill logs, Badged local storage and temporary files
 *.log
 spill_logs/
+spill-logs/
 badger_data/
 tmp/
 temp/
+scratch/
+__pycache__/
+*.pyc

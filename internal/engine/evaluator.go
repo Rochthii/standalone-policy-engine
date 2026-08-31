@@ -122,6 +122,9 @@ func (ctx *EvalContext) GetAttribute(scope parser.VarScope, field string, expect
 
 	case parser.VarScopeContext:
 		val, exists := ctx.Context[field]
+		if !exists {
+			val, exists = ctx.Context["context."+field]
+		}
 		if exists {
 			return parseStringValue(val, expectedType)
 		}
