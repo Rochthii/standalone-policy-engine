@@ -1,21 +1,19 @@
 import os
-import sys
+import shutil
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
-from docx.oxml import OxmlElement, parse_xml
-from docx.oxml.ns import nsdecls, qn
+from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.oxml import parse_xml
+from docx.oxml.ns import nsdecls
 import win32com.client
 
 def set_cell_background(cell, fill_color):
-    """Đặt màu nền cho ô trong bảng (hex, vd: '1E3A5F')"""
     tcPr = cell._tc.get_or_add_tcPr()
     shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{fill_color}"/>')
     tcPr.append(shd)
 
-def set_cell_margins(cell, top=100, bottom=100, left=150, right=150):
-    """Đặt padding cho ô trong bảng"""
+def set_cell_margins(cell, top=60, bottom=60, left=90, right=90):
     tcPr = cell._tc.get_or_add_tcPr()
     tcMar = parse_xml(f'''
         <w:tcMar {nsdecls("w")}>
@@ -27,8 +25,7 @@ def set_cell_margins(cell, top=100, bottom=100, left=150, right=150):
     ''')
     tcPr.append(tcMar)
 
-def add_callout(doc, text, title="LƯU Ý CỐT LÕI (FIRST PRINCIPLES)", bg_color="F0F4F8", border_color="1E3A5F"):
-    """Tạo hộp Callout / Note chuyên nghiệp"""
+def add_callout(doc, text, title="TỔNG QUAN CHIẾN LƯỢC: LẤY KỸ THUẬT LÀM LÕI, LẤY NGHIỆP VỤ LÀM VŨ KHÍ", bg_color="F0F4F8", border_color="1E3A5F"):
     tbl = doc.add_table(rows=1, cols=1)
     tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
     tbl.autofit = False
@@ -36,9 +33,8 @@ def add_callout(doc, text, title="LƯU Ý CỐT LÕI (FIRST PRINCIPLES)", bg_col
     
     cell = tbl.cell(0, 0)
     set_cell_background(cell, bg_color)
-    set_cell_margins(cell, top=140, bottom=140, left=200, right=200)
+    set_cell_margins(cell, top=100, bottom=100, left=150, right=150)
     
-    # Left border highlight
     tcPr = cell._tc.get_or_add_tcPr()
     borders = parse_xml(f'''
         <w:tcBorders {nsdecls("w")}>
@@ -59,18 +55,17 @@ def add_callout(doc, text, title="LƯU Ý CỐT LÕI (FIRST PRINCIPLES)", bg_col
         run_title = p.add_run(f"📌 {title}\n")
         run_title.bold = True
         run_title.font.name = "Arial"
-        run_title.font.size = Pt(10.5)
+        run_title.font.size = Pt(9.5)
         run_title.font.color.rgb = RGBColor(30, 58, 95)
     
     run_text = p.add_run(text)
     run_text.font.name = "Arial"
-    run_text.font.size = Pt(10)
+    run_text.font.size = Pt(8.5)
     run_text.font.color.rgb = RGBColor(40, 50, 60)
     
-    # Empty spacing after table
     sp_p = doc.add_paragraph()
     sp_p.paragraph_format.space_before = Pt(0)
-    sp_p.paragraph_format.space_after = Pt(4)
+    sp_p.paragraph_format.space_after = Pt(3)
 
 def format_heading(p, text, level=1):
     p.paragraph_format.keep_with_next = True
@@ -78,287 +73,177 @@ def format_heading(p, text, level=1):
     run.font.name = "Arial"
     run.bold = True
     if level == 1:
-        p.paragraph_format.space_before = Pt(16)
-        p.paragraph_format.space_after = Pt(6)
-        run.font.size = Pt(15)
-        run.font.color.rgb = RGBColor(14, 43, 82) # Deep Blue
-    elif level == 2:
         p.paragraph_format.space_before = Pt(12)
-        p.paragraph_format.space_after = Pt(4)
-        run.font.size = Pt(12.5)
-        run.font.color.rgb = RGBColor(13, 79, 60) # Deep Emerald
-    elif level == 3:
-        p.paragraph_format.space_before = Pt(8)
         p.paragraph_format.space_after = Pt(3)
-        run.font.size = Pt(11)
+        run.font.size = Pt(12)
+        run.font.color.rgb = RGBColor(14, 43, 82)
+    elif level == 2:
+        p.paragraph_format.space_before = Pt(8)
+        p.paragraph_format.space_after = Pt(2)
+        run.font.size = Pt(10.5)
+        run.font.color.rgb = RGBColor(13, 79, 60)
+    elif level == 3:
+        p.paragraph_format.space_before = Pt(4)
+        p.paragraph_format.space_after = Pt(2)
+        run.font.size = Pt(9)
         run.font.color.rgb = RGBColor(50, 60, 75)
 
 def format_bullet(doc, bold_prefix, text):
     p = doc.add_paragraph(style='List Bullet')
     p.paragraph_format.space_before = Pt(1)
-    p.paragraph_format.space_after = Pt(2)
+    p.paragraph_format.space_after = Pt(1.5)
     p.paragraph_format.line_spacing = 1.15
     
     r1 = p.add_run(bold_prefix)
     r1.font.name = "Arial"
-    r1.font.size = Pt(10)
+    r1.font.size = Pt(8.5)
     r1.bold = True
     r1.font.color.rgb = RGBColor(20, 30, 40)
     
     r2 = p.add_run(text)
     r2.font.name = "Arial"
-    r2.font.size = Pt(10)
+    r2.font.size = Pt(8.5)
     r2.font.color.rgb = RGBColor(50, 60, 70)
 
 def main():
     doc = Document()
     
-    # Page Margins: 1 inch (72 pt) all around
-    sections = doc.sections
-    for section in sections:
-        section.top_margin = Inches(0.8)
-        section.bottom_margin = Inches(0.8)
-        section.left_margin = Inches(0.8)
-        section.right_margin = Inches(0.8)
+    for section in doc.sections:
+        section.top_margin = Inches(0.7)
+        section.bottom_margin = Inches(0.7)
+        section.left_margin = Inches(0.75)
+        section.right_margin = Inches(0.75)
         
-        # Header / Footer
         footer = section.footer
         f_p = footer.paragraphs[0]
         f_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        f_run = f_p.add_run("Bản Quyền Lộ Trình SE & ERP (SAP / Odoo) — Standalone PDP Engine Project")
+        f_run = f_p.add_run("Lộ Trình Chiến Lược: Kỹ Sư SE Bảo Mật PTIT → Chuyên Gia Giải Pháp ERP Quốc Tế")
         f_run.font.name = "Arial"
         f_run.font.size = Pt(8)
         f_run.font.color.rgb = RGBColor(140, 150, 160)
 
-    # ----------------------------------------------------
-    # COVER / HEADER BANNER
-    # ----------------------------------------------------
+    # Header
+    tp = doc.add_paragraph()
+    tp.paragraph_format.space_before = Pt(2)
+    tp.paragraph_format.space_after = Pt(2)
+    tp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_tp = tp.add_run("HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG (PTIT) — CHƯƠNG TRÌNH CLC\nBẢN KẾ HOẠCH PHÁT TRIỂN NĂNG LỰC & SỰ NGHIỆP CHIẾN LƯỢC")
+    r_tp.font.name = "Arial"; r_tp.font.size = Pt(11); r_tp.bold = True
+    r_tp.font.color.rgb = RGBColor(14, 43, 82)
+
     title_p = doc.add_paragraph()
-    title_p.paragraph_format.space_before = Pt(10)
-    title_p.paragraph_format.space_after = Pt(4)
+    title_p.paragraph_format.space_before = Pt(4)
+    title_p.paragraph_format.space_after = Pt(2)
     title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
-    t_run = title_p.add_run("LỘ TRÌNH CĂN TÍNH:\nKỸ THUẬT PHẦN MỀM & KIẾN TRÚC ERP (SAP & ODOO)\nTRONG KỶ NGUYÊN AI VIBE CODING")
-    t_run.font.name = "Arial"
-    t_run.font.size = Pt(18)
-    t_run.bold = True
-    t_run.font.color.rgb = RGBColor(14, 43, 82)
-    
+    t_run = title_p.add_run("TỪ KỸ SƯ PHẦN MỀM BẢO MẬT ĐẾN CHUYÊN GIA GIẢI PHÁP ERP QUỐC TẾ")
+    t_run.font.name = "Arial"; t_run.font.size = Pt(12.5); t_run.bold = True
+    t_run.font.color.rgb = RGBColor(180, 20, 20)
+
     sub_p = doc.add_paragraph()
     sub_p.paragraph_format.space_before = Pt(2)
-    sub_p.paragraph_format.space_after = Pt(14)
+    sub_p.paragraph_format.space_after = Pt(6)
     sub_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
-    s_run = sub_p.add_run("Bản Thiết Kế Toàn Diện Từ Năm 3 Đại Học Đến Vị Trí Enterprise Solutions Architect")
-    s_run.font.name = "Arial"
-    s_run.font.size = Pt(11)
-    s_run.italic = True
-    s_run.font.color.rgb = RGBColor(80, 95, 110)
+    s_run = sub_p.add_run("Strategic Career Blueprint: PTIT High-Quality SE, Deep Security & International ERP Solution Architect")
+    s_run.font.name = "Arial"; s_run.font.size = Pt(8.5); s_run.italic = True
+    s_run.font.color.rgb = RGBColor(70, 85, 100)
 
     add_callout(
         doc,
-        "Lộ trình này được xây dựng trên 3 trục Căn Tính Cốt Lõi (First Principles):\n"
-        "1. CĂN TÍNH KINH TẾ (ERP Domain): Hiểu thấu đáo cách tiền, tài sản, kho bãi và báo cáo tài chính vận hành trong thế giới thực.\n"
-        "2. CĂN TÍNH HỆ THỐNG (SE Rigor): Kiến trúc vi dịch vụ phân tán, gRPC, OData, ACID, In-Memory Engine, Copy-On-Write lock-free.\n"
-        "3. CĂN TÍNH THỜI ĐẠI (AI Agentic Orchestration): Bạn là Kiến trúc sư trưởng đưa ra đặc tả kỹ thuật; AI là trợ lý lập trình thực thi.",
-        title="TRIẾT LÝ PHÁT TRIỂN NĂNG LỰC CỐT LÕI"
+        "• Định vị bản thân: Technical ERP Consultant / Solution Architect (Kiến trúc sư giải pháp & can thiệp kernel lõi), tuyệt đối không dừng lại ở cấu hình bấm nút nghiệp vụ thông thường.\n"
+        "• 3 Trụ cột di sản PTIT: standalone-policy-engine (< 0.35ms Engine) + secure-multitenant-saas (PostgreSQL RLS & WORM) + secure-fapi-zta-darkservices (FAPI 2.0 & OpenZiti).\n"
+        "• Thị trường mục tiêu: Trung tâm tài chính Phnom Penh (Hệ thống thanh toán NBC Bakong / Banking ERP) → Global Enterprise.",
+        title="TỔNG QUAN CHIẾN LƯỢC: LẤY KỸ THUẬT LÀM LÕI, LẤY NGHIỆP VỤ LÀM VŨ KHÍ"
     )
 
-    # ----------------------------------------------------
-    # CHƯƠNG 1: TỔNG QUAN & BẢN ĐỒ CHIẾN LƯỢC
-    # ----------------------------------------------------
-    format_heading(doc.add_paragraph(), "1. Tổng Quan 4 Giai Đoạn & So Sánh Chiến Lược SAP vs Odoo", level=1)
+    # GIAI ĐOẠN 1
+    format_heading(doc.add_paragraph(), "Giai Đoạn 1: Xây Móng Kỹ Thuật & Khắc Phục Điểm Mù (Năm 3 Kỳ 1 - Hiện Tại)", level=1)
+    format_bullet(doc, "Môn bắt buộc tại PTIT CLC: ", "Cơ sở dữ liệu (3NF, ACID Transactions), Hệ điều hành & Mạng máy tính (Process/Thread, Virtual Memory, TCP/IP, REST), An toàn thông tin cơ sở.")
+    format_bullet(doc, "Thực hành Odoo Foundation: ", "Cài đặt Odoo 17 trên Docker + PostgreSQL. Trải nghiệm nghiệp vụ 3 app cốt lõi (Sales, Inventory, Accounting) và cấu trúc module Odoo chuẩn.")
+    format_bullet(doc, "Triệt tiêu điểm mù: ", "Soi trực tiếp các bảng PostgreSQL (sale_order, stock_picking, res_partner) qua DBeaver/pgAdmin khi AI sinh code. Chuyển toàn bộ tài liệu & prompt sang tiếng Anh 100%.")
+
+    # GIAI ĐOẠN 2
+    format_heading(doc.add_paragraph(), "Giai Đoạn 2: Làm Chủ Odoo & Tích Hợp Hệ Thống (Năm 3 Kỳ 2)", level=1)
+    format_bullet(doc, "Kiến thức kỹ thuật cốt lõi: ", "Odoo ORM chuyên sâu (Python Decorators, create, write), Hệ thống phân quyền ir.model.access.csv và Record Rules (ir.rule) tương ứng với PostgreSQL RLS.")
+    format_bullet(doc, "Dự án then chốt: ", "Tự xây dựng Custom Module 'custom_approval_and_branch_isolation' tích hợp với Standalone Go PDP Engine để đánh giá quyền hạn mức thời gian thực.")
+    format_bullet(doc, "Điểm mù cần tránh: ", "Tuyệt đối không xóa đơn hàng đã xuất kho hoặc thanh toán trong DB. Luôn xử lý bằng cơ chế hủy chứng từ hoặc tạo bút toán đảo để bảo vệ kế toán kép.")
+
+    # GIAI ĐOẠN 3
+    format_heading(doc.add_paragraph(), "Giai Đoạn 3: Phân Chuyên Ngành SE, Nạp Tư Duy SAP & Khóa Luận (Năm 4)", level=1)
+    format_bullet(doc, "Chuyên ngành tại PTIT: ", "Kỹ thuật Phần mềm (SE) - Tập trung cao độ môn Kiến trúc & Thiết kế phần mềm, Phát triển phần mềm an toàn và Hệ thống phân tán.")
+    format_bullet(doc, "Chuẩn tư duy SAP Enterprise: ", "Học 3 phân hệ cốt lõi SAP MM (P2P), SAP SD (O2C), SAP FI (General Ledger, Dr/Cr). Nắm vững giao thức SAP OData (RESTful) và triết lý SAP Clean Core.")
+    format_bullet(doc, "Đồ án tốt nghiệp xuất sắc: ", "Xây dựng cổng trung gian Middleware Zero Trust đồng bộ dữ liệu giữa Odoo 17 (Chi nhánh) và Mock SAP S/4HANA OData, phân quyền PDP 1M+ RPS.")
+    format_bullet(doc, "Điểm mù cần tránh: ", "Không học vẹt mã T-Code SAP. Tập trung hiểu bản chất luồng dữ liệu và máy trạng thái (State Machine) trong Database.")
+
+    # GIAI ĐOẠN 4
+    format_heading(doc.add_paragraph(), "Giai Đoạn 4: Thực Tập Cùng Mentor & Chuẩn Bị Xuất Ngoại (Học Kỳ Cuối & Ra Trường)", level=1)
+    format_bullet(doc, "Làm việc với Mentor: ", "Chủ động khai thác bài toán công nghệ tại Campuchia (Ngân hàng, Bán lẻ, Odoo/SAP), tiếp cận tài liệu BRD và thiết kế kỹ thuật thực tế.")
+    format_bullet(doc, "Hành trang thị trường Phnom Penh: ", "Năng lực làm việc và debug độc lập, kỹ năng giao tiếp tiếng Anh thương mại, tích hợp API thanh toán quốc gia Bakong (NBC) qua chuẩn FAPI 2.0.")
+    format_bullet(doc, "Hồ sơ năng lực (Portfolio): ", "CV định vị Kỹ sư SE Chất lượng cao từ PTIT, am hiểu sâu kiến trúc Odoo/PostgreSQL, chuẩn tích hợp SAP và hạ tầng bảo mật Zero Trust.")
+
+    # BẢNG ĐỐI CHIẾU KIẾN THỨC
+    format_heading(doc.add_paragraph(), "Bảng Đối Chiếu Kiến Thức Bắt Buộc & Kế Thừa Nền Tảng", level=1)
     
-    # Table 1: So sánh SAP vs Odoo
-    tbl_cmp = doc.add_table(rows=5, cols=3)
-    tbl_cmp.alignment = WD_TABLE_ALIGNMENT.CENTER
-    tbl_cmp.autofit = False
+    tbl = doc.add_table(rows=5, cols=4)
+    tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+    tbl.autofit = False
     
-    col_widths = [Inches(1.8), Inches(2.4), Inches(2.4)]
-    headers = ["Tiêu Chí Đánh Giá", "Hệ Sinh Thái Odoo ERP", "Hệ Sinh Thái SAP (S/4HANA / BTP)"]
+    col_w = [Inches(1.3), Inches(1.8), Inches(1.8), Inches(1.6)]
+    headers = ["Trụ Cột", "Nền Tảng Đã Có (PTIT)", "Kiến Thức ERP Bắt Buộc", "Điểm Mù Thường Gặp"]
     
-    # Header Row
-    hdr_row = tbl_cmp.rows[0]
+    hdr = tbl.rows[0]
     for i, title in enumerate(headers):
-        cell = hdr_row.cells[i]
-        cell.width = col_widths[i]
+        cell = hdr.cells[i]; cell.width = col_w[i]
         set_cell_background(cell, "1E3A5F")
-        set_cell_margins(cell, 80, 80, 100, 100)
-        p = cell.paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        r = p.add_run(title)
-        r.font.name = "Arial"
-        r.font.size = Pt(9.5)
-        r.bold = True
-        r.font.color.rgb = RGBColor(255, 255, 255)
+        set_cell_margins(cell, 35, 35, 50, 50)
+        p = cell.paragraphs[0]; r = p.add_run(title)
+        r.font.name = "Arial"; r.font.size = Pt(8); r.bold = True; r.font.color.rgb = RGBColor(255, 255, 255)
         
-    rows_data = [
-        ("Phân khúc thị trường", "Doanh nghiệp vừa & nhỏ (SME), Tech startup", "Tập đoàn tỷ USD, Đa quốc gia (Vinamilk, Big 4)"),
-        ("Công nghệ & Mã nguồn", "100% Open-Source (Python, PostgreSQL, OWL)", "Enterprise Cloud (ABAP on Cloud, SAP BTP, OData)"),
-        ("Mục tiêu học tập", "Khai phá ruột gan code, hiểu cấu trúc dữ liệu", "Học chuẩn quy trình doanh nghiệp toàn cầu"),
-        ("Vị trí & Thu nhập", "Odoo Developer / Lead ($800 - $2,500)", "SAP Consultant / Architect ($1,500 - $5,000+)")
+    data = [
+        ("Lập Trình & Ngôn Ngữ", "Go, TypeScript, C++, Python cơ bản", "Python chuyên sâu Odoo ORM, Decorators, Inheritance", "Chỉ biết prompt AI mà không tự trace stack trace khi lỗi."),
+        ("Cơ Sở Dữ Liệu", "PostgreSQL RLS, B-Tree, NoSQL", "PostgreSQL Transaction, Locks, Query Optimization, Foreign Keys", "Không kiểm soát được deadlock hoặc làm sai lệch tồn kho."),
+        ("Bảo Mật & Phân Quyền", "Zero Trust, mTLS, DPoP, PBAC/ABAC", "Odoo ACL, Record Rules, SAP GRC Access Control (SoD)", "Nhầm lẫn giữa quyền UI và quyền dữ liệu tầng CSDL."),
+        ("Tư Duy Nghiệp Vụ", "Tư duy kỹ thuật, xử lý phân tán", "Luồng kinh doanh chuẩn: P2P, O2C, Kế toán kép (Dr/Cr)", "Nghĩ ERP chỉ là CRUD đơn giản mà quên tính toàn vẹn tài chính.")
     ]
-    
-    for r_idx, row_data in enumerate(rows_data):
-        row = tbl_cmp.rows[r_idx + 1]
+    for r_idx, row_d in enumerate(data):
+        row = tbl.rows[r_idx + 1]
         bg = "F7FAFC" if r_idx % 2 == 0 else "FFFFFF"
-        for c_idx, val in enumerate(row_data):
-            cell = row.cells[c_idx]
-            cell.width = col_widths[c_idx]
+        for c_idx, val in enumerate(row_d):
+            cell = row.cells[c_idx]; cell.width = col_w[c_idx]
             set_cell_background(cell, bg)
-            set_cell_margins(cell, 60, 60, 100, 100)
-            p = cell.paragraphs[0]
-            r = p.add_run(val)
-            r.font.name = "Arial"
-            r.font.size = Pt(9)
-            if c_idx == 0:
-                r.bold = True
+            set_cell_margins(cell, 30, 30, 45, 45)
+            p = cell.paragraphs[0]; r = p.add_run(val)
+            r.font.name = "Arial"; r.font.size = Pt(7.5)
+            if c_idx == 0: r.bold = True
             r.font.color.rgb = RGBColor(30, 40, 50)
 
-    doc.add_paragraph().paragraph_format.space_after = Pt(6)
-
-    # ----------------------------------------------------
-    # CHƯƠNG 2: GIAI ĐOẠN 1 - ODOO & LẬP TRÌNH PHÂN TÁN
-    # ----------------------------------------------------
-    format_heading(doc.add_paragraph(), "2. Giai Đoạn 1: Làm Chủ Ruột Gan ERP Với Odoo & Lập Trình Phân Tán", level=1)
-    
-    p_g1 = doc.add_paragraph()
-    p_g1.paragraph_format.space_after = Pt(4)
-    r = p_g1.add_run("Thời gian: Năm 3 (Tháng 1 — Tháng 3) | Mục tiêu: Hiểu thấu 100% cách ERP tổ chức dữ liệu & dòng tiền.")
-    r.font.name = "Arial"; r.font.size = Pt(10); r.italic = True
-
-    format_heading(doc.add_paragraph(), "A. Nội Dung Cần Học (Kiến Thức & Nghiệp Vụ Chuẩn):", level=2)
-    format_bullet(doc, "4 Luồng Nghiệp Vụ Cốt Lõi: ", "P2P (Procure-to-Pay: PR → PO → GRN → Vendor Bill → Payment), O2C (Order-to-Cash: Báo giá → SO → Xuất kho → Invoice → Thu tiền), Kế toán kép (Double-entry Debit/Credit), Kho vận (Double-entry Inventory Moves, FIFO/AVCO).")
-    format_bullet(doc, "Kỹ Thuật Odoo ORM: ", "Kế thừa Model (_inherit), quan hệ Many2one/One2many, Decorators (@api.depends, @api.constrains), Phân quyền Record Rules (ir.rule).")
-    format_bullet(doc, "Database PostgreSQL: ", "Cơ chế Transaction ACID, Row-level Locks, MVCC và cách Odoo tối ưu truy vấn.")
-
-    format_heading(doc.add_paragraph(), "B. Nhiệm Vụ Cần Làm (Thực Chiến Checklist):", level=2)
-    format_bullet(doc, "Task 1.1: ", "Viết docker-compose.yml chạy cụm Odoo 17 Community + PostgreSQL 16 cục bộ.")
-    format_bullet(doc, "Task 1.2: ", "Thao tác trọn vẹn 1 chu trình mua hàng P2P và 1 chu trình bán hàng O2C trên giao diện Odoo thật.")
-    format_bullet(doc, "Task 1.3: ", "Viết Custom Odoo Module bằng Python: Khi bấm 'Approve PO', gửi request gRPC/REST sang Standalone Go PDP Engine để đánh giá quyền ABAC.")
-
-    format_heading(doc.add_paragraph(), "C. Sản Phẩm Đầu Ra & Điểm Nhấn CV:", level=2)
-    format_bullet(doc, "Sản phẩm: ", "Repository GitHub chứa module Odoo tích hợp Standalone Go PDP hoàn chỉnh.")
-    format_bullet(doc, "Bullet Point CV: ", "'Engineered custom Odoo 17 enterprise modules with distributed gRPC authorization hooks, offloading dynamic ABAC decision logic to an in-memory Go Policy Decision Point with sub-millisecond evaluation latency.'")
-
-    # ----------------------------------------------------
-    # CHƯƠNG 3: GIAI ĐOẠN 2 - CHUẨN MỰC SAP ENTERPRISE
-    # ----------------------------------------------------
-    format_heading(doc.add_paragraph(), "3. Giai Đoạn 2: Tiếp Cận Chuẩn Mực Doanh Nghiệp Tỷ USD Với SAP", level=1)
-    
-    p_g2 = doc.add_paragraph()
-    p_g2.paragraph_format.space_after = Pt(4)
-    r = p_g2.add_run("Thời gian: Hè Năm 3 (Tháng 4 — Tháng 6) | Mục tiêu: Nắm vững chuẩn mực quy trình SAP S/4HANA, SAP BTP & Kiến trúc Two-Tier ERP.")
-    r.font.name = "Arial"; r.font.size = Pt(10); r.italic = True
-
-    format_heading(doc.add_paragraph(), "A. Nội Dung Cần Học:", level=2)
-    format_bullet(doc, "Cấu Trúc Doanh Nghiệp SAP: ", "Client → Company Code (BUKRS - Pháp nhân) → Plant (WERKS - Nhà máy) → Purchasing/Sales Org → Cost Center (KOSTL).")
-    format_bullet(doc, "Công Nghệ SAP Clean Core: ", "Nguyên tắc mở rộng Side-by-Side trên SAP BTP, giao thức chuẩn SAP OData v2/v4 Services (JSON/REST APIs).")
-    format_bullet(doc, "Bảo Mật & Phân Quyền SAP GRC: ", "Authorization Objects (M_BEST_EKO, F_BKPF_BUK) và Ma trận Phân tách trách nhiệm (Separation of Duties - SoD).")
-
-    format_heading(doc.add_paragraph(), "B. Nhiệm Vụ Cần Làm:", level=2)
-    format_bullet(doc, "Task 2.1: ", "Học và hoàn thành chứng chỉ miễn phí trên learning.sap.com / openSAP (Discovering SAP S/4HANA, SAP BTP).")
-    format_bullet(doc, "Task 2.2: ", "Dùng AI viết Mock SAP S/4HANA OData Server bằng Go (EntitySet /A_PurchaseOrder, /A_JournalEntry).")
-    format_bullet(doc, "Task 2.3 (Two-Tier ERP Bridge): ", "Đồng bộ giao dịch PO/Invoice từ Odoo (Chi nhánh) sang Mock SAP S/4HANA (Trụ sở tập đoàn), bảo vệ an toàn bởi Go PDP Engine.")
-
-    format_heading(doc.add_paragraph(), "C. Sản Phẩm Đầu Ra & Điểm Nhấn CV:", level=2)
-    format_bullet(doc, "Sản phẩm: ", "1-2 Chứng chỉ chính thức từ SAP Official + Mô hình Two-Tier ERP tích hợp.")
-    format_bullet(doc, "Bullet Point CV: ", "'Architected an event-driven Two-Tier ERP integration bridge syncing Branch transactions (Odoo) to Corporate HQ (SAP S/4HANA OData v4 APIs) guarded by a high-throughput Go ABAC Policy Engine.'")
-
-    # ----------------------------------------------------
-    # CHƯƠNG 4: GIAI ĐOẠN 3 - ĐỒ ÁN TỐT NGHIỆP & SĂN THỰC TẬP
-    # ----------------------------------------------------
-    format_heading(doc.add_paragraph(), "4. Giai Đoạn 3: Hoàn Thiện Đồ Án Tốt Nghiệp Xuất Sắc & Săn Thực Tập", level=1)
-    
-    p_g3 = doc.add_paragraph()
-    p_g3.paragraph_format.space_after = Pt(4)
-    r = p_g3.add_run("Thời gian: Năm 4 (Tháng 7 — Tháng 12) | Mục tiêu: Đạt điểm Đồ án 9.5 - 10 & Nhận Offer Thực tập sinh/Fresher có lương.")
-    r.font.name = "Arial"; r.font.size = Pt(10); r.italic = True
-
-    format_heading(doc.add_paragraph(), "A. Kịch Bản Live Demo 5 Phút Trước Hội Đồng:", level=2)
-    format_bullet(doc, "Phút 1: ", "Trình bày sơ đồ kiến trúc tổng thể (Envoy PEP ↔ PDP Go Server :50051 ↔ PostgreSQL).")
-    format_bullet(doc, "Phút 2: ", "Demo trực tiếp trên giao diện Odoo: Duyệt PO đúng hạn mức (ALLOW) vs Người tạo tự duyệt (DENY do SoD).")
-    format_bullet(doc, "Phút 3: ", "Demo tính năng ExplainDecision gRPC trả về chính xác Policy ID phục vụ kiểm toán.")
-    format_bullet(doc, "Phút 4: ", "Demo Hot-Reload < 300ms qua Redis Pub/Sub và cơ chế Spill-to-Disk khi Database PostgreSQL bị ngắt kết nối.")
-    format_bullet(doc, "Phút 5: ", "Chạy Benchmark trực tiếp: Chứng minh thông lượng > 1.000.000 RPS và độ trễ 0.9 µs trong RAM.")
-
-    format_heading(doc.add_paragraph(), "B. Danh Sách Doanh Nghiệp Mục Tiêu Nộp CV:", level=2)
-    format_bullet(doc, "Doanh nghiệp Triển khai ERP lớn: ", "FPT Software (FJP/FHN/FHM), Viettel Solutions, CMC Global, SmartOSC, BAP, A1 Consulting.")
-    format_bullet(doc, "Tập đoàn Tư vấn Quốc tế (Big 4): ", "Deloitte, PwC, EY, KPMG (Technology Consulting / Technology Risk).")
-
-    # ----------------------------------------------------
-    # CHƯƠNG 5: GIAI ĐOẠN 4 - ENTERPRISE SOLUTIONS ARCHITECT
-    # ----------------------------------------------------
-    format_heading(doc.add_paragraph(), "5. Giai Đoạn 4: Nâng Tầm Thành Enterprise Solutions Architect", level=1)
-    
-    format_heading(doc.add_paragraph(), "Lộ Trình Thăng Tiến 3 Năm:", level=2)
-    format_bullet(doc, "Năm 1: Technical Consultant (Thu nhập $800 - $1,500/tháng) ", "Tham gia dự án triển khai SAP/Odoo thực tế, dùng AI tăng năng suất viết module và tích hợp API gấp 3-5 lần.")
-    format_bullet(doc, "Năm 2-3: Senior Integration Lead (Thu nhập $1,800 - $3,000/tháng) ", "Thiết kế kiến trúc tích hợp hệ thống lớn, tối ưu hóa Database & Bảo mật, lấy chứng chỉ SAP Certified Development & AWS Solutions Architect.")
-    format_bullet(doc, "Năm 3+: Principal Solutions Architect (Thu nhập $3,500 - $6,000+/tháng) ", "Định hình kiến trúc chuyển đổi số tổng thể cho tập đoàn, quản trị rủi ro Zero Trust.")
-
-    # ----------------------------------------------------
-    # CHƯƠNG 6: BẢNG SỐ LIỆU THỰC NGHIỆM ĐỒ ÁN
-    # ----------------------------------------------------
-    format_heading(doc.add_paragraph(), "6. Bảng Đo Lường Hiệu Năng Thực Nghiệm Standalone PDP Engine", level=1)
-    
-    tbl_bench = doc.add_table(rows=4, cols=5)
-    tbl_bench.alignment = WD_TABLE_ALIGNMENT.CENTER
-    tbl_bench.autofit = False
-    
-    b_col_widths = [Inches(2.2), Inches(1.1), Inches(1.0), Inches(1.0), Inches(1.3)]
-    b_headers = ["Kịch Bản Kiểm Thử", "Độ Trễ / Op", "RAM B/op", "Alloc/op", "Throughput Ước Tính"]
-    
-    hdr_row = tbl_bench.rows[0]
-    for i, title in enumerate(b_headers):
-        cell = hdr_row.cells[i]
-        cell.width = b_col_widths[i]
-        set_cell_background(cell, "0D4F3C") # Deep Emerald
-        set_cell_margins(cell, 80, 80, 80, 80)
-        p = cell.paragraphs[0]
-        r = p.add_run(title)
-        r.font.name = "Arial"; r.font.size = Pt(9); r.bold = True; r.font.color.rgb = RGBColor(255, 255, 255)
-        
-    b_data = [
-        ("PO Approval ABAC (Đơn luồng)", "5.83 µs/op", "1,454 B", "33 allocs", "~171,000 req/s/core"),
-        ("Đa luồng đồng thời (20 Cores)", "946.5 ns/op", "748 B", "11 allocs", "> 1,050,000 req/s"),
-        ("Tra cứu Chỉ mục Trie thuần túy", "449.0 ns/op", "325 B", "10 allocs", "> 2,200,000 req/s")
-    ]
-    
-    for r_idx, row_data in enumerate(b_data):
-        row = tbl_bench.rows[r_idx + 1]
-        bg = "F0FFF4" if r_idx % 2 == 0 else "FFFFFF"
-        for c_idx, val in enumerate(row_data):
-            cell = row.cells[c_idx]
-            cell.width = b_col_widths[c_idx]
-            set_cell_background(cell, bg)
-            set_cell_margins(cell, 60, 60, 80, 80)
-            p = cell.paragraphs[0]
-            r = p.add_run(val)
-            r.font.name = "Arial"; r.font.size = Pt(8.5)
-            if c_idx == 0 or c_idx == 1 or c_idx == 4:
-                r.bold = True
-            r.font.color.rgb = RGBColor(20, 35, 25)
-
-    doc.add_paragraph().paragraph_format.space_after = Pt(12)
-
-    # Save DOCX
-    docx_path = r"e:\Projects\Project_TN\standalone-policy-engine\docs\career-roadmap\LO_TRINH_SE_ERP_AI_VIBE_CODING.docx"
+    # Save documents
+    out_dir = r"e:\Projects\Project_TN\standalone-policy-engine\docs\career-roadmap"
+    docx_path = os.path.join(out_dir, "LO_TRINH_SE_ERP_AI_VIBE_CODING.docx")
     doc.save(docx_path)
-    print(f"DOCX created successfully at: {docx_path}")
+    print(f"DOCX created at: {docx_path}")
 
-    # Export to PDF via Word COM
-    pdf_path = r"e:\Projects\Project_TN\standalone-policy-engine\docs\career-roadmap\LO_TRINH_SE_ERP_AI_VIBE_CODING.pdf"
+    pdf_path = os.path.join(out_dir, "LO_TRINH_SE_ERP_AI_VIBE_CODING.pdf")
     try:
         word = win32com.client.Dispatch("Word.Application")
         word.Visible = False
         doc_com = word.Documents.Open(os.path.abspath(docx_path))
-        # 17 = wdExportFormatPDF
         doc_com.ExportAsFixedFormat(os.path.abspath(pdf_path), 17)
         doc_com.Close(False)
         word.Quit()
-        print(f"PDF exported successfully at: {pdf_path}")
+        print(f"PDF exported at: {pdf_path}")
     except Exception as e:
-        print(f"Error exporting PDF via Word COM: {e}")
+        print(f"Error exporting PDF: {e}")
+
+    dst_dir = os.path.expanduser(r'~\Downloads')
+    for f in [docx_path, pdf_path]:
+        if os.path.exists(f):
+            try:
+                shutil.copy2(f, os.path.join(dst_dir, os.path.basename(f)))
+                print(f"Copied {os.path.basename(f)} to Downloads")
+            except PermissionError:
+                alt_name = "LO_TRINH_SE_ERP_AI_2029.pdf" if f.endswith(".pdf") else "LO_TRINH_SE_ERP_AI_2029.docx"
+                shutil.copy2(f, os.path.join(dst_dir, alt_name))
+                print(f"Copied to Downloads as fallback: {alt_name}")
 
 if __name__ == "__main__":
     main()
