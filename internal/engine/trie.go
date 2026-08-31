@@ -9,7 +9,7 @@ import (
 // trên hot path. Caller phải gọi ReturnPolicySlice() sau khi xử lý xong.
 var policySlicePool = sync.Pool{
 	New: func() any {
-		s := make([]*parser.PolicyNode, 0, 8)
+		s := make([]*parser.PolicyNode, 0, 32)
 		return &s
 	},
 }
@@ -28,6 +28,12 @@ func ReturnPolicySlice(s *[]*parser.PolicyNode) {
 // TrieRoot là nút gốc chỉ mục RAM cho một Tenant cụ thể.
 type TrieRoot struct {
 	TenantID string
+
+	// Revision lưu số hiệu phiên bản tăng dần đơn điệu (Monotonic Revision ID)
+	Revision uint64
+
+	// RequiredAttributes chứa danh sách các thuộc tính biến được trích xuất từ tất cả chính sách của Tenant
+	RequiredAttributes []string
 
 	// Subjects map mã băm FNV-1a của principal (ví dụ: hash("user:alice"))
 	// trỏ tới danh sách các tài nguyên tương ứng.
@@ -61,10 +67,12 @@ type ActionNode struct {
 // NewTrieRoot tạo mới một instance TrieRoot cho một Tenant.
 func NewTrieRoot(tenantID string) *TrieRoot {
 	return &TrieRoot{
-		TenantID:       tenantID,
-		Subjects:       make(map[uint64]*SubjectNode),
-		GlobalPolicies: make([]*parser.PolicyNode, 0),
-		RoleDAG:        NewRoleDAG(),
+		TenantID:           tenantID,
+		Revision:           1,
+		RequiredAttributes: make([]string, 0),
+		Subjects:           make(map[uint64]*SubjectNode),
+		GlobalPolicies:     make([]*parser.PolicyNode, 0),
+		RoleDAG:            NewRoleDAG(),
 	}
 }
 
@@ -91,6 +99,22 @@ func buildKeyHash(scope *parser.ScopeNode) uint64 {
 func (t *TrieRoot) AddPolicy(policy *parser.PolicyNode) {
 	if policy == nil {
 		return
+	}
+
+	// 0. Tổng hợp danh mục thuộc tính yêu cầu của Tenant
+	if len(policy.RequiredAttributes) > 0 {
+		for _, attr := range policy.RequiredAttributes {
+			exists := false
+			for _, existing := range t.RequiredAttributes {
+				if existing == attr {
+					exists = true
+					break
+				}
+			}
+			if !exists {
+				t.RequiredAttributes = append(t.RequiredAttributes, attr)
+			}
+		}
 	}
 
 	// 1. Kiểm tra cơ chế phân tách luật toàn cục (Global Rules Partition)
@@ -153,8 +177,8 @@ func (t *TrieRoot) LookupPoliciesInto(buf *[]*parser.PolicyNode, subjects []stri
 	*buf = append(*buf, t.GlobalPolicies...)
 
 	// Đảm bảo "any" luôn nằm trong danh sách để so khớp wildcard.
-	var subScratch [8]string
-	var resScratch [8]string
+	var subScratch [32]string
+	var resScratch [32]string
 	subjectsWithAny := ensureAnyInto(subjects, &subScratch)
 	resourcesWithAny := ensureAnyInto(resources, &resScratch)
 
@@ -193,7 +217,7 @@ func (t *TrieRoot) LookupPoliciesInto(buf *[]*parser.PolicyNode, subjects []stri
 // ensureAnyInto kiểm tra xem "any" đã có trong list chưa.
 // Nếu chưa, sao chép toàn bộ vào scratch buffer và thêm "any" — không tạo heap allocation.
 // scratch phải đủ lớn (ít nhất len(list)+1).
-func ensureAnyInto(list []string, scratch *[8]string) []string {
+func ensureAnyInto(list []string, scratch *[32]string) []string {
 	for _, item := range list {
 		if item == "any" {
 			return list // Đã có "any" — trả về gốc, không cần copy.
@@ -205,7 +229,7 @@ func ensureAnyInto(list []string, scratch *[8]string) []string {
 		scratch[n] = "any"
 		return scratch[:n+1]
 	}
-	// Fallback nếu list quá dài (> 7 phần tử) — heap allocation nhưng rất hiếm.
+	// Fallback nếu list quá dài (> 31 phần tử) — heap allocation.
 	result := make([]string, len(list)+1)
 	copy(result, list)
 	result[len(list)] = "any"
