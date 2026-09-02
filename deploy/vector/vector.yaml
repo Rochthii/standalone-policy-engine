@@ -1,4 +1,4 @@
-﻿# Vector Sidecar Configuration for Standalone PDP Audit Logging
+# Vector Sidecar Configuration for Standalone PDP Audit Logging
 # High-Throughput (1,000,000+ logs/sec), Zero-GC (Rust), Persistent Disk Buffer
 
 sources:
@@ -17,6 +17,9 @@ transforms:
     source: |
       .source = "pdp-data-plane"
       .ingested_at = now()
+      if exists(.ts) {
+        .evaluated_at = to_timestamp!(.ts, unit: "nanoseconds")
+      }
 
 sinks:
   clickhouse_audit_sink:
