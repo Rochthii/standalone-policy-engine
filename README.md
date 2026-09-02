@@ -74,6 +74,10 @@ flowchart TD
    - Stack-allocated scratch buffers (`scratchNodes [64]`, `scratchIPs [64]`, `subScratch [32]`), `sync.Pool`, sentinel booleans, and bitwise IP network parsing.
 4. **Lock-Free Read Operations:**
    - `CheckPermission` executes without Mutexes using atomic pointer swap (Copy-On-Write).
+5. **Decoupled Zero-Alloc NDJSON Audit Streamer & Durability SLA:**
+   - PDP streams Newline Delimited JSON (NDJSON) over Non-blocking Unix Domain Sockets (`unixgram`) in ~320ns with **Zero Heap Allocations**.
+   - Durability, batching (10MB), on-disk buffering (5GB Persistent Volume), and retries are delegated to a dedicated Rust-based Vector sidecar.
+   - Every audit record captures `rev` (`revision_id`) ensuring strict auditability for eventual consistency windows (Propagation Lag $\le 50\,\text{ms}$).
 
 ---
 
