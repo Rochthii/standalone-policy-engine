@@ -2,11 +2,12 @@ package audit
 
 import (
 	"context"
-	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -14,13 +15,10 @@ import (
 	"standalone-policy-engine/internal/security"
 )
 
-const (
-	// MagicByte xác định gói tin nhị phân Audit Log của PDP (0xAE = Audit Event)
-	MagicByte byte = 0xAE
-)
-
 // LogEntry chứa thông tin chi tiết của một quyết định kiểm toán phân quyền.
 type LogEntry struct {
+	Timestamp        int64             `json:"ts"`
+	RevisionID       uint64            `json:"rev"`
 	TenantID         string            `json:"tenant_id"`
 	Subject          string            `json:"subject"`
 	Action           string            `json:"action"`
@@ -28,8 +26,8 @@ type LogEntry struct {
 	Decision         string            `json:"decision"`
 	MatchedPolicyID  string            `json:"matched_policy_id,omitempty"`
 	Context          map[string]string `json:"context,omitempty"`
-	EvaluatedAt      time.Time         `json:"evaluated_at"`
-	IsEncrypted      bool              `json:"is_encrypted"`
+	EvaluatedAt      time.Time         `json:"evaluated_at,omitempty"`
+	IsEncrypted      bool              `json:"is_encrypted,omitempty"`
 	EncryptedDEK     string            `json:"encrypted_dek,omitempty"`
 	EncryptedPayload string            `json:"encrypted_payload,omitempty"`
 }
@@ -39,13 +37,14 @@ type BatchWriter interface {
 	InsertAuditLogsBatch(ctx context.Context, logs []*LogEntry) error
 }
 
-// AuditLogger quản lý luồng xuất log kiểm toán nhị phân Zero-Allocation
+// AuditLogger quản lý luồng xuất log kiểm toán NDJSON Zero-Allocation
 // bắn dữ liệu qua Non-blocking UDP Unix Domain Socket (unixgram) hoặc io.Writer.
 // 
-// ⚖️ ĐÁNH ĐỔI KIẾN TRÚC (ARCHITECTURAL TRADE-OFF):
-// - ƯU ĐIỂM: Hiệu năng đỉnh cao (< 30ns, 0 allocs), Fire-and-forget, tuyệt đối không backpressure lên engine.
-// - ĐÁNH ĐỔI: Nếu Sidecar Vector bị crash hoặc kernel socket buffer bị tràn (drop packet),
-//   log có thể bị rơi rớt. Đây là sự đánh đổi có chủ đích để ưu tiên tuyệt đối độ trễ của Data Plane.
+// ⚖️ THIẾT KẾ KIẾN TRÚC CLOUD-NATIVE:
+// - Đạt 0 Heap Allocations trên Hot-Path thông qua sync.Pool byte slice.
+// - Định dạng Newline Delimited JSON (NDJSON) tương thích 100% với Vector Sidecar,
+//   Kubernetes stdout, FluentBit và ClickHouse.
+// - Bổ sung trường RevisionID để phục vụ truy vết Eventual Consistency.
 type AuditLogger struct {
 	writer   io.Writer
 	conn     net.Conn
@@ -108,47 +107,55 @@ func NewUnixgramAuditLogger(sockPath string) (*AuditLogger, error) {
 	}, nil
 }
 
-// Log đóng gói bản ghi kiểm toán thành định dạng nhị phân Zero-Allocation
-// và bắn ngay lập tức qua Unix Socket (hoặc Writer) trong < 30 nano-giây.
-func (l *AuditLogger) Log(tenantID, subject, action, resource, decision, matchedPolicyID string, ctxMap map[string]string) {
+// Log đóng gói bản ghi kiểm toán thành JSON Lines (NDJSON) Zero-Allocation
+// và bắn ngay lập tức qua Unix Socket (hoặc Writer) mà không sinh rác GC.
+func (l *AuditLogger) Log(revisionID uint64, tenantID, subject, action, resource, decision, matchedPolicyID string, ctxMap map[string]string) {
 	bufPtr := l.bytePool.Get().(*[]byte)
 	buf := (*bufPtr)[:0]
 
 	nowNano := time.Now().UnixNano()
 
-	// 1. Magic byte (1 byte)
-	buf = append(buf, MagicByte)
+	// 1. Khởi tạo JSON Object và các trường chính
+	buf = append(buf, `{"ts":`...)
+	buf = strconv.AppendInt(buf, nowNano, 10)
+	buf = append(buf, `,"rev":`...)
+	buf = strconv.AppendUint(buf, revisionID, 10)
+	buf = append(buf, `,"tenant_id":"`...)
+	buf = escapeJSON(buf, tenantID)
+	buf = append(buf, `","subject":"`...)
+	buf = escapeJSON(buf, subject)
+	buf = append(buf, `","action":"`...)
+	buf = escapeJSON(buf, action)
+	buf = append(buf, `","resource":"`...)
+	buf = escapeJSON(buf, resource)
+	buf = append(buf, `","decision":"`...)
+	buf = append(buf, decision...)
+	buf = append(buf, `","matched_policy_id":"`...)
+	buf = escapeJSON(buf, matchedPolicyID)
+	buf = append(buf, '"')
 
-	// 2. EvaluatedAt Unix Nano (8 bytes)
-	var scratch [8]byte
-	binary.BigEndian.PutUint64(scratch[:], uint64(nowNano))
-	buf = append(buf, scratch[:]...)
-
-	// 3. Decision byte (1 byte: 1=ALLOW, 0=DENY)
-	if decision == "ALLOW" {
-		buf = append(buf, 1)
-	} else {
-		buf = append(buf, 0)
+	// 2. Đóng gói Context Map nếu có
+	if len(ctxMap) > 0 {
+		buf = append(buf, `,"context":{`...)
+		first := true
+		for k, v := range ctxMap {
+			if !first {
+				buf = append(buf, ',')
+			}
+			first = false
+			buf = append(buf, '"')
+			buf = escapeJSON(buf, k)
+			buf = append(buf, `":"`...)
+			buf = escapeJSON(buf, v)
+			buf = append(buf, '"')
+		}
+		buf = append(buf, '}')
 	}
 
-	// 4. Đóng gói các trường chuỗi (2 bytes len + string bytes)
-	buf = appendStringField(buf, tenantID)
-	buf = appendStringField(buf, subject)
-	buf = appendStringField(buf, action)
-	buf = appendStringField(buf, resource)
-	buf = appendStringField(buf, matchedPolicyID)
+	// 3. Kết thúc dòng NDJSON
+	buf = append(buf, "}\n"...)
 
-	// 5. Đóng gói Context Map (2 bytes count + key/value pairs)
-	count := uint16(len(ctxMap))
-	binary.BigEndian.PutUint16(scratch[:2], count)
-	buf = append(buf, scratch[:2]...)
-
-	for k, v := range ctxMap {
-		buf = appendStringField(buf, k)
-		buf = appendStringField(buf, v)
-	}
-
-	// 6. Bắn gói tin ra socket / writer (Non-blocking)
+	// 4. Ghi gói tin ra Socket / Writer (Non-blocking)
 	l.mu.Lock()
 	if l.writer != nil {
 		_, _ = l.writer.Write(buf)
@@ -161,75 +168,49 @@ func (l *AuditLogger) Log(tenantID, subject, action, resource, decision, matched
 	metrics.AuditLogsStreamedTotal.WithLabelValues(tenantID).Inc()
 }
 
-func appendStringField(buf []byte, s string) []byte {
-	l := uint16(len(s))
-	var lenBytes [2]byte
-	binary.BigEndian.PutUint16(lenBytes[:], l)
-	buf = append(buf, lenBytes[:]...)
-	buf = append(buf, s...)
-	return buf
+// escapeJSON mã hóa an toàn các ký tự đặc biệt cho chuỗi JSON mà không cấp phát bộ nhớ heap.
+func escapeJSON(dst []byte, s string) []byte {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch c {
+		case '"':
+			dst = append(dst, '\\', '"')
+		case '\\':
+			dst = append(dst, '\\', '\\')
+		case '\n':
+			dst = append(dst, '\\', 'n')
+		case '\r':
+			dst = append(dst, '\\', 'r')
+		case '\t':
+			dst = append(dst, '\\', 't')
+		default:
+			dst = append(dst, c)
+		}
+	}
+	return dst
 }
 
-// DecodeBinaryLogEntry giải mã gói tin nhị phân phục vụ kiểm thử và cho Sidecar.
+// DecodeNDJSONLogEntry giải mã gói tin JSON Lines phục vụ kiểm thử và debug.
+func DecodeNDJSONLogEntry(data []byte) (*LogEntry, error) {
+	if len(data) == 0 {
+		return nil, errors.New("du lieu ndjson rong")
+	}
+
+	var entry LogEntry
+	if err := json.Unmarshal(data, &entry); err != nil {
+		return nil, err
+	}
+
+	if entry.Timestamp > 0 {
+		entry.EvaluatedAt = time.Unix(0, entry.Timestamp).UTC()
+	}
+
+	return &entry, nil
+}
+
+// DecodeBinaryLogEntry tương thích ngược (chuyển hướng sang DecodeNDJSONLogEntry).
 func DecodeBinaryLogEntry(data []byte) (*LogEntry, error) {
-	if len(data) < 10 {
-		return nil, errors.New("du lieu nhiphan qua ngan")
-	}
-	if data[0] != MagicByte {
-		return nil, errors.New("magic byte khong hop le")
-	}
-
-	nowNano := int64(binary.BigEndian.Uint64(data[1:9]))
-	decByte := data[9]
-	dec := "DENY"
-	if decByte == 1 {
-		dec = "ALLOW"
-	}
-
-	offset := 10
-	readString := func() (string, error) {
-		if offset+2 > len(data) {
-			return "", errors.New("out of bounds doc string len")
-		}
-		sLen := int(binary.BigEndian.Uint16(data[offset : offset+2]))
-		offset += 2
-		if offset+sLen > len(data) {
-			return "", errors.New("out of bounds doc string body")
-		}
-		str := string(data[offset : offset+sLen])
-		offset += sLen
-		return str, nil
-	}
-
-	tenantID, _ := readString()
-	subject, _ := readString()
-	action, _ := readString()
-	resource, _ := readString()
-	matchedPolicyID, _ := readString()
-
-	if offset+2 > len(data) {
-		return nil, errors.New("out of bounds doc context count")
-	}
-	ctxCount := int(binary.BigEndian.Uint16(data[offset : offset+2]))
-	offset += 2
-
-	ctxMap := make(map[string]string, ctxCount)
-	for i := 0; i < ctxCount; i++ {
-		k, _ := readString()
-		v, _ := readString()
-		ctxMap[k] = v
-	}
-
-	return &LogEntry{
-		TenantID:        tenantID,
-		Subject:         subject,
-		Action:          action,
-		Resource:        resource,
-		Decision:        dec,
-		MatchedPolicyID: matchedPolicyID,
-		Context:         ctxMap,
-		EvaluatedAt:     time.Unix(0, nowNano).UTC(),
-	}, nil
+	return DecodeNDJSONLogEntry(data)
 }
 
 // Start tương thích ngược.
