@@ -136,7 +136,9 @@ func (s *GRPCServer) CheckAccess(ctx context.Context, req *policyv1.CheckAccessR
 	}
 
 	if s.auditLogger != nil {
+		revisionID := s.engine.GetTenantRevision(req.TenantId)
 		s.auditLogger.Log(
+			revisionID,
 			req.TenantId,
 			req.Subject,
 			req.Action,

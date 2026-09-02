@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"log"
 	"testing"
@@ -11,7 +12,9 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	"standalone-policy-engine/internal/audit"
 	"standalone-policy-engine/internal/engine"
+	"standalone-policy-engine/internal/parser"
 	policyv1 "standalone-policy-engine/proto/v1"
 )
 
@@ -163,4 +166,65 @@ func TestGRPCServer_TenantIsolation(t *testing.T) {
 			t.Errorf("Mong doi DENY (default), thuc te %v", resp.Decision)
 		}
 	})
+}
+
+func TestGRPCServer_AuditLogWithRevision(t *testing.T) {
+	eng := engine.NewEngineWithGC(engine.GCConfig{
+		Enabled: false,
+	})
+
+	// Cập nhật policy cho tenant-rev với Revision = 7
+	l := parser.NewLexer(`permit(principal == role:admin, action == action:READ, resource == file:confidential);`)
+	p := parser.NewParser(l)
+	nodes := p.Parse()
+	if len(nodes) == 0 {
+		t.Fatal("Parse policy thất bại")
+	}
+	nodes[0].ID = "policy-audit-test"
+	c := parser.NewCompiler()
+	compiled, err := c.Compile(nodes[0])
+	if err != nil {
+		t.Fatalf("Compile policy thất bại: %v", err)
+	}
+	_ = eng.UpdateTenantPoliciesWithRevision("tenant-rev", []*parser.PolicyNode{compiled}, nil, 7)
+
+	buf := &bytes.Buffer{}
+	logger := audit.NewStreamAuditLogger(buf)
+	defer logger.Stop()
+
+	srv := NewGRPCServer(eng, logger)
+
+	req := &policyv1.CheckAccessRequest{
+		TenantId: "tenant-rev",
+		Subject:  "role:admin",
+		Action:   "READ",
+		Resource: "file:confidential",
+	}
+
+	resp, err := srv.CheckAccess(context.Background(), req)
+	if err != nil {
+		t.Fatalf("CheckAccess lỗi không mong muốn: %v", err)
+	}
+	if resp.Decision != policyv1.CheckAccessResponse_ALLOW {
+		t.Errorf("Mong đợi ALLOW, nhận %v", resp.Decision)
+	}
+
+	if buf.Len() == 0 {
+		t.Fatal("Buffer audit log không được rỗng")
+	}
+
+	entry, err := audit.DecodeNDJSONLogEntry(buf.Bytes())
+	if err != nil {
+		t.Fatalf("Decode audit log NDJSON lỗi: %v", err)
+	}
+
+	if entry.RevisionID != 7 {
+		t.Errorf("RevisionID không khớp: mong đợi 7, nhận %d", entry.RevisionID)
+	}
+	if entry.TenantID != "tenant-rev" {
+		t.Errorf("TenantID không khớp: %s", entry.TenantID)
+	}
+	if entry.Decision != "ALLOW" {
+		t.Errorf("Decision không khớp: %s", entry.Decision)
+	}
 }
