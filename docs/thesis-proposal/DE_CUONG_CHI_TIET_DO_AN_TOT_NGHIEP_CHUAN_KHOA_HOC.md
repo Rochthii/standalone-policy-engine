@@ -287,20 +287,27 @@ flowchart TD
 
 * **Chương 1: Giới Thiệu Tổng Quan & Đặt Vấn Đề**
   - Thực trạng phân quyền trong hệ thống doanh nghiệp và sự bất lực của mô hình RBAC tĩnh.
-  - Sự dịch chuyển sang kiến trúc Zero Trust và nhu cầu chốt chặn bảo vệ thời gian thực cho các luồng tự động hóa AI.
+  - Sự dịch chuyển sang kiến trúc Zero Trust và nhu cầu chốt chặn bảo vệ thời gian thực cho các luồng tự động hóa của Tác tử AI (Tool-Calls).
+  - Mục tiêu, đối tượng, phạm vi nghiên cứu (tập trung 1-Hop Delegation trên Odoo 17) và 4 câu hỏi nghiên cứu (RQ1–RQ4).
 * **Chương 2: Cơ Sở Lý Thuyết & Mô Hình Phân Quyền ABAC/PBAC**
-  - Mô hình NIST SP 800-162, chuẩn OASIS XACML 3.0, triết lý Policy-as-Code.
+  - Không gian toán học chuẩn NIST SP 800-162: Input 4-Tuple $\mathcal{I} = \langle \mathcal{S}, \mathcal{A}, \mathcal{R}, \mathcal{C} \rangle$ và Hàm quyết định phân quyền $\mathcal{D}$.
   - Phân tích rủi ro an toàn AI theo khung NIST AI RMF và OWASP LLM06 Excessive Agency.
+  - Lý thuyết Ủy quyền có kiểm soát (Constrained Delegation Tuple $\Delta$), Bất biến suy giảm quyền lực theo thời gian ($t$) và Bất biến phân tách trách nhiệm tổng quát (Generalized SoD).
 * **Chương 3: Thiết Kế Kiến Trúc & Giải Thuật Động Cơ Standalone In-Memory PDP**
   - Cấu trúc chỉ mục Radix Trie FNV-1a, Đồ thị Role DAG Transitive Closure $O(1)$ query.
   - Trình biên dịch Pratt Parser, AST Evaluator Zero-Allocation, In-Memory Policy Snapshots.
-  - Giao thức nhị phân gRPC, đồng bộ Redis Pub/Sub, BadgerDB và Append-Only Audit Logger.
-* **Chương 4: Hiện Thực Hóa & Tích Hợp Vào Hệ Thống Doanh Nghiệp Thực Tế**
-  - Hiện thực hóa các kịch bản ERP (PO Approval, SoD, Multi-Branch, Payroll).
-  - Tích hợp thực tế với Odoo 17 và Mock SAP S/4HANA OData API.
-  - Hiện thực hóa cơ chế quyết định 3 trạng thái và chốt chặn an toàn cho AI Tool-Calls.
+  - Kiến trúc phân tầng: Tầng 1 gRPC Security Interceptor (mTLS, HMAC-SHA256 verify `delegation_proof`, In-Memory Revocation Blacklist $O(1)$ chống TOCTOU) và Tầng 2 In-Memory Hot-Path Core (27ns).
+  - Lộ trình kỹ thuật 2 pha cho Runtime Obligations (`REQUIRE_HUMAN_APPROVAL`): Pha 1 Metadata Mapping, Pha 2 mở rộng EBNF Parser.
+  - Kiến trúc đồng bộ trạng thái Stateless qua PostgreSQL Monotonic Sequence (`tenants.revision`) LISTEN/NOTIFY và UDS Socket WORM Logger.
+* **Chương 4: Hiện Thực Hóa & Tích Hợp Vào Hệ Thống Doanh Nghiệp Thực Tế (Odoo Platform)**
+  - Hiện thực hóa Custom Module Odoo 17 (`pdp_authorizer`) kế thừa model `purchase.order`, trích xuất ngữ cảnh Tool-Call và chuỗi ủy quyền (`context.delegation_chain`).
+  - Chuẩn hóa giao thức dữ liệu: Phân tách chuỗi bằng dấu phẩy và thực thi luật SoD qua toán tử `contains` (`evaluator.go:387`).
+  - Điều phối quy trình Human-in-the-Loop trên Odoo workflow: Chuyển state `to approve` mà không gây rollback transaction.
+  - (Định vị kiến trúc Two-Tier ERP tích hợp SAP S/4HANA là hướng mở rộng quy mô tập đoàn sau tốt nghiệp).
 * **Chương 5: Đánh Giá Thực Nghiệm (Functional - Security - Comparative Performance), Kết Luận & Hướng Phát Triển**
   - Báo cáo kết quả đánh giá 3 chiều chi tiết nhằm trả lời toàn diện 4 câu hỏi nghiên cứu (RQ1–RQ4).
+  - Kiểm chứng 7 kịch bản ERP P2P, chặn đứng Prompt Injection \$10M trong 286.3 ns, triệt tiêu TOCTOU trong $< 1\,\mu\text{s}$.
+  - Đo đạc định lượng so sánh độ trễ gRPC Go PDP ($< 1$ms) vs logic Record Rules nhúng trong Odoo ORM (10ms - 50ms).
   - Kết luận đóng góp học thuật và hướng phát triển mở rộng.
 
 ---
