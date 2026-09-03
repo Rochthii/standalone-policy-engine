@@ -30,7 +30,7 @@ $$\text{Subject} = \langle \text{ID}, \text{Type}, \text{DelegatedBy}, \text{Del
    At any time $t$, if $\mathcal{U}$ is suspended or budget-exhausted, $\mathcal{P}_{\text{effective}}(\mathcal{A})$ collapses to $\emptyset$. PDP evaluates this via pre-extracted context attributes (`context.delegator_status`, `context.delegator_limit`) in RAM without slow external DB lookups.
 2. **Generalized SoD Preservation**:
    $$\mathcal{U}_{\text{creator}} \notin \mathcal{C}_{\text{chain}}(\text{Approver})$$
-   Neither the creator nor anyone delegating to the approver can approve the resource (`resource.creator_id in context.delegation_chain` triggers immediate `forbid`).
+   Neither the creator nor anyone delegating to the approver can approve the resource (`context.delegation_chain contains resource.creator_id` triggers immediate `forbid` via `evaluator.go:387`).
 3. **Real-time Revocation (TOCTOU Mitigation)**:
    In-memory Revocation Map O(1) in Go PDP. When a user revokes delegation in ERP, an event updates PDP RAM in $< 1\,\mu\text{s}$, preventing Time-of-Check to Time-of-Use race conditions.
 4. **Enforcement Point Integrity (Trust Boundary)**:

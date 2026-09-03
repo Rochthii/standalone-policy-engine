@@ -212,20 +212,30 @@ flowchart TD
 ```
 
 #### 5.1. Dự Kiến Đóng Góp Nghiên Cứu & Kỹ Thuật (Expected Contributions)
-1. **Mô Hình Ủy Quyền Có Kiểm Soát (Constrained Delegation Tuple) Cho Tác Tử AI:**
-   - Hình thức hóa hành vi ủy quyền thành bộ 5 thành phần toán học:
+1. **Chuẩn Hóa Mô Hình Không Gian Phân Quyền Theo NIST SP 800-162 & Bộ Ngũ Ủy Quyền:**
+   - Phân định rõ ràng giữa Không gian Thuộc tính Đầu vào và Hàm Quyết định:
+     * *Không gian thuộc tính đầu vào (Input 4-Tuple):* $\mathcal{I} = \langle \mathcal{S}, \mathcal{A}, \mathcal{R}, \mathcal{C} \rangle$ (Subject, Action, Resource, Context).
+     * *Không gian chính sách (Policy Space):* $\mathcal{P} = \{ p_1, p_2, \dots, p_n \}$ (Tập hợp các luật khai báo tiền định).
+     * *Hàm quyết định phân quyền (Decision Function):*
+       $$\mathcal{D}: \mathcal{I} \times \mathcal{P} \longrightarrow \{ \text{ALLOW}, \text{DENY} \} \times \mathcal{O}$$
+       (với $\mathcal{O}$ là tập hợp các nghĩa vụ thực thi thời gian chạy - Runtime Obligations).
+   - **Hình thức hóa hành vi ủy quyền có kiểm soát (Constrained Delegation Tuple):**
      $$\Delta = \langle \mathcal{U}_{\text{root}}, \mathcal{A}_{\text{exec}}, \Sigma_{\text{scope}}, \Omega_{\text{constraints}}, \mathcal{C}_{\text{chain}} \rangle$$
-     Trong đó, phạm vi nghiên cứu thực nghiệm khóa chặt ở **1-Hop Delegation** ($\text{Depth} = 1$: $\mathcal{U}_{\text{root}} \to \mathcal{A}_{\text{exec}}$), đồng thời cấu trúc giao thức gRPC Protobuf được thiết kế dạng mảng mở rộng sẵn sàng cho Multi-Hop ($N$-Hop) trong tương lai.
+     Trong đó, phạm vi nghiên cứu thực nghiệm khóa chặt ở **1-Hop Delegation** ($\text{Depth} = 1$: $\mathcal{U}_{\text{root}} \to \mathcal{A}_{\text{exec}}$), đồng thời cấu trúc giao thức gRPC Protobuf được thiết kế dạng mảng mở rộng (`repeated string delegation_chain`) sẵn sàng cho Multi-Hop ($N$-Hop) tương lai.
    - **Bảo toàn tính suy giảm quyền lực theo thời gian (Time-Aware Monotonic Attenuation):**
      $$\mathcal{P}_{\text{effective}}(\mathcal{A} \mid \mathcal{U}, t) = \mathcal{P}_{\text{active}}(\mathcal{U}, t) \cap \mathcal{S}_{\text{delegation}} \cap \Omega_{\text{guardrails}}$$
      Tại thời điểm $t$, nếu User gốc bị đình chỉ hoặc cạn hạn mức, quyền của Agent lập tức suy biến về $\emptyset$ thông qua đánh giá trực tiếp thuộc tính ngữ cảnh trong RAM mà không cần truy vấn ngược database.
    - **Triệt tiêu lỗ hổng TOCTOU (Time-of-Check to Time-of-Use):** Xây dựng bảng tra cứu thu hồi tức thời trong RAM (In-Memory Revocation Map $O(1)$) cập nhật dưới $1\,\mu\text{s}$ khi người dùng hủy ủy quyền trên giao diện ERP.
-   - **Bảo toàn phân tách trách nhiệm tổng quát (Generalized SoD):** Nghiêm cấm mọi sự giao thoa giữa Người tạo tài nguyên và bất kỳ mắt xích nào trong chuỗi ủy quyền của Người duyệt: $\mathcal{U}_{\text{creator}} \notin \mathcal{C}_{\text{chain}}(\text{Approver})$.
-2. **Cơ Chế Rào Chắn Tiền Định & Runtime Obligations (NIST AI RMF & OWASP LLM06):**
-   - Đánh giá tức thời trong RAM: Cho phép (`ALLOW`), Từ chối vi phạm cứng (`DENY`), hoặc trả về `DENY` kèm **Runtime Obligations** (`REQUIRE_HUMAN_APPROVAL`, `AUDIT_SENSITIVE_TOOL_CALL`, `MASK_ATTRIBUTES`) để ứng dụng tự động điều hướng phê duyệt cấp trên đối với các giao dịch vượt ngưỡng tự trị.
-3. **Cấu Trúc Tra Cứu Bộ Nhớ Độ Trễ Thấp & Zero Heap Allocation Trên Hot-Path:**
-   - Tra cứu chỉ mục Trie theo tiền tố mã băm FNV-1a 64-bit và tra cứu quan hệ kế thừa đạt $O(1)$ sau khi tiền tính toán Bao đóng bắc cầu (Transitive Closure precomputation).
-   - Tối ưu hóa $0$ byte cấp phát heap trên đường truyền nóng đánh giá qua `sync.Pool`, stack scratch buffers `[64]` và bitmask nhị phân CPU, triệt tiêu $100\%$ áp lực Garbage Collection.
+   - **Bảo toàn phân tách trách nhiệm tổng quát (Generalized SoD):** Nghiêm cấm mọi sự giao thoa giữa Người tạo tài nguyên và bất kỳ mắt xích nào trong chuỗi ủy quyền của Người duyệt ($\mathcal{U}_{\text{creator}} \notin \mathcal{C}_{\text{chain}}(\text{Approver})$) thông qua toán tử `contains` trên chuỗi phân tách bởi dấu phẩy (`context.delegation_chain contains resource.creator_id`).
+
+2. **Lộ Trình Đóng Góp Kỹ Thuật 2 Pha Cho Cơ Chế Runtime Obligations (NIST AI RMF & OWASP LLM06):**
+   - *Pha 1 (Baseline Engine Hiện Hữu):* Giữ nguyên tính tối giản và hiệu năng cao của Lexer/Parser. Engine thực hiện đánh giá nhị phân thuần túy (`ALLOW` / `DENY`), và tầng **Decision Synthesizer** kích hoạt nghĩa vụ `REQUIRE_HUMAN_APPROVAL` dựa trên ánh xạ siêu dữ liệu (`matched_policy_id == "POL-AGENT-AUTONOMOUS-HIGH-FORBID"`).
+   - *Pha 2 (Đóng Góp Mở Rộng Học Thuật):* Mở rộng ngữ pháp EBNF của Cedar-like DSL (`lexer.go`, `ast.go`, `parser.go`) để hỗ trợ trực tiếp khối khai báo `advice { ... }` / `obligations { ... }`, cho phép chính sách tự mô tả nghĩa vụ thời gian thực mà không cần hardcode metadata mapping.
+
+3. **Kiến Trúc Phân Tầng: Tách Biệt Tầng Biên An Ninh (Security Interceptor) & Lõi Đánh Giá Nóng (Hot-Path Core 27ns):**
+   - *Tầng 1 - gRPC Security Interceptor (Gateway Middleware):* Xác thực kênh truyền mTLS, kiểm tra tính toàn vẹn `delegation_proof` (HMAC-SHA256 trong $\sim 1 - 2\,\mu\text{s}$) và tra cứu In-Memory Revocation Blacklist $O(1)$ để bảo vệ Trust Boundary.
+   - *Tầng 2 - In-Memory Evaluation Core (27ns Hot-Path):* Tra cứu chỉ mục Radix Trie FNV-1a 64-bit và Role DAG Transitive Closure đạt $O(1)$ sau tiền tính toán. Hoàn toàn không thực hiện tính toán mật mã trên hot-path, bảo toàn trọn vẹn $0$ byte heap allocation và thông lượng 36.8M RPS.
+
 4. **Kiến Trúc Bền Vững Đa Tầng & Đồng Bộ Không Redis (Failure-Resilient Policy Runtime):**
    - Xử lý yêu cầu Stateless dựa trên bản chụp trạng thái chính sách trong RAM, đồng bộ tức thời $< 50$ms qua PostgreSQL Monotonic Sequence (`tenants.revision`) và Replay Ring Buffer, nạp snapshot từ BadgerDB khi khởi động lạnh, và UDS Datagram Vector Logging chống nghẽn đường truyền nóng.
 
