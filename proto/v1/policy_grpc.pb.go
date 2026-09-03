@@ -13,6 +13,7 @@ import (
 type PolicyDecisionPointClient interface {
 	CheckAccess(ctx context.Context, in *CheckAccessRequest, opts ...grpc.CallOption) (*CheckAccessResponse, error)
 	ExplainDecision(ctx context.Context, in *ExplainRequest, opts ...grpc.CallOption) (*ExplainResponse, error)
+	RevokeDelegation(ctx context.Context, in *RevokeRequest, opts ...grpc.CallOption) (*RevokeResponse, error)
 }
 
 type policyDecisionPointClient struct {
@@ -41,10 +42,20 @@ func (c *policyDecisionPointClient) ExplainDecision(ctx context.Context, in *Exp
 	return out, nil
 }
 
+func (c *policyDecisionPointClient) RevokeDelegation(ctx context.Context, in *RevokeRequest, opts ...grpc.CallOption) (*RevokeResponse, error) {
+	out := new(RevokeResponse)
+	err := c.cc.Invoke(ctx, "/policy.v1.PolicyDecisionPoint/RevokeDelegation", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PolicyDecisionPointServer là server API cho dịch vụ PolicyDecisionPoint.
 type PolicyDecisionPointServer interface {
 	CheckAccess(context.Context, *CheckAccessRequest) (*CheckAccessResponse, error)
 	ExplainDecision(context.Context, *ExplainRequest) (*ExplainResponse, error)
+	RevokeDelegation(context.Context, *RevokeRequest) (*RevokeResponse, error)
 }
 
 // UnimplementedPolicyDecisionPointServer có thể được nhúng để có forward compatibility.
@@ -57,6 +68,11 @@ func (UnimplementedPolicyDecisionPointServer) CheckAccess(context.Context, *Chec
 func (UnimplementedPolicyDecisionPointServer) ExplainDecision(context.Context, *ExplainRequest) (*ExplainResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ExplainDecision not implemented")
 }
+
+func (UnimplementedPolicyDecisionPointServer) RevokeDelegation(context.Context, *RevokeRequest) (*RevokeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RevokeDelegation not implemented")
+}
+
 
 func RegisterPolicyDecisionPointServer(s grpc.ServiceRegistrar, srv PolicyDecisionPointServer) {
 	s.RegisterService(&PolicyDecisionPoint_ServiceDesc, srv)
@@ -73,6 +89,10 @@ var PolicyDecisionPoint_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ExplainDecision",
 			Handler:    _PolicyDecisionPoint_ExplainDecision_Handler,
+		},
+		{
+			MethodName: "RevokeDelegation",
+			Handler:    _PolicyDecisionPoint_RevokeDelegation_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -114,3 +134,22 @@ func _PolicyDecisionPoint_ExplainDecision_Handler(srv interface{}, ctx context.C
 	}
 	return interceptor(ctx, in, info, handler)
 }
+
+func _PolicyDecisionPoint_RevokeDelegation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PolicyDecisionPointServer).RevokeDelegation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/policy.v1.PolicyDecisionPoint/RevokeDelegation",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PolicyDecisionPointServer).RevokeDelegation(ctx, req.(*RevokeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+

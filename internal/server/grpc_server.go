@@ -31,19 +31,22 @@ import (
 type GRPCServer struct {
 	policyv1.UnimplementedPolicyDecisionPointServer
 
-	engine       *engine.EngineWithGC
-	auditLogger  *audit.AuditLogger
-	jwtValidator *security.JWTValidator
+	engine        *engine.EngineWithGC
+	auditLogger   *audit.AuditLogger
+	jwtValidator  *security.JWTValidator
+	delegationMgr *security.DelegationManager
 }
 
 // NewGRPCServer tạo mới một instance GRPCServer.
 func NewGRPCServer(eng *engine.EngineWithGC, logger *audit.AuditLogger) *GRPCServer {
 	return &GRPCServer{
-		engine:       eng,
-		auditLogger:  logger,
-		jwtValidator: security.NewJWTValidator(),
+		engine:        eng,
+		auditLogger:   logger,
+		jwtValidator:  security.NewJWTValidator(),
+		delegationMgr: security.NewDelegationManager(),
 	}
 }
+
 
 // validateTenantAndGetClaims trích xuất, xác thực JWT và kiểm tra tenant isolation.
 func (s *GRPCServer) validateTenantAndGetClaims(ctx context.Context, tenantID string) (jwt.MapClaims, error) {
@@ -113,8 +116,38 @@ func (s *GRPCServer) CheckAccess(ctx context.Context, req *policyv1.CheckAccessR
 		}
 	}
 
+	// 0.1. Kiểm tra danh sách thu hồi ủy quyền In-Memory RevocationMap (Triệt tiêu TOCTOU < 1 µs)
+	if grantID := req.Context["delegation_grant_id"]; grantID != "" {
+		if s.delegationMgr != nil && s.delegationMgr.IsRevoked(grantID) {
+			log.Printf("[Security] TOCTOU Violation: Delegation grant %s is revoked", grantID)
+			return &policyv1.CheckAccessResponse{
+				Decision:        policyv1.CheckAccessResponse_DENY,
+				MatchedPolicyId: "POL-REVOCATION-BLACK-LIST",
+				Obligations:     []string{},
+				Advice: map[string]string{
+					"reason": "Phiên ủy quyền đã bị thu hồi bởi người giám sát (Revoked Delegation)",
+				},
+			}, nil
+		}
+	}
+
+	// 0.2. Xác thực chữ ký số ủy quyền HMAC-SHA256 Canonical String nếu có delegation_proof
+	if proof := req.Context["delegation_proof"]; proof != "" {
+		grantID := req.Context["delegation_grant_id"]
+		delegator := req.Context["delegated_by"]
+		agent := req.Subject
+		amount := req.Context["amount"]
+		validUntil := req.Context["delegation_valid_until"]
+
+		if s.delegationMgr != nil && !s.delegationMgr.VerifyProof(grantID, delegator, agent, amount, validUntil, proof) {
+			log.Printf("[Security] Delegation HMAC verification failed for grant %s", grantID)
+			return nil, status.Errorf(codes.PermissionDenied, "chữ ký ủy quyền delegation_proof không hợp lệ hoặc đã hết hạn")
+		}
+	}
+
 	// 1. Thực hiện đánh giá quyết định trên RAM thông qua Engine
 	res := s.engine.CheckPermission(ctx, req.TenantId, req.Subject, req.Action, req.Resource, req.Context)
+
 
 	if err := ctx.Err(); err != nil {
 		if err == context.DeadlineExceeded {
@@ -264,9 +297,29 @@ func (s *GRPCServer) ExplainDecision(ctx context.Context, req *policyv1.ExplainR
 	}, nil
 }
 
+// RevokeDelegation xử lý thu hồi tức thời phiên ủy quyền của Tác tử AI (In-Memory Revocation < 1 µs).
+func (s *GRPCServer) RevokeDelegation(ctx context.Context, req *policyv1.RevokeRequest) (*policyv1.RevokeResponse, error) {
+	if req.GrantId == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "grant_id không được để trống")
+	}
+
+	revokedAt := int64(0)
+	if s.delegationMgr != nil {
+		revokedAt = s.delegationMgr.Revoke(req.GrantId)
+	}
+
+	log.Printf("[Security] Delegation grant %s revoked by %s (tenant=%s)", req.GrantId, req.RevokedBy, req.TenantId)
+	return &policyv1.RevokeResponse{
+		Success:   true,
+		RevokedAt: revokedAt,
+		Message:   fmt.Sprintf("Thu hồi thành công phiên ủy quyền %s", req.GrantId),
+	}, nil
+}
+
 // StartGRPCServer cấu hình mTLS, Keepalive và khởi chạy gRPC Server bằng listener được truyền vào.
 // mTLS được bật tự động khi biến môi trường PDP_TLS_CERT, PDP_TLS_KEY, PDP_TLS_CA được đặt.
 func StartGRPCServer(lis net.Listener, eng *engine.EngineWithGC, logger *audit.AuditLogger) (*grpc.Server, error) {
+
 
 	// Cấu hình Keepalive parameters tối ưu persistent connection siêu tốc
 	kaep := keepalive.EnforcementPolicy{

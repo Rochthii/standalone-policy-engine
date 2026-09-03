@@ -58,6 +58,20 @@ type PolicyMetadata struct {
 	PolicyText string `json:"policy_text,omitempty"`
 }
 
+type RevokeRequest struct {
+	TenantId  string `json:"tenant_id,omitempty"`
+	GrantId   string `json:"grant_id,omitempty"`
+	RevokedBy string `json:"revoked_by,omitempty"`
+	Reason    string `json:"reason,omitempty"`
+}
+
+type RevokeResponse struct {
+	Success   bool   `json:"success"`
+	RevokedAt int64  `json:"revoked_at,omitempty"`
+	Message   string `json:"message,omitempty"`
+}
+
+
 // Các phương thức tương thích protobuf interface cơ bản để có thể compile
 func (x *CheckAccessRequest) Reset()         { *x = CheckAccessRequest{} }
 func (x *CheckAccessRequest) String() string { return "" }
@@ -78,6 +92,15 @@ func (*ExplainResponse) ProtoMessage()    {}
 func (x *PolicyMetadata) Reset()         { *x = PolicyMetadata{} }
 func (x *PolicyMetadata) String() string { return "" }
 func (*PolicyMetadata) ProtoMessage()    {}
+
+func (x *RevokeRequest) Reset()         { *x = RevokeRequest{} }
+func (x *RevokeRequest) String() string { return "" }
+func (*RevokeRequest) ProtoMessage()    {}
+
+func (x *RevokeResponse) Reset()         { *x = RevokeResponse{} }
+func (x *RevokeResponse) String() string { return "" }
+func (*RevokeResponse) ProtoMessage()    {}
+
 
 type jsonCodec struct{}
 

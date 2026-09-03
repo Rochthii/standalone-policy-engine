@@ -11,6 +11,9 @@ service PolicyDecisionPoint {
   
   // Đánh giá quyền kèm giải thích chi tiết các luật áp dụng
   rpc ExplainDecision (ExplainRequest) returns (ExplainResponse);
+
+  // Thu hồi phiên ủy quyền của Tác tử AI tức thời (In-Memory Revocation < 1 µs)
+  rpc RevokeDelegation (RevokeRequest) returns (RevokeResponse);
 }
 
 // Yêu cầu kiểm tra quyền truy cập
@@ -60,3 +63,19 @@ message PolicyMetadata {
   string effect = 2;                    // "permit" hoặc "forbid"
   string policy_text = 3;               // Mã DSL thô của chính sách
 }
+
+// Yêu cầu thu hồi ủy quyền của Tác tử AI
+message RevokeRequest {
+  string tenant_id = 1;                 // Tenant ID (ví dụ: "my_company")
+  string grant_id = 2;                  // ID của Delegation Grant (ví dụ: "42")
+  string revoked_by = 3;                // Người thực hiện thu hồi (ví dụ: "user:manager_bob")
+  string reason = 4;                    // Lý do thu hồi
+}
+
+// Phản hồi kết quả thu hồi ủy quyền
+message RevokeResponse {
+  bool success = 1;                     // Kết quả (true/false)
+  int64 revoked_at = 2;                 // Thời điểm thu hồi dạng Unix timestamp
+  string message = 3;                   // Thông báo phản hồi
+}
+
