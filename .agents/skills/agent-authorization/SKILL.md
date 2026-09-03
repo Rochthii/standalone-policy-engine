@@ -12,19 +12,29 @@ Provide deterministic, machine-speed authorization runtime and guardrails for Au
 
 ## 🔑 Critical Implementation Rules
 
-### 1. Unified Authorization Subject Model
+### 1. Unified Authorization Subject & Delegation Model
 All authorization requests evaluate against a generalized `Subject` schema:
-$$\text{Subject} = \langle \text{ID}, \text{Type}, \text{DelegatedBy}, \text{DelegationChain}, \text{Scope}, \text{TrustScore} \rangle$$
+$$\text{Subject} = \langle \text{ID}, \text{Type}, \text{DelegatedBy}, \text{DelegationChain}, \text{Scope}, \text{TrustProof} \rangle$$
 - **Types**: `human_user`, `service_workload`, `ai_agent`.
-- **Delegation Chain**: Must track root delegator (e.g. `user:cfo_john`), intermediate proxies, and current agent identity (`agent:financial_copilot`).
-- **Principle of Least Privilege**: Agent privileges can **never** exceed the maximum limits of its delegator.
+- **Formal Delegation Tuple**: A constrained delegation instance $\Delta$ is defined as:
+  $$\Delta = \langle \mathcal{U}_{\text{root}}, \mathcal{A}_{\text{exec}}, \Sigma_{\text{scope}}, \Omega_{\text{constraints}}, \mathcal{C}_{\text{chain}} \rangle$$
+  - $\mathcal{U}_{\text{root}}$: Root human delegator (accountability anchor, e.g. `user:alice`).
+  - $\mathcal{A}_{\text{exec}}$: Executing AI agent identity (e.g. `agent:po_copilot`).
+  - $\Sigma_{\text{scope}}$: Subscribed action subset (e.g. `action:APPROVE_PO`).
+  - $\Omega_{\text{constraints}}$: Runtime boundaries ($\text{amount} \le 2000$, `tool:odoo_confirm_po`, TTL).
+  - $\mathcal{C}_{\text{chain}}$: Delegation chain trace. **Thesis In-Scope**: $\text{Depth}(\mathcal{C}) = 1$ ($\mathcal{U}_{\text{root}} \to \mathcal{A}_{\text{exec}}$). Extensible array design for multi-hop future work.
 
-### 2. Tool-Call Execution Context (PIP / Request Context)
-When an AI Agent triggers a tool-call (e.g. LangGraph, AutoGen, OpenAI Tool-Call), extract and pass:
-- `context.tool_name`: Exact tool identifier (e.g. `tool:erp_create_purchase_order`, `tool:transfer_funds`).
-- `context.tool_arguments`: Pre-parsed attributes (`amount`, `vendor_id`, `currency`, `target_dept`).
-- `context.execution_mode`: `autonomous_run` vs `human_supervised`.
-- `context.delegated_by`: Root identity authorizing the task.
+### 2. Core Invariants of Constrained Delegation
+1. **Time-Aware Monotonic Attenuation**:
+   $$\mathcal{P}_{\text{effective}}(\mathcal{A} \mid \mathcal{U}, t) = \mathcal{P}_{\text{active}}(\mathcal{U}, t) \cap \mathcal{S}_{\text{delegation}} \cap \Omega_{\text{guardrails}}$$
+   At any time $t$, if $\mathcal{U}$ is suspended or budget-exhausted, $\mathcal{P}_{\text{effective}}(\mathcal{A})$ collapses to $\emptyset$. PDP evaluates this via pre-extracted context attributes (`context.delegator_status`, `context.delegator_limit`) in RAM without slow external DB lookups.
+2. **Generalized SoD Preservation**:
+   $$\mathcal{U}_{\text{creator}} \notin \mathcal{C}_{\text{chain}}(\text{Approver})$$
+   Neither the creator nor anyone delegating to the approver can approve the resource (`resource.creator_id in context.delegation_chain` triggers immediate `forbid`).
+3. **Real-time Revocation (TOCTOU Mitigation)**:
+   In-memory Revocation Map O(1) in Go PDP. When a user revokes delegation in ERP, an event updates PDP RAM in $< 1\,\mu\text{s}$, preventing Time-of-Check to Time-of-Use race conditions.
+4. **Enforcement Point Integrity (Trust Boundary)**:
+   PDP operates within a private network/mTLS perimeter with trusted PEPs (Odoo Backend). Odoo validates session authenticity and sends an HMAC-SHA256 `delegation_proof` to prevent client-side identity forgery.
 
 ### 3. Binary Decision + Runtime Obligations Model (Zero-Alloc Guardrails)
 To preserve the ultra-fast Boolean evaluation engine and avoid tri-state AST complexity:
@@ -36,7 +46,6 @@ To preserve the ultra-fast Boolean evaluation engine and avoid tri-state AST com
 
 ### 4. Deterministic Guardrail Security Rules (NIST AI RMF & OWASP LLM06)
 - **Impact Mitigation**: If an agent is manipulated via Prompt Injection (e.g., requesting a $10M payment), PDP enforces hard invariant rules on CPU in $< 300$ ns (`Decision: DENY`, hard stop, no approval path).
-- **Separation of Duties (SoD) for Agents**: An AI agent cannot approve a purchase order or financial voucher created by itself or by its delegating supervisor (`context.created_by == context.delegated_by`).
 - **Fail-Closed Default**: If tool context or delegation metadata is missing, immediately evaluate to `DENY`.
 
 ---
