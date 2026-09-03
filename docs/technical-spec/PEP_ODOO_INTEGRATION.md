@@ -177,19 +177,51 @@ class PdpDelegationGrant(models.Model):
     def action_revoke(self):
         for rec in self:
             rec.write({'state': 'revoked'})
-            # Notify Go PDP In-Memory Revocation Blacklist
+            # Notify Go PDP In-Memory Revocation Blacklist (O(1) in RAM)
             client = get_pdp_client()
             client.revoke_delegation(
-                tenant_id=rec.user_id.company_id.name,
-                session_id=str(rec.id),
-                revoked_by=f"user:{rec.env.user.login}"
+                tenant_id=rec.user_id.company_id.name.lower().replace(" ", "_"),
+                grant_id=str(rec.id),
+                revoked_by=f"user:{rec.env.user.login}",
+                reason="User initiated revocation from Odoo UI"
             )
 
-    def generate_proof(self, tool_name, amount):
-        payload = f"{self.user_id.login}|{self.agent_id}|{tool_name}|{int(amount)}|{int(time.time())}"
+    def generate_proof(self, amount, shared_secret=None):
+        # Canonical String Formula: grant_id | delegator | agent | amount | valid_until
+        secret = shared_secret or os.environ.get("PDP_SHARED_SECRET", "pdp_master_secret_key_32bytes!")
+        valid_until_ts = int(self.valid_until.timestamp()) if self.valid_until else 0
+        payload = f"{self.id}|{self.user_id.login}|{self.agent_id}|{int(amount)}|{valid_until_ts}"
         return hmac.new(
-            self.shared_secret.encode('utf-8'),
+            secret.encode('utf-8'),
             payload.encode('utf-8'),
             hashlib.sha256
         ).hexdigest()
+
+---
+
+## 5. Addon Manifest Specification (`__manifest__.py`)
+
+```python
+# custom_addons/pdp_authorizer/__manifest__.py
+{
+    'name': 'Odoo PDP AI Agent Authorizer',
+    'version': '17.0.1.0.0',
+    'category': 'Sales/Purchases',
+    'summary': 'Delegation-Aware PDP Authorization for AI Agents via In-Memory Go PDP (gRPC)',
+    'author': 'PTIT Capstone Research Group',
+    'depends': ['purchase', 'mail'],
+    'external_dependencies': {
+        'python': ['grpcio', 'protobuf'],
+    },
+    'data': [
+        'security/ir.model.access.csv',
+        'views/delegation_grant_views.xml',
+        'views/purchase_order_views.xml',
+    ],
+    'installable': True,
+    'application': True,
+    'license': 'LGPL-3',
+}
+```
+
 ```

@@ -17,7 +17,7 @@ service PolicyDecisionPoint {
   rpc ExplainDecision (CheckAccessRequest) returns (ExplainDecisionResponse);
   
   // Instant delegation revocation (TOCTOU mitigation < 1 µs)
-  rpc RevokeDelegation (RevokeDelegationRequest) returns (RevokeDelegationResponse);
+  rpc RevokeDelegation (RevokeRequest) returns (RevokeResponse);
 }
 
 enum Decision {
@@ -42,17 +42,19 @@ message CheckAccessResponse {
   int64 evaluation_nanos = 5;         // In-memory evaluation duration (e.g. 27)
 }
 
-message RevokeDelegationRequest {
-  string tenant_id = 1;
-  string session_id = 2;             // Delegation grant UUID
-  string revoked_by = 3;             // e.g. "user:manager_bob"
-  int64 timestamp = 4;
+message RevokeRequest {
+  string tenant_id = 1;               // e.g. "my_company"
+  string grant_id  = 2;               // Delegation grant ID (e.g. "42")
+  string revoked_by = 3;              // e.g. "user:manager_bob"
+  string reason    = 4;               // e.g. "User initiated revocation from Odoo UI"
 }
 
-message RevokeDelegationResponse {
-  bool success = 1;
-  int64 current_active_revocations = 2;
+message RevokeResponse {
+  bool success     = 1;
+  int64 revoked_at = 2;               // Unix timestamp of revocation in RAM
+  string message   = 3;
 }
+
 
 message ExplainDecisionResponse {
   Decision decision = 1;
