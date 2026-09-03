@@ -11,10 +11,10 @@
 ## PHẦN A. THÔNG TIN HÀNH CHÍNH VÀ ĐỊNH DANH ĐỀ TÀI
 
 * **Tên đề tài (Tiếng Việt):**
-  > **NGHIÊN CỨU VÀ PHÁT TRIỂN ĐỘNG CƠ POLICY DECISION POINT (PDP) HIỆU NĂNG CAO PHỤC VỤ PHÂN QUYỀN HỆ THỐNG DOANH NGHIỆP VÀ CHỐT CHẶN AN TOÀN CHO TÁC TỬ AI TỰ HÀNH**
+  > **XÂY DỰNG CƠ CHẾ POLICY DECISION POINT HỖ TRỢ ỦY QUYỀN CÓ KIỂM SOÁT (DELEGATION-AWARE AUTHORIZATION) CHO TÁC TỬ AI TRONG HỆ THỐNG ERP — NGHIÊN CỨU TRIỂN KHAI VÀ ĐÁNH GIÁ THỰC NGHIỆM TRÊN NỀN TẢNG ODOO**
 
 * **Tên đề tài (Tiếng Anh):**
-  > **RESEARCH AND DEVELOPMENT OF A HIGH-PERFORMANCE POLICY DECISION POINT (PDP) ENGINE FOR ENTERPRISE AUTHORIZATION AND AUTONOMOUS AI AGENT GUARDRAILS**
+  > **DESIGN AND IMPLEMENTATION OF A DELEGATION-AWARE POLICY DECISION POINT FOR AUTONOMOUS AI AGENTS IN ERP SYSTEMS — AN EMPIRICAL EVALUATION ON THE ODOO PLATFORM**
 
 * **Mã ngành đào tạo:** Kỹ thuật Phần mềm (Software Engineering)
 * **Loại hình đề tài:** Nghiên cứu Ứng dụng & Phát triển Hệ thống Phân tán (Applied Research & Distributed Systems Engineering)
@@ -39,14 +39,14 @@
 ║     • Mô hình ABAC (NIST SP 800-162) & Policy-as-Code (OASIS XACML).        ║
 ║     • Giải quyết Role Explosion & Rò rỉ logic phân quyền vào backend/SQL.   ║
 ║     • Kiểm soát Phân tách trách nhiệm (SoD theo SOX 404 & ISO/IEC 27001).   ║
-║     • Kiểm chứng thực nghiệm trên các phân hệ cốt lõi của Odoo 17 & SAP.   ║
+║     • Kiểm chứng thực nghiệm trên chu trình Procure-to-Pay của Odoo 17.     ║
 ║                                                                             ║
 ║  3. AI AGENT AUTHORIZATION (TRỌNG TÂM NGHIÊN CỨU MỚI - RESEARCH FOCUS):     ║
 ║     • Chốt chặn Tiền định (Deterministic Guardrail) ở tốc độ microsecond.   ║
 ║     • Đánh giá chuỗi ủy quyền (Delegation Chain) và ngữ cảnh Tool-Calls     ║
 ║       nhằm hạn chế tối đa tác động rủi ro (Impact Mitigation) khi AI bị     ║
 ║       thao túng hoặc ảo giác (theo chuẩn NIST AI RMF 1.0 & OWASP LLM06).   ║
-║     • Cơ chế quyết định 3 trạng thái: ALLOW / DENY / REQUIRE_HUMAN_APPROVAL.║
+║     • Cơ chế quyết định đi kèm nghĩa vụ: ALLOW, DENY + REQUIRE_APPROVAL.    ║
 ╚═════════════════════════════════════════════════════════════════════════════╝
 ```
 
@@ -150,11 +150,11 @@ flowchart LR
   1. Tái sử dụng và mở rộng runtime nền tảng hiện có để giải quyết 4 câu hỏi nghiên cứu (RQ1–RQ4).
   2. Đặc tả và hiện thực hóa mô hình định danh hợp nhất (Unified Authorization Subject).
   3. Xây dựng logic phân quyền ủy quyền chuỗi (`DelegationChain`) và ngữ cảnh gọi công cụ (`ToolExecutionContext`).
-  4. Hiện thực hóa cơ chế quyết định 3 trạng thái: `ALLOW`, `DENY`, `REQUIRE_HUMAN_APPROVAL`.
-  5. Đánh giá thực nghiệm 3 chiều trên 4 phân hệ ERP cốt lõi và kịch bản Multi-Agent Tool-Calls.
+  4. Hiện thực hóa cơ chế quyết định đi kèm nghĩa vụ: `ALLOW`, `DENY` kèm `REQUIRE_HUMAN_APPROVAL`.
+  5. Đánh giá thực nghiệm 3 chiều trên chu trình Procure-to-Pay (P2P) của Odoo 17 và kịch bản AI Agent Tool-Calls.
 * **Phạm vi không thực hiện (Out-of-Scope):**
-  - Không xây dựng lại toàn bộ ứng dụng ERP từ đầu (sử dụng Odoo 17 và Mock SAP S/4HANA làm môi trường kiểm thử).
-  - Không đi sâu vào nghiên cứu toán học huấn luyện mô hình AI (tập trung thuần túy vào Kỹ thuật Phần mềm và An toàn Hệ thống).
+  - Không xây dựng lại toàn bộ ứng dụng ERP từ đầu (sử dụng nền tảng nguồn mở Odoo 17 làm môi trường thực nghiệm kiểm chứng chính thức; việc tích hợp các hệ thống đóng như SAP S/4HANA được định vị là hướng mở rộng quy mô sau tốt nghiệp).
+  - Không đi sâu vào nghiên cứu toán học huấn luyện mô hình AI (tập trung thuần túy vào Kỹ thuật Phần mềm, An toàn Hệ thống và Governance cho Tool-Calls).
 
 ---
 
@@ -170,8 +170,7 @@ flowchart TD
 
     subgraph Gateway["TẦNG POLICY ENFORCEMENT POINT (PEP)"]
         EnvoyPEP["Envoy L7 Proxy / API Gateway"]
-        OdooModule["Odoo 17 Custom PDP Connector"]
-        SAPBridge["SAP S/4HANA Integration Worker"]
+        OdooModule["Odoo 17 Custom PDP Connector (pdp_authorizer)"]
     end
 
     subgraph PDP_Core["ĐỘNG CƠ POLICY DECISION POINT (GO IN-MEMORY PDP :50051)"]
