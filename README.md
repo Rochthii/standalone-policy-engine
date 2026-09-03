@@ -1,44 +1,48 @@
 # Standalone In-Memory Policy Decision Point (PDP)
 ### Delegation-Aware Authorization & Guardrails for ERP AI Agents (Odoo 17)
 
+**Author:** Chăm Rốch Thi  
+**Affiliation:** Posts and Telecommunications Institute of Technology (PTIT)  
+**Thesis:** Software Engineering Master / Graduation Thesis  
+
 [![CI](https://github.com/Rochthii/standalone-policy-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/Rochthii/standalone-policy-engine/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/tag/Rochthii/standalone-policy-engine?label=release&color=green)](https://github.com/Rochthii/standalone-policy-engine/releases/tag/v1.0.0-core-verified)
 [![Go Version](https://img.shields.io/badge/Go-1.25+-blue.svg)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Verification](https://img.shields.io/badge/7%2F7%20Vectors-PASS-brightgreen.svg)](./tests/e2e_delegation_test.go)
 
-An ultra-high-performance, In-Memory **Policy Decision Point (PDP)** in Go implementing the PBAC/ABAC model with deterministic **Constrained Delegation** and **AI Agent Guardrails** (NIST AI RMF & OWASP LLM06). Engineered specifically to eliminate the **Odoo Rollback Trap**, prevent **Time-of-Check to Time-of-Use (TOCTOU)** race conditions in $< 50\text{ns}$, and achieve **Zero GC allocations** on the evaluation hot path.
+An ultra-high-performance, In-Memory Policy Decision Point (PDP) in Go implementing the PBAC/ABAC model with deterministic Constrained Delegation and AI Agent Guardrails (NIST AI RMF & OWASP LLM06). Engineered specifically to eliminate the Odoo Rollback Trap, prevent Time-of-Check to Time-of-Use (TOCTOU) race conditions in under 50ns, and achieve Zero GC allocations on the evaluation hot path.
 
 ---
 
-## ⚡ Key Highlights & Live Benchmark Results
+## Key Highlights & Live Benchmark Results
 
 **Benchmarked on:** 13th Gen Intel Core i7-13700H (20 cores), Go 1.26+, Linux / Windows
 
 | Scenario / Benchmark | Latency | Allocation | Throughput / Speedup |
 |---|---|---|---|
-| **Hot-Path Decision Latency** (`BenchmarkEvaluatorLatency`) | **393.1 – 540.2 ns/op** | **0 B/op, 0 allocs/op** | **~2.5M – 3.7M RPS** |
+| **Hot-Path Decision Latency** (`BenchmarkEvaluatorLatency`) | **393.1 - 540.2 ns/op** | **0 B/op, 0 allocs/op** | **~2.5M - 3.7M RPS** |
 | **Concurrent Hot-Path Load** (`BenchmarkConcurrentLoad`) | **27.12 ns/op** | **0 B/op, 0 allocs/op** | **~36.8M RPS** |
 | **10,000 Policies Load Contention** (`BenchmarkUltraExtreme_10kPolicies`) | **35.94 ns/op** | **0 B/op, 0 allocs/op** | **~27.8M RPS** |
-| **In-Memory Revocation Lookup** (`RevocationMap` $O(1)$) | **< 50 ns** | **0 B/op, 0 allocs/op** | **Instant TOCTOU Defense** |
+| **In-Memory Revocation Lookup** (`RevocationMap` O(1)) | **< 50 ns** | **0 B/op, 0 allocs/op** | **Instant TOCTOU Defense** |
 | **Deep 11-Level DAG + 5,000 Decoy Policies** (`BenchmarkUltraExtreme_DeepDAG`) | **810.9 ns/op** | **0 B/op, 0 allocs/op** | **~1.23M RPS** |
 
-### 📊 Scientific Baseline Comparison: Odoo Native ORM vs Standalone Go PDP
+### Scientific Baseline Comparison: Odoo Native ORM vs Standalone Go PDP
 
-*(Dữ liệu thực chứng đo đạc trực tiếp phục vụ Luận văn Tốt nghiệp PTIT — Script: `tests/baseline_odoo_orm_benchmark.py`)*
+*(Comparative benchmark data measured directly via `tests/baseline_odoo_orm_benchmark.py`)*
 
 | Evaluation Criteria | Odoo 17 Native ORM (`ir.rule`) | Standalone Go PDP (In-Memory) | Superiority Factor |
 |---|---|---|:---:|
-| **Mean Evaluation Latency** | **23.77 ms** | **0.000540 ms (540.2 ns)** | 🚀 **~44,000x Faster** |
-| **RAM Allocation on Hot-Path** | ~24 KB / query (ORM Objects) | **0 B / op (Zero-Alloc)** | 🎯 **Zero GC Pressure** |
-| **Heap Allocations per Check** | ~120 allocs / check | **0 allocs / op** | 🛡️ **Zero Memory Leaks** |
-| **Anti-TOCTOU Defense** | Vulnerable (Waits for DB commit) | **Absolute ($O(1)$ RAM sync.Map)** | ⏱️ **< 50ns Revocation** |
-| **AI Delegation Chain Support** | Not supported (User ID only) | **Full (Tuple $\Delta$ + HMAC)** | 🤖 **Multi-Hop Proof** |
-| **Runtime Obligation Handling** | Triggers Database Rollback Trap | **Non-Rollback PEP State Machine** | 🔄 **Clean Workflows** |
+| **Mean Evaluation Latency** | **23.77 ms** | **0.000540 ms (540.2 ns)** | **~44,000x Faster** |
+| **RAM Allocation on Hot-Path** | ~24 KB / query (ORM Objects) | **0 B / op (Zero-Alloc)** | **Zero GC Pressure** |
+| **Heap Allocations per Check** | ~120 allocs / check | **0 allocs / op** | **Zero Memory Leaks** |
+| **Anti-TOCTOU Defense** | Vulnerable (Waits for DB commit) | **Absolute (O(1) RAM sync.Map)** | **< 50ns Revocation** |
+| **AI Delegation Chain Support** | Not supported (User ID only) | **Full (Tuple Delta + HMAC)** | **Multi-Hop Proof** |
+| **Runtime Obligation Handling** | Triggers Database Rollback Trap | **Non-Rollback PEP State Machine** | **Clean Workflows** |
 
 ---
 
-## 🏗️ Architecture & Core Data Flow
+## Architecture & Core Data Flow
 
 ```mermaid
 flowchart TD
@@ -55,7 +59,7 @@ flowchart TD
     subgraph Layer2 ["Layer 2: In-Memory Engine (Lock-Free COW)"]
         Trie["Multi-Level Trie O(log N)\nFNV-1a 64-bit uint64 Index"]
         DAG["Role Hierarchy DAG\nPre-computed Transitive Closure O(1)"]
-        AST["Zero-Alloc AST Evaluator\nToán tử SoD 'contains' + Bitmask IP"]
+        AST["Zero-Alloc AST Evaluator\nToán tử SoD contains + Bitmask IP"]
     end
 
     Postgres[("PostgreSQL 15+\nTransactional Sequence\ntenants.revision")]
@@ -81,25 +85,25 @@ flowchart TD
 
 ---
 
-## 🧪 Verified 7/7 E2E Delegation Vectors
+## Verified 7/7 E2E Delegation Vectors
 
-The entire system passes 100% of the 7 edge test vectors defined in [`tests/e2e_delegation_test.go`](./tests/e2e_delegation_test.go):
+The system passes 100% of the 7 edge test vectors defined in [`tests/e2e_delegation_test.go`](./tests/e2e_delegation_test.go):
 
 | Vector ID | Test Scenario Description | Expected Decision | Result |
 |---|---|:---:|:---:|
-| **`TC-01`** | Manager creates PO and attempts to self-approve | **`DENY`** | ✅ **PASS** |
-| **`TC-02`** | AI Agent attempts to approve PO created by delegating Manager (SoD Chain) | **`DENY`** | ✅ **PASS** |
-| **`TC-03`** | AI Agent autonomously approves PO within delegated limit ($\le \$2,000$) | **`ALLOW`** | ✅ **PASS** |
-| **`TC-04`** | AI Agent attempts PO approval above limit ($>\$2,000$, Guardrail Ceiling) | **`DENY`** + `REQUIRE_HUMAN_APPROVAL` | ✅ **PASS** |
-| **`TC-05`** | Malicious Actor tampers with PO amount in context | **`403 PermissionDenied`** | ✅ **PASS** |
-| **`TC-06`** | Manager revokes delegation on Odoo; Agent calls immediately (Anti-TOCTOU) | **`DENY`** (`POL-REVOCATION-BLACK-LIST`) | ✅ **PASS** |
-| **`TC-07`** | AI Agent presents delegation proof with expired TTL token | **`403 PermissionDenied`** | ✅ **PASS** |
+| **`TC-01`** | Manager creates PO and attempts to self-approve | **`DENY`** | **PASS** |
+| **`TC-02`** | AI Agent attempts to approve PO created by delegating Manager (SoD Chain) | **`DENY`** | **PASS** |
+| **`TC-03`** | AI Agent autonomously approves PO within delegated limit (<= $2,000) | **`ALLOW`** | **PASS** |
+| **`TC-04`** | AI Agent attempts PO approval above limit (> $2,000, Guardrail Ceiling) | **`DENY`** + `REQUIRE_HUMAN_APPROVAL` | **PASS** |
+| **`TC-05`** | Malicious Actor tampers with PO amount in context | **`403 PermissionDenied`** | **PASS** |
+| **`TC-06`** | Manager revokes delegation on Odoo; Agent calls immediately (Anti-TOCTOU) | **`DENY`** (`POL-REVOCATION-BLACK-LIST`) | **PASS** |
+| **`TC-07`** | AI Agent presents delegation proof with expired TTL token | **`403 PermissionDenied`** | **PASS** |
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
-### 1. Run Frozen Docker Testbed (Single Command 2026–2029)
+### 1. Run Frozen Docker Testbed (Single Command 2026-2029)
 Runs PostgreSQL 15, Standalone Go PDP, Odoo 17 ERP, and executes all 7 verification vectors automatically:
 
 ```bash
@@ -128,7 +132,7 @@ python tests/baseline_odoo_orm_benchmark.py
 
 ---
 
-## 📜 Cedar-like Declarative DSL (P2P Seed Rules)
+## Cedar-like Declarative DSL (P2P Seed Rules)
 
 Rules in [`configs/policies.cedar`](./configs/policies.cedar) demonstrate Separation of Duties (SoD) and AI Guardrails:
 
@@ -166,13 +170,13 @@ when {
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```text
 standalone-policy-engine/
 ├── .agents/                 # AI Master Context & 9 Concise Domain Skills (< 40 lines each)
 ├── configs/
-│   └── policies.cedar       # 6 Standard P2P seed rules enforcing SoD via `contains`
+│   └── policies.cedar       # 6 Standard P2P seed rules enforcing SoD via contains
 ├── cmd/
 │   ├── pdp-server/          # gRPC Data Plane Server (:50051)
 │   ├── control-plane/       # REST Control Plane API (:8080)
@@ -200,7 +204,7 @@ standalone-policy-engine/
 
 ---
 
-## 🛠️ CLI Tool (`pectl`)
+## CLI Tool (pectl)
 
 `pectl` provides a developer CLI for policy management, dry-run simulation, and live checking:
 
@@ -214,9 +218,12 @@ pectl simulate tenant-odoo --subject user:manager_bob --action APPROVE --resourc
 
 ---
 
-## 📄 License & Academic Attribution
+## License & Academic Attribution
 
 Distributed under the **MIT License**.
 
-This project serves as the primary implementation and experimental testbed for the **PTIT Software Engineering Master Thesis**:
+**Author:** Chăm Rốch Thi  
+**Institution:** Posts and Telecommunications Institute of Technology (PTIT)  
+
+This project serves as the primary implementation and experimental testbed for the **PTIT Software Engineering Master / Graduation Thesis**:
 > *"XÂY DỰNG CƠ CHẾ POLICY DECISION POINT HỖ TRỢ ỦY QUYỀN CÓ KIỂM SOÁT (DELEGATION-AWARE AUTHORIZATION) CHO TÁC TỬ AI TRONG HỆ THỐNG ERP — NGHIÊN CỨU TRIỂN KHAI VÀ ĐÁNH GIÁ THỰC NGHIỆM TRÊN NỀN TẢNG ODOO"*.

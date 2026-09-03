@@ -1,14 +1,16 @@
 # Standalone Policy Engine (PDP) — Master Context Guide
 
-> 🤖 **AI Directive**: This file is the **single source of truth** for project context, invariants, and architecture. Read **ONLY** this file for general tasks. Do **NOT** scan whole folders or pre-load skill files unless specifically implementing deep changes in those subsystems.
+> **AI Directive**: This file is the **single source of truth** for project context, invariants, and architecture. Read **ONLY** this file for general tasks. Do **NOT** scan whole folders or pre-load skill files unless specifically implementing deep changes in those subsystems.
 
-> **Core Mission**: Ultra-high-performance, In-Memory Policy Decision Point (PDP) in Go for Cloud-Native microservices, SaaS, and ERP AI Agent Delegation (Odoo 17).
-> **Targets**: Latency < 0.35ms (in-memory < 3.5µs, verified 540ns), Throughput > 1,000,000 RPS, Zero GC allocations on evaluation hot path.
-> **Decision Model**: Deny-by-default, Forbid-overrides, Explicit permit.
+> **Author**: Chăm Rốch Thi  
+> **Institution**: Posts and Telecommunications Institute of Technology (PTIT)  
+> **Core Mission**: Ultra-high-performance, In-Memory Policy Decision Point (PDP) in Go for Cloud-Native microservices, SaaS, and ERP AI Agent Delegation (Odoo 17).  
+> **Targets**: Latency < 0.35ms (in-memory < 3.5µs, verified 540ns), Throughput > 1,000,000 RPS, Zero GC allocations on evaluation hot path.  
+> **Decision Model**: Deny-by-default, Forbid-overrides, Explicit permit.  
 
 ---
 
-## 🏗️ Architecture & Core Data Flow
+## Architecture & Core Data Flow
 
 ```
 Client / AI Agent (Odoo 17 PEP)
@@ -45,7 +47,7 @@ Async Ring Buffer Logger ──► Postgres (pgx.CopyFrom) + AES-GCM Encrypt
 
 ---
 
-## 🗂️ Codebase & Component Map
+## Codebase & Component Map
 
 | Component | Path | Description |
 |---|---|---|
@@ -63,12 +65,12 @@ Async Ring Buffer Logger ──► Postgres (pgx.CopyFrom) + AES-GCM Encrypt
 | **Protobuf Contract** | `proto/v1/policy.proto` | IDL defining `CheckAccess`, `ExplainDecision`, `RevokeDelegation` with custom `"json"` codec. |
 | **Seed Policies** | `configs/policies.cedar` | 6 standard P2P ruleset with SoD `contains` operator (`delegation_chain contains creator_id`). |
 | **Odoo 17 PEP Addon** | `custom_addons/pdp_authorizer/` | PID-Safe gRPC client, model `pdp.delegation.grant`, non-rollback PEP `purchase.order`. |
-| **Frozen Testbed** | `docker-compose.testbed.yml` | Pinned base images (`golang:1.22-alpine`, `odoo:17.0`, `postgres:15-alpine`) for 2026–2029. |
+| **Frozen Testbed** | `docker-compose.testbed.yml` | Pinned base images (`golang:alpine`, `odoo:17.0`, `postgres:15-alpine`) for 2026–2029. |
 | **Tests & Benchmarks**| `tests/` | 7 E2E vectors (`e2e_delegation_test.go`), Baseline benchmark (`baseline_odoo_orm_benchmark.py`). |
 
 ---
 
-## 🛠️ Specialized Skills Index (Read On-Demand Only)
+## Specialized Skills Index (Read On-Demand Only)
 
 Read these skill guides **ONLY** when actively modifying their specific subsystems (< 40 lines each):
 - **`agent-authorization`** (`.agents/skills/agent-authorization/SKILL.md`): Canonical String HMAC, In-Memory RevocationMap O(1), Non-Rollback PEP.
@@ -83,7 +85,7 @@ Read these skill guides **ONLY** when actively modifying their specific subsyste
 
 ---
 
-## ⛔ Absolute Rules & Engineering Invariants (Never Violate)
+## Absolute Rules & Engineering Invariants (Never Violate)
 
 1. **Production-Real Only**: Zero mocks, zero fake returns, zero hardcoded bypasses in production code paths.
 2. **Zero Linear Scans**: Never iterate over slice of policies. All lookups MUST use Trie O(log N) and DAG Transitive Closure O(1).
@@ -97,7 +99,7 @@ Read these skill guides **ONLY** when actively modifying their specific subsyste
 
 ---
 
-## ⚡ Essential Commands Cheat Sheet
+## Essential Commands Cheat Sheet
 
 ```bash
 # 1. Run 7 E2E Delegation Vectors Verification (All 7 PASS)
