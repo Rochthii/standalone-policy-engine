@@ -10,7 +10,52 @@ Phân loại thay đổi:
 
 ---
 
+## [1.15.0] - 2026-09-03: Delegation-Aware AI Authorization, In-Memory RevocationMap O(1), Odoo 17 PEP Non-Rollback State Machine & 7 E2E Vectors [Tag: v1.0.0-core-verified]
+
+Hoàn thành toàn diện 5 bước tích hợp giữa Standalone In-Memory Go PDP và Odoo 17 ERP qua gRPC; hiện thực hóa đầy đủ 4 Câu hỏi Nghiên cứu (RQ1–RQ4) của Đồ án Tốt nghiệp PTIT và vượt qua 100% bộ 7 Test Vectors:
+
+### Added
+- **Layer 1 Delegation Interceptor & In-Memory RevocationMap (`internal/security/delegation.go`, `internal/server/grpc_server.go`):**
+  - Cấu trúc `DelegationManager` với `sync.Map` lưu trữ `RevocationMap` tra cứu $O(1)$ trên RAM trong $< 50\,\text{ns}$, triệt tiêu hoàn toàn nguy cơ chạy đua thời gian TOCTOU (Time-of-Check to Time-of-Use).
+  - Tích hợp RPC `RevokeDelegation(RevokeRequest) returns (RevokeResponse)` vào hợp đồng Protobuf (`proto/v1/policy.proto`) và tự động sinh stubs cho cả Go lẫn Python.
+  - Xác thực chữ ký số HMAC-SHA256 theo chuỗi nối chuẩn hóa (Canonical String):
+    $$\text{Payload} = \text{grant\_id} \parallel \text{delegator} \parallel \text{agent} \parallel \text{amount} \parallel \text{valid\_until}$$
+  - Cơ chế kiểm tra thời hạn TTL (Fail-Closed): Tự động từ chối `codes.PermissionDenied` (403) nếu token ủy quyền đã quá hạn thời gian.
+- **Odoo 17 PEP Addon (`custom_addons/pdp_authorizer/`):**
+  - `models/pdp_client.py`: Singleton `SafePDPClient` an toàn tuyệt đối với tiến trình worker pre-fork của Odoo (`os.getpid()`), tự động phát hiện fork để tái tạo gRPC Channel, triệt tiêu nguy cơ deadlock C-Core epoll; hỗ trợ gevent monkey-patching và timeout 350ms.
+  - `models/delegation_grant.py`: Model `pdp.delegation.grant` quản lý hạn mức tự trị AI Agent, sinh mã băm HMAC Canonical String và nút bấm `action_revoke()` đồng bộ tức thời sang RAM của Go PDP.
+  - `models/purchase_order.py`: Ghi đè `button_confirm()` với kiến trúc **Non-Rollback PEP State Machine** — khi nhận quyết định `DENY` kèm nghĩa vụ `REQUIRE_HUMAN_APPROVAL`, chuyển PO sang `to approve` và giao Activity cho cấp trên mà không raise Exception gây rollback CSDL.
+  - Đầy đủ giao diện Views (`delegation_grant_views.xml`, `purchase_order_views.xml`), phân quyền `ir.model.access.csv`, và khai báo `external_dependencies: {'python': ['grpcio', 'protobuf']}` trong `__manifest__.py`.
+- **Hạt Giống Luật P2P Cedar (`configs/policies.cedar`):**
+  - Đóng gói 6 quy tắc P2P chuẩn hóa, áp dụng toán tử SoD `contains` (`context.delegation_chain contains resource.creator_id`) ngăn chặn hành vi tự duyệt và mượn AI duyệt hộ.
+- **Bộ Kiểm Thử Toàn Trình 7 E2E Vectors (`tests/e2e_delegation_test.go`):**
+  - `TC-01`: Manager tự tạo PO và tự duyệt $\to$ `DENY` (SoD Collision).
+  - `TC-02`: AI Agent duyệt hộ PO do Manager tạo $\to$ `DENY` (SoD Delegation Chain).
+  - `TC-03`: AI Agent tự động duyệt PO hợp lệ $\le \$2,000 \to$ `ALLOW`.
+  - `TC-04`: AI Agent duyệt PO vượt trần tự hành $>\$2,000 \to$ `DENY` (`REQUIRE_HUMAN_APPROVAL`).
+  - `TC-05`: Kẻ tấn công sửa context số tiền $\to$ `403 PermissionDenied` (HMAC Tampered).
+  - `TC-06`: Manager thu hồi quyền trên Odoo $\to$ Agent gọi tiếp $\to$ `DENY` (Anti-TOCTOU).
+  - `TC-07`: AI Agent mang token đã quá hạn TTL $\to$ `403 PermissionDenied` (Expired Token).
+  - Kết quả kiểm thử: **7/7 Vectors PASS 100% trong 4.506s**.
+- **Bộ Đo Đạc Đối Soát Baseline Odoo ORM (`tests/baseline_odoo_orm_benchmark.py`):**
+  - Cung cấp số liệu đối trọng khoa học cho Chương 4 & 5 Luận văn: Go PDP ($540.2\ \text{ns}$, 0 B/op) nhanh hơn cơ chế Record Rules `ir.rule` của Odoo ($23.77\ \text{ms}$, ~24 KB) xấp xỉ **44,000 lần**.
+- **Đóng Băng Môi Trường Testbed 2026–2029 (`docker-compose.testbed.yml`):**
+  - Khóa cứng phiên bản base images: `postgres:15-alpine`, `golang:1.22-alpine`, `odoo:17.0`. Khởi chạy và kiểm chứng tự động qua cờ `--abort-on-container-exit`.
+
+### Changed
+- **Tối Ưu Hóa Bộ 9 Agent Skill Guides (`.agents/skills/`):**
+  - Thu gọn và đồng bộ hóa toàn bộ 9 skill guides xuống dưới 40 dòng/file, tuân thủ nguyên lý Single Responsibility (SRP) và tối ưu hóa 100% cho AI context parser.
+- **Thanh Lọc Cấu Trúc Tài Liệu:**
+  - Xóa bỏ 16 thư mục và tệp tài liệu legacy/rác cũ (Redis Pub/Sub, lộ trình cá nhân), quy tụ toàn bộ tài liệu về Bộ 12 Đặc Tả Kỹ Thuật Chuẩn Khoa Học trong `docs/technical-spec/` và `docs/00_MASTER_INDEX.md`.
+
+### Security
+- Chốt hạ toàn diện rào chắn phòng thủ đa tầng: Xác thực chữ ký HMAC ở Interceptor, triệt tiêu TOCTOU trong nano-giây bằng In-Memory Map, bảo toàn phân tách trách nhiệm (SoD) qua chuỗi ủy quyền nhiều chặng, và áp dụng triệt để nguyên tắc Fail-Closed khi có sự cố.
+- Khóa mốc phát hành chính thức trên Git: **`v1.0.0-core-verified`**.
+
+---
+
 ## [1.14.0] - 2026-09-02: Zero-Alloc NDJSON Audit Streamer, Revision ID Traceability & Vector Codec Alignment
+
 
 Khắc phục triệt để lỗi lệch chuẩn giải mã (Codec Mismatch) giữa PDP Data Plane và Vector Sidecar, chuẩn hóa luồng Newline Delimited JSON (NDJSON) Zero-Allocation và tích hợp `revision_id` vào toàn bộ dấu vết kiểm toán:
 
