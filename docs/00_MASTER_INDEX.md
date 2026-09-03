@@ -26,7 +26,8 @@ docs/
 │   ├── AGENT_TOOLING_SPEC.md          # Tool-Call JSON schema, ToolExecutionContext & feedback loop
 │   ├── RUNBOOK_OPS.md                 # Docker Compose, fail-closed rule, BadgerDB cold start, script
 │   ├── THESIS_CHAPTER_MAPPING.md      # Ánh xạ RQ1-RQ4 vào 5 chương Thuyết minh 100 trang & figures
-│   └── BENCHMARK_REPRODUCIBILITY.md   # Đặc tả testbed, 7 test vectors, lệnh 1 dòng tái lập 100%
+│   ├── BENCHMARK_REPRODUCIBILITY.md   # Đặc tả testbed, 7 test vectors, lệnh 1 dòng tái lập 100%
+│   └── IMPLEMENTATION_ROADMAP.md      # Lộ trình phân tử hóa chi tiết từng micro-task 3 pha thực thi
 │
 ├── 🗺️ career-roadmap/                 # Lộ Trình 4 Giai Đoạn: SE + ERP + AI Vibe Coding
 │   ├── 00_OVERVIEW.md                 # Tổng quan 3 trục căn tính First Principles
