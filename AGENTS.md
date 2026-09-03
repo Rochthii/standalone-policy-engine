@@ -68,14 +68,14 @@ API Gateway (PEP) ──(gRPC CheckAccess / ExplainDecision)──► PDP Server
 
 Read these skill guides **ONLY** when actively modifying their specific subsystems:
 - **`engine-evaluator`** (`.agents/skills/engine-evaluator/SKILL.md`): Trie, DAG Transitive Closure, AST pool.
-- **`dsl-compiler`** (`.agents/skills/dsl-compiler/SKILL.md`): Pratt parser, AST depth limit, constant folding.
-- **`grpc-dataplane`** (`.agents/skills/grpc-dataplane/SKILL.md`): gRPC server, JSON codec, mTLS, OpenZiti.
-- **`storage-audit`** (`.agents/skills/storage-audit/SKILL.md`): `pgx.CopyFrom`, Spill-to-Disk, Redis sync, BadgerDB.
-- **`erp-testing`** (`.agents/skills/erp-testing/SKILL.md`): ERP ABAC test cases, micro-benchmarks.
-- **`agent-authorization`** (`.agents/skills/agent-authorization/SKILL.md`): Autonomous AI Agent authorization & Guardrails (NIST / OWASP LLM06).
+- **`dsl-compiler`** (`.agents/skills/dsl-compiler/SKILL.md`): Pratt parser, AST depth limit, contains operator, constant folding.
+- **`grpc-dataplane`** (`.agents/skills/grpc-dataplane/SKILL.md`): gRPC server, JSON codec, RevokeDelegation, Layer 1 interceptor.
+- **`storage-audit`** (`.agents/skills/storage-audit/SKILL.md`): `pgx.CopyFrom`, Spill-to-Disk, Postgres LISTEN/NOTIFY sync, BadgerDB.
+- **`erp-testing`** (`.agents/skills/erp-testing/SKILL.md`): 7 Delegation vectors, Odoo baseline benchmark, micro-benchmarks.
+- **`agent-authorization`** (`.agents/skills/agent-authorization/SKILL.md`): Canonical String HMAC, In-Memory RevocationMap O(1), Non-Rollback PEP.
 - **`critical-advisor`** (`.agents/skills/critical-advisor/SKILL.md`): Technical stress-testing & blindspot detection.
 - **`clean-architecture-standards`** (`.agents/skills/clean-architecture-standards/SKILL.md`): File size budgets ($\le 250$ lines), zero hardcoding, centralized config, and modular SRP design.
-- **`docker-standards`** (`.agents/skills/docker-standards/SKILL.md`): Docker, Multi-Stage builds, PostgreSQL UTF-8 BOM prevention, and E2E containerized testing.
+- **`docker-standards`** (`.agents/skills/docker-standards/SKILL.md`): Docker testbed, pinned images, PowerShell UTF-8 BOM prevention, E2E testbed runner.
 
 ---
 
@@ -96,22 +96,18 @@ Read these skill guides **ONLY** when actively modifying their specific subsyste
 ## ⚡ Essential Commands Cheat Sheet
 
 ```bash
-# 1. Run PDP Data Plane Server
-go run cmd/pdp-server/main.go
+# 1. Run 7 E2E Delegation Vectors Verification
+go test -v ./tests -run=TestE2E_P2P_Delegation_7Vectors
 
-# 2. Run Control Plane REST API
-go run cmd/control-plane/main.go
+# 2. Run Evaluator Latency & Zero-Allocation Benchmark
+go test -bench=BenchmarkEvaluatorLatency -benchmem ./tests/... -run=^$
 
-# 3. Run pectl CLI
-go run cmd/pectl/main.go --help
+# 3. Run Core Engine & Parser Unit Tests (with Race Detector)
+go test -v -race ./internal/security ./internal/server
 
-# 4. Run Core Engine & Parser Unit Tests (with Race Detector)
-go test -v -race ./internal/engine ./internal/parser ./internal/security
+# 4. Run Frozen Docker Testbed (Single Command)
+docker compose -f docker-compose.testbed.yml up --abort-on-container-exit
 
-# 5. Run Performance & Latency Benchmarks
-go test -bench=BenchmarkEvaluatorLatency -benchmem ./tests/...
-go test -bench=BenchmarkConcurrentLoad -benchmem ./tests/...
-
-# 6. Database Migrations (via Makefile)
-make migrate
+# 5. Run Baseline Odoo ORM Benchmark
+python tests/baseline_odoo_orm_benchmark.py
 ```

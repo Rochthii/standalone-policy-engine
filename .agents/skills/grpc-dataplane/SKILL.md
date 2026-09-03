@@ -1,33 +1,37 @@
 ---
 name: grpc-dataplane
-description: Expert rules and constraints for gRPC Data Plane, JSON-over-gRPC, mTLS, Keep-Alive, and OpenZiti Dark Service.
+description: Expert rules for gRPC Data Plane, Layer 1 Interceptors, Revocation RPC, and PID-safe Odoo client.
 ---
 
 # gRPC Data Plane Server Skill
 
 ## 🎯 Mission
-Serve ultra-fast `CheckAccess` and `ExplainDecision` requests with multi-tenant security and zero trust network transport.
+Serve sub-microsecond `CheckAccess`, `ExplainDecision`, and `RevokeDelegation` with multi-tenant isolation and fail-closed security.
 
 ## 🔑 Critical Implementation Rules
 1. **gRPC Protocol & Codec**:
-   - Registered custom JSON codec: `"json"` via `grpc.CallContentSubtype("json")`.
+   - Custom JSON codec `"json"` via `grpc.CallContentSubtype("json")`.
    - Never use `omitempty` on `Decision` enum (`DENY = 0`, `ALLOW = 1`).
-   - Contract fields: `CheckAccessResponse` returns `decision`, `matched_policy_id`, `repeated string obligations` (`REQUIRE_HUMAN_APPROVAL`, `AUDIT_SENSITIVE_TOOL_CALL`), and `map<string, string> advice`.
-   - Timeout: Enforce 100ms per-request timeout context to prevent thread starvation.
-2. **Multi-Tenant JWT Isolation**:
-   - Extract `claims["tenant_id"]` from `Authorization: Bearer <token>`.
-   - Strictly reject request if `claims["tenant_id"] != req.TenantId` with `codes.PermissionDenied`.
-   - Enrich `req.Subject` and context attributes from validated JWT claims.
-3. **Transport Security (mTLS & OpenZiti)**:
-   - **mTLS**: When `PDP_TLS_CERT`, `PDP_TLS_KEY`, `PDP_TLS_CA` are provided, require `tls.RequireAndVerifyClientCert` with TLS 1.2+ minimum.
-   - **OpenZiti Dark Service**: When `USE_ZITI=true`, bind exclusively via `zCtx.Listen(serviceName)` with zero open inbound TCP ports.
-4. **Persistent Connection Tuning**:
-   - KeepAlive Enforcement: `MinTime: 5s`, `PermitWithoutStream: true`.
-   - KeepAlive Server: `MaxConnectionIdle: 15s`, `MaxConnectionAge: 30m`, `Time: 5s`, `Timeout: 1s`.
-   - Tracing: Intercept `x-trace-id` / W3C `traceparent` metadata.
+   - RPCs:
+     - `CheckAccess(CheckAccessRequest) returns (CheckAccessResponse)`
+     - `ExplainDecision(ExplainRequest) returns (ExplainResponse)`
+     - `RevokeDelegation(RevokeRequest) returns (RevokeResponse)`
+
+2. **Layer 1 Security Interceptors (Pre-Engine Check)**:
+   - **Revocation Check**: If `req.Context["delegation_grant_id"]` is in `revocationMap` $\to$ return `Decision_DENY` (`POL-REVOCATION-BLACK-LIST`) in $< 50$ns without hitting engine.
+   - **HMAC Proof Verification**: If `req.Context["delegation_proof"]` is present $\to$ verify Canonical String and TTL expiration. If invalid/expired $\to$ return `codes.PermissionDenied` (403).
+   - **Tenant Isolation**: Strictly enforce `claims["tenant_id"] == req.TenantId`.
+
+3. **PID-Safe gRPC Client (Odoo PEP)**:
+   - File: `custom_addons/pdp_authorizer/models/pdp_client.py`.
+   - Track `self._pid = os.getpid()`. When Odoo forks a worker, recreate channel if `os.getpid() != self._pid` to prevent C-Core epoll deadlock.
+   - Fail-Closed: Network/PDP outage raises `AccessError` (never silently allows).
+
+4. **Keep-Alive & Tuning**:
+   - Client timeout: 350ms per request.
+   - Server KeepAlive: `MinTime: 5s`, `PermitWithoutStream: true`, `MaxConnectionIdle: 15s`.
 
 ## 📂 Source Files
-- [`internal/server/grpc_server.go`](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/server/grpc_server.go)
-- [`cmd/pdp-server/main.go`](file:///e:/Projects/Project_TN/standalone-policy-engine/cmd/pdp-server/main.go)
-- [`internal/security/jwt.go`](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/security/jwt.go)
 - [`proto/v1/policy.proto`](file:///e:/Projects/Project_TN/standalone-policy-engine/proto/v1/policy.proto)
+- [`internal/server/grpc_server.go`](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/server/grpc_server.go)
+- [`custom_addons/pdp_authorizer/models/pdp_client.py`](file:///E:/Projects/ERP_Mastery_Hub/02_Project_2_Odoo_Go_PDP_Approval/custom_addons/pdp_authorizer/models/pdp_client.py)

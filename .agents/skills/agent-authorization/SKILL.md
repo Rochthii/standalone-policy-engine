@@ -1,66 +1,44 @@
 ---
 name: agent-authorization
-description: Expert rules and guidelines for Unified AI Agent Authorization, Delegation Chains, Tool-Call Contexts, and Deterministic Guardrails (ALLOW, DENY with Runtime Obligations).
+description: Expert rules for Unified AI Agent Authorization, Delegation Chains, HMAC Canonical String, and Deterministic Guardrails.
 ---
 
-# Autonomous AI Agent Authorization & Guardrails Skill
+# AI Agent Authorization & Guardrails Skill
 
 ## 🎯 Mission
-Provide deterministic, machine-speed authorization runtime and guardrails for Autonomous AI Agents, Copilots, and Non-Human Identities (NHI) calling enterprise tools and APIs, mitigating the risk of hallucinations, excessive agency (OWASP LLM06), and prompt injection attacks in $< 300$ns with Zero GC allocations.
+Provide deterministic authorization guardrails for Autonomous AI Agents calling ERP tools, mitigating OWASP LLM06 and prompt injection in $< 600$ns with Zero GC allocations.
 
----
+## 🔑 Critical Invariants & Rules
+1. **Delegation Tuple ($\Delta$)**:
+   $\Delta = \langle \mathcal{U}_{\text{root}}, \mathcal{A}_{\text{exec}}, \Sigma_{\text{scope}}, \Omega_{\text{constraints}}, \mathcal{C}_{\text{chain}} \rangle$
+   - $\mathcal{U}_{\text{root}}$: Human delegator (e.g. `user:bob`).
+   - $\mathcal{A}_{\text{exec}}$: Executing agent (e.g. `agent:procurement_copilot`).
+   - $\Omega_{\text{constraints}}$: Autonomous spending ceiling ($\le \$2,000$, TTL, `tool:auto_confirm_po`).
+   - $\mathcal{C}_{\text{chain}}$: Delegation trace (`user:bob,agent:procurement_copilot`). Depth = 1.
 
-## 🔑 Critical Implementation Rules
+2. **HMAC Canonical String & TTL Check**:
+   $\text{Payload} = \text{grant\_id} \parallel \text{delegator} \parallel \text{agent} \parallel \text{amount} \parallel \text{valid\_until}$
+   - Formula: `fmt.Sprintf("%s|%s|%s|%s|%s", grantID, delegator, agent, amount, validUntil)`
+   - TTL Expiration: `time.Now().Unix() > expTimestamp` evaluates to `false` (Fail-Closed, 403).
+   - Tampered payload or mismatch signature fails via `hmac.Equal` (403 PermissionDenied).
 
-### 1. Unified Authorization Subject & Delegation Model
-All authorization requests evaluate against a generalized `Subject` schema:
-$$\text{Subject} = \langle \text{ID}, \text{Type}, \text{DelegatedBy}, \text{DelegationChain}, \text{Scope}, \text{TrustProof} \rangle$$
-- **Types**: `human_user`, `service_workload`, `ai_agent`.
-- **Formal Delegation Tuple**: A constrained delegation instance $\Delta$ is defined as:
-  $$\Delta = \langle \mathcal{U}_{\text{root}}, \mathcal{A}_{\text{exec}}, \Sigma_{\text{scope}}, \Omega_{\text{constraints}}, \mathcal{C}_{\text{chain}} \rangle$$
-  - $\mathcal{U}_{\text{root}}$: Root human delegator (accountability anchor, e.g. `user:alice`).
-  - $\mathcal{A}_{\text{exec}}$: Executing AI agent identity (e.g. `agent:po_copilot`).
-  - $\Sigma_{\text{scope}}$: Subscribed action subset (e.g. `action:APPROVE_PO`).
-  - $\Omega_{\text{constraints}}$: Runtime boundaries ($\text{amount} \le 2000$, `tool:odoo_confirm_po`, TTL).
-  - $\mathcal{C}_{\text{chain}}$: Delegation chain trace. **Thesis In-Scope**: $\text{Depth}(\mathcal{C}) = 1$ ($\mathcal{U}_{\text{root}} \to \mathcal{A}_{\text{exec}}$). Extensible array design for multi-hop future work.
+3. **In-Memory RevocationMap $O(1)$ (Anti-TOCTOU)**:
+   - Managed via `sync.Map` in `internal/security/delegation.go`.
+   - RPC `RevokeDelegation` stores `grant_id -> revoked_at` in RAM in $< 50$ns.
+   - Interceptor rejects subsequent requests immediately with `Decision_DENY` (`POL-REVOCATION-BLACK-LIST`).
 
-### 2. Core Invariants of Constrained Delegation
-1. **Time-Aware Monotonic Attenuation**:
-   $$\mathcal{P}_{\text{effective}}(\mathcal{A} \mid \mathcal{U}, t) = \mathcal{P}_{\text{active}}(\mathcal{U}, t) \cap \mathcal{S}_{\text{delegation}} \cap \Omega_{\text{guardrails}}$$
-   At any time $t$, if $\mathcal{U}$ is suspended or budget-exhausted, $\mathcal{P}_{\text{effective}}(\mathcal{A})$ collapses to $\emptyset$. PDP evaluates this via pre-extracted context attributes (`context.delegator_status`, `context.delegator_limit`) in RAM without slow external DB lookups.
-2. **Generalized SoD Preservation**:
-   $$\mathcal{U}_{\text{creator}} \notin \mathcal{C}_{\text{chain}}(\text{Approver})$$
-   Neither the creator nor anyone delegating to the approver can approve the resource (`context.delegation_chain contains resource.creator_id` triggers immediate `forbid` via `evaluator.go:387`).
-3. **Real-time Revocation (TOCTOU Mitigation)**:
-   In-memory Revocation Map O(1) in Go PDP. When a user revokes delegation in ERP, an event updates PDP RAM in $< 1\,\mu\text{s}$, preventing Time-of-Check to Time-of-Use race conditions.
-4. **Enforcement Point Integrity (Trust Boundary)**:
-   PDP operates within a private network/mTLS perimeter with trusted PEPs (Odoo Backend). Odoo validates session authenticity and sends an HMAC-SHA256 `delegation_proof` to prevent client-side identity forgery.
+4. **Generalized SoD Preservation**:
+   - `context.delegation_chain contains resource.creator_id` triggers `forbid` via `evaluator.go`.
+   - Neither the creator nor delegator can self-approve, directly or via delegated AI agents.
 
-### 3. Binary Decision + Runtime Obligations Model (Zero-Alloc Guardrails)
-To preserve the ultra-fast Boolean evaluation engine and avoid tri-state AST complexity:
-- The core decision remains strictly binary: **`ALLOW`** or **`DENY`**.
-- When an action exceeds the autonomous limit or requires human oversight, PDP returns **`Decision: DENY`** accompanied by pre-compiled **Obligations** and **Advice**:
-  - `obligations`: `["REQUIRE_HUMAN_APPROVAL"]`, `["AUDIT_SENSITIVE_TOOL_CALL"]`, `["MASK_ATTRIBUTES"]`.
-  - `advice`: `{"risk_level": "HIGH", "required_approver_role": "role:cfo", "amount": "50000"}`.
-- Caller / API Gateway uses the obligation to generate an asynchronous Human-in-the-Loop ticket or route approval workflows.
+5. **Non-Rollback PEP Pattern (Odoo 17)**:
+   - When decision is `DENY` with obligation `REQUIRE_HUMAN_APPROVAL`, Odoo PEP writes PO `state = 'to approve'`, schedules Activity, and returns `True` (zero DB rollback).
 
-### 4. Deterministic Guardrail Security Rules (NIST AI RMF & OWASP LLM06)
-- **Impact Mitigation**: If an agent is manipulated via Prompt Injection (e.g., requesting a $10M payment), PDP enforces hard invariant rules on CPU in $< 300$ ns (`Decision: DENY`, hard stop, no approval path).
-- **Fail-Closed Default**: If tool context or delegation metadata is missing, immediately evaluate to `DENY`.
-
----
-
-## 🧪 AI Agent Test Scenarios & Verification ([`tests/ai_agent_guardrails_test.go`](file:///e:/Projects/Project_TN/standalone-policy-engine/tests/ai_agent_guardrails_test.go))
-1. **Autonomous Low-Value Tool-Call**: Agent creates PO $\le \$2,000 \rightarrow$ `ALLOW`.
-2. **High-Value Delegated Action**: Agent attempts PO $\$50,000$ ($> \$2,000$) $\rightarrow$ `DENY` + `Obligations: ["REQUIRE_HUMAN_APPROVAL"]`.
-3. **Prompt Injection / Extreme Value Attack**: Agent manipulated to transfer $\$10,000,000 \rightarrow$ `Hard DENY` (`POL-AGENT-HARD-CEILING`).
-4. **Agent-Staff SoD Collision**: Agent approves invoice generated by its own supervisor $\rightarrow$ `DENY`.
-5. **Performance Benchmark**: `BenchmarkAIAgent_GuardrailsLatency`: **286.3 ns/op, 0 B/op, 0 allocs/op** (> 3.49M ops/sec).
-
----
-
-## 📂 Source Files & Reference
-- [`proto/v1/policy.proto`](file:///e:/Projects/Project_TN/standalone-policy-engine/proto/v1/policy.proto): `CheckAccessResponse` with `obligations` and `advice`.
-- [`internal/engine/decision.go`](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/engine/decision.go): `Obligation` and `DecisionResult` structs.
-- [`internal/engine/evaluator.go`](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/engine/evaluator.go): Zero-allocation AST evaluator.
-- [`tests/ai_agent_guardrails_test.go`](file:///e:/Projects/Project_TN/standalone-policy-engine/tests/ai_agent_guardrails_test.go): Comprehensive AI Agent guardrails & benchmarks.
+## 🧪 7 E2E Vectors ([`tests/e2e_delegation_test.go`](file:///e:/Projects/Project_TN/standalone-policy-engine/tests/e2e_delegation_test.go))
+- `TC-01`: Self-approval $\to$ DENY (SoD).
+- `TC-02`: Agent approves Delegator's PO $\to$ DENY (SoD Chain).
+- `TC-03`: Agent autonomous PO $\le \$2,000 \to$ ALLOW.
+- `TC-04`: Agent PO $> \$2,000 \to$ DENY (`REQUIRE_HUMAN_APPROVAL`).
+- `TC-05`: Tampered HMAC amount $\to$ 403 PermissionDenied.
+- `TC-06`: Revoked Grant on RAM $\to$ DENY (Anti-TOCTOU).
+- `TC-07`: Expired TTL Proof $\to$ 403 PermissionDenied.
