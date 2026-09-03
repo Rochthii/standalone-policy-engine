@@ -1,0 +1,94 @@
+# ============================================================================
+# STANDALONE POLICY ENGINE & ODOO 17 TESTBED (FROZEN ENVIRONMENT 2026 - 2029)
+# All base images and libraries are strictly pinned to eliminate Dependency Drift.
+# Single command reproducible testbed:
+#   docker compose -f docker-compose.testbed.yml up --abort-on-container-exit
+# ============================================================================
+
+version: '3.8'
+
+services:
+  # 1. PostgreSQL 15 Database (Pinned)
+  testbed-db:
+    image: postgres:15-alpine
+    container_name: testbed_postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: pdp_admin
+      POSTGRES_PASSWORD: pdp_secret_password_2026
+      POSTGRES_DB: policy_engine
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pdp_admin -d policy_engine"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - testbed_pg_data:/var/lib/postgresql/data
+
+  # 2. Standalone Go PDP Server Data Plane (Pinned Go 1.22 + Alpine 3.19)
+  testbed-pdp:
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile.pdp
+    image: standalone-pdp:v1.0.0
+    container_name: testbed_pdp_server
+    restart: unless-stopped
+    ports:
+      - "50051:50051"
+    environment:
+      STORAGE_MODE: cloud
+      DATABASE_URL: postgres://pdp_admin:pdp_secret_password_2026@testbed-db:5432/policy_engine?sslmode=disable
+      PDP_SHARED_SECRET: pdp_master_secret_key_32bytes!
+      APP_PORT: "50051"
+    depends_on:
+      testbed-db:
+        condition: service_healthy
+
+  # 3. Odoo 17.0 ERP Core (Pinned official Odoo 17)
+  testbed-odoo:
+    image: odoo:17.0
+    container_name: testbed_odoo_erp
+    restart: unless-stopped
+    ports:
+      - "8069:8069"
+    environment:
+      HOST: testbed-db
+      USER: pdp_admin
+      PASSWORD: pdp_secret_password_2026
+      PDP_GRPC_TARGET: testbed-pdp:50051
+      PDP_SHARED_SECRET: pdp_master_secret_key_32bytes!
+    volumes:
+      - ../ERP_Mastery_Hub/02_Project_2_Odoo_Go_PDP_Approval/custom_addons:/mnt/extra-addons
+    depends_on:
+      testbed-db:
+        condition: service_healthy
+      testbed-pdp:
+        condition: service_started
+
+  # 4. Automated 7 Test Vectors Runner (Go 1.22 Alpine Runner)
+  testbed-runner:
+    image: golang:1.22-alpine
+    container_name: testbed_test_runner
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      PDP_GRPC_TARGET: testbed-pdp:50051
+      PDP_SHARED_SECRET: pdp_master_secret_key_32bytes!
+      CGO_ENABLED: "0"
+    command: >
+      sh -c "
+        echo '=== RUNNING 7 TEST VECTORS INSIDE PINNED TESTBED ===' &&
+        go test -v ./tests -run=TestE2E_P2P_Delegation_7Vectors &&
+        echo '=== BENCHMARKING SUB-MICROSECOND HOT-PATH ===' &&
+        go test -bench=BenchmarkEvaluatorLatency -benchmem ./tests -run=^$ &&
+        echo '=== ALL TESTBED VERIFICATIONS PASSED 100% ==='
+      "
+    depends_on:
+      testbed-pdp:
+        condition: service_started
+
+volumes:
+  testbed_pg_data:

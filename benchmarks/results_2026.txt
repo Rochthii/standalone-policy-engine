@@ -1,0 +1,28 @@
+﻿=== RUN   TestE2E_P2P_Delegation_7Vectors
+=== RUN   TestE2E_P2P_Delegation_7Vectors/TC-01:_Manager_self-approves_own_PO_->_DENY_(SoD)
+=== RUN   TestE2E_P2P_Delegation_7Vectors/TC-02:_AI_Agent_approves_PO_created_by_Delegator_->_DENY_(SoD_Chain)
+=== RUN   TestE2E_P2P_Delegation_7Vectors/TC-03:_AI_Agent_autonomous_PO_approval_<=_$2,000_->_ALLOW
+=== RUN   TestE2E_P2P_Delegation_7Vectors/TC-04:_AI_Agent_approves_PO_>_$2,000_->_DENY_(Guardrail_Limit)
+=== RUN   TestE2E_P2P_Delegation_7Vectors/TC-05:_Tampered_Amount_in_Proof_->_403_PermissionDenied
+2026/09/03 18:00:06 [Security] Delegation HMAC verification failed for grant grant-tc05
+=== RUN   TestE2E_P2P_Delegation_7Vectors/TC-06:_Revoked_Grant_on_RAM_->_DENY_(TOCTOU_Defense)
+2026/09/03 18:00:06 [Security] Delegation grant grant-revoked-ram revoked by user:manager_bob (tenant=tenant-odoo)
+2026/09/03 18:00:06 [Security] TOCTOU Violation: Delegation grant grant-revoked-ram is revoked
+=== RUN   TestE2E_P2P_Delegation_7Vectors/TC-07:_Expired_TTL_Proof_->_403_PermissionDenied
+2026/09/03 18:00:06 [Security] Delegation HMAC verification failed for grant grant-expired-ttl
+--- PASS: TestE2E_P2P_Delegation_7Vectors (0.00s)
+    --- PASS: TestE2E_P2P_Delegation_7Vectors/TC-01:_Manager_self-approves_own_PO_->_DENY_(SoD) (0.00s)
+    --- PASS: TestE2E_P2P_Delegation_7Vectors/TC-02:_AI_Agent_approves_PO_created_by_Delegator_->_DENY_(SoD_Chain) (0.00s)
+    --- PASS: TestE2E_P2P_Delegation_7Vectors/TC-03:_AI_Agent_autonomous_PO_approval_<=_$2,000_->_ALLOW (0.00s)
+    --- PASS: TestE2E_P2P_Delegation_7Vectors/TC-04:_AI_Agent_approves_PO_>_$2,000_->_DENY_(Guardrail_Limit) (0.00s)
+    --- PASS: TestE2E_P2P_Delegation_7Vectors/TC-05:_Tampered_Amount_in_Proof_->_403_PermissionDenied (0.00s)
+    --- PASS: TestE2E_P2P_Delegation_7Vectors/TC-06:_Revoked_Grant_on_RAM_->_DENY_(TOCTOU_Defense) (0.00s)
+    --- PASS: TestE2E_P2P_Delegation_7Vectors/TC-07:_Expired_TTL_Proof_->_403_PermissionDenied (0.00s)
+goos: windows
+goarch: amd64
+pkg: standalone-policy-engine/tests
+cpu: 13th Gen Intel(R) Core(TM) i7-13700H
+BenchmarkEvaluatorLatency
+BenchmarkEvaluatorLatency-20    	 2439717	       584.4 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	standalone-policy-engine/tests	6.359s
