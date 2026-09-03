@@ -168,6 +168,7 @@ when {
 > 2. **Toán tử `contains` cho SoD:** Trong lõi `evaluator.go`, toán tử `in` chỉ áp dụng cho CIDR IP và Role DAG. Để kiểm tra phần tử trong chuỗi ủy quyền, cú pháp bắt buộc là `context.delegation_chain contains resource.creator_id`, với `delegation_chain` được PEP định dạng thành chuỗi ngăn cách bởi dấu phẩy: `"user:alice,agent:copilot"`.
 > 3. **Lộ trình Obligation 2 pha:** Trong Pha 1 (hiện tại), `Obligations` (`REQUIRE_HUMAN_APPROVAL`) được tầng Decision Synthesizer ánh xạ dựa trên `matched_policy_id`. Trong Pha 2 (mở rộng học thuật), ngữ pháp DSL sẽ được nâng cấp để hỗ trợ trực tiếp khối `advice { ... }`.
 > 4. **Kiến trúc phân tầng bảo vệ 27ns:** Việc xác thực chữ ký số `delegation_proof` (HMAC-SHA256) và kiểm tra In-Memory Revocation Blacklist $O(1)$ được thực thi tại **gRPC Security Interceptor** (tầng Gateway) để bảo vệ ranh giới niềm tin (Trust Boundary), giữ cho lõi đánh giá In-Memory Evaluator đạt vận tốc 27ns và Zero-Alloc.
+> 5. **Cơ chế phân giải thuộc tính (Scope Resolution):** Lõi `evaluator.go:131-137` tự động tìm key có tiền tố `resource.<field>` trước, sau đó mới fallback sang `<field>`. Odoo PEP trích xuất dữ liệu từ ORM và bơm sẵn vào request context (`resource.creator_id: "user:alice"`), PDP không bao giờ truy vấn ngược lại CSDL ERP trên đường truyền nóng.
 
 ---
 
