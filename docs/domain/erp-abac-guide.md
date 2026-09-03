@@ -151,13 +151,23 @@ forbid(
 when {
     context.amount > 2000
 };
+
+// 3. Rào chắn SoD tổng quát: Cấm duyệt nếu người tạo nằm trong chuỗi ủy quyền
+forbid(
+    principal == any,
+    action    == action:APPROVE_PO,
+    resource  == any
+)
+when {
+    context.delegation_chain contains resource.creator_id
+};
 ```
 
-> ⚠️ **BẤT BIẾN KỸ THUẬT QUAN TRỌNG VỀ SERIALIZE SỐ NGUYÊN:**
-> Lõi `evaluator.go` giải mã các thuộc tính số bằng hàm `strconv.ParseInt(val, 10, 64)`.
-> * **CẤM:** Tuyệt đối không gửi chuỗi tiền tệ định dạng giao diện có dấu chấm/phẩy phân cách hàng nghìn (như `"50.000.000"` VNĐ hay `"50,000,000"` USD).
-> * **HẬU QUẢ BẢO MẬT:** Khi gặp dấu chấm/phẩy, `ParseInt` sẽ báo lỗi $\to$ điều kiện `context.amount > 2000` âm thầm trả về `false` $\to$ **Luật cấm (forbid) bị vượt mặt (Bypass), tạo lỗ hổng bảo mật nghiêm trọng!**
-> * **QUY TẮC:** Tầng PEP (Odoo Connector/API Gateway) bắt buộc phải serialize thuộc tính số dưới dạng số nguyên thuần túy: `"50000000"`, `"2000"`. Nếu có số lẻ (cent), quy đổi về đơn vị cơ sở nhỏ nhất (Micro-Units / Cents).
+> ⚠️ **BẤT BIẾN KỸ THUẬT QUAN TRỌNG VỀ SERIALIZE SỐ NGUYÊN & CHUỖI ỦY QUYỀN:**
+> 1. **Số nguyên thuần túy:** Lõi `evaluator.go` parse số bằng `strconv.ParseInt(val, 10, 64)`. Tuyệt đối không gửi chuỗi tiền tệ định dạng giao diện có dấu chấm/phẩy (`"50.000.000"` VNĐ). Lỗi parse sẽ làm phép so sánh `amount > 2000` trả về `false`, dẫn tới **luật cấm `forbid` bị bypass**! Tầng PEP bắt buộc phải serialize số nguyên thô: `"50000000"`, `"2000"`.
+> 2. **Toán tử `contains` cho SoD:** Trong lõi `evaluator.go`, toán tử `in` chỉ áp dụng cho CIDR IP và Role DAG. Để kiểm tra phần tử trong chuỗi ủy quyền, cú pháp bắt buộc là `context.delegation_chain contains resource.creator_id`, với `delegation_chain` được PEP định dạng thành chuỗi ngăn cách bởi dấu phẩy: `"user:alice,agent:copilot"`.
+> 3. **Lộ trình Obligation 2 pha:** Trong Pha 1 (hiện tại), `Obligations` (`REQUIRE_HUMAN_APPROVAL`) được tầng Decision Synthesizer ánh xạ dựa trên `matched_policy_id`. Trong Pha 2 (mở rộng học thuật), ngữ pháp DSL sẽ được nâng cấp để hỗ trợ trực tiếp khối `advice { ... }`.
+> 4. **Kiến trúc phân tầng bảo vệ 27ns:** Việc xác thực chữ ký số `delegation_proof` (HMAC-SHA256) và kiểm tra In-Memory Revocation Blacklist $O(1)$ được thực thi tại **gRPC Security Interceptor** (tầng Gateway) để bảo vệ ranh giới niềm tin (Trust Boundary), giữ cho lõi đánh giá In-Memory Evaluator đạt vận tốc 27ns và Zero-Alloc.
 
 ---
 
