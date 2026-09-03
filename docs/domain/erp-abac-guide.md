@@ -126,6 +126,39 @@ when {
 };
 ```
 
+### 3.5. Chốt Chặn Tiền Định Cho Tác Tử AI (AI Agent Guardrails) & Quy Chuẩn Định Dạng Số
+
+Trong kỷ nguyên ERP tự hành, các Tác tử AI (AI Copilots/Agents) thực thi lệnh gọi công cụ (Tool-Calls). PDP đóng vai trò là rào chắn tiền định (Deterministic Guardrail) ngăn ngừa tấn công Prompt Injection và ảo giác tài chính:
+
+```cedar
+// 1. Cho phép AI Agent tự động duyệt PO nhỏ trong hạn mức ủy quyền
+permit(
+    principal == agent:procurement_copilot,
+    action    == action:APPROVE_PO,
+    resource  == resource:purchase_order
+)
+when {
+    context.tool_context == "tool:auto_create_po" &&
+    context.amount <= 2000
+};
+
+// 2. Rào chắn cấm tuyệt đối AI tự ý duyệt đơn lớn vượt trần tự hành
+forbid(
+    principal == agent:procurement_copilot,
+    action    == action:APPROVE_PO,
+    resource  == resource:purchase_order
+)
+when {
+    context.amount > 2000
+};
+```
+
+> ⚠️ **BẤT BIẾN KỸ THUẬT QUAN TRỌNG VỀ SERIALIZE SỐ NGUYÊN:**
+> Lõi `evaluator.go` giải mã các thuộc tính số bằng hàm `strconv.ParseInt(val, 10, 64)`.
+> * **CẤM:** Tuyệt đối không gửi chuỗi tiền tệ định dạng giao diện có dấu chấm/phẩy phân cách hàng nghìn (như `"50.000.000"` VNĐ hay `"50,000,000"` USD).
+> * **HẬU QUẢ BẢO MẬT:** Khi gặp dấu chấm/phẩy, `ParseInt` sẽ báo lỗi $\to$ điều kiện `context.amount > 2000` âm thầm trả về `false` $\to$ **Luật cấm (forbid) bị vượt mặt (Bypass), tạo lỗ hổng bảo mật nghiêm trọng!**
+> * **QUY TẮC:** Tầng PEP (Odoo Connector/API Gateway) bắt buộc phải serialize thuộc tính số dưới dạng số nguyên thuần túy: `"50000000"`, `"2000"`. Nếu có số lẻ (cent), quy đổi về đơn vị cơ sở nhỏ nhất (Micro-Units / Cents).
+
 ---
 
 ## 4. Quy Trình Tích Hợp Vào Kiến Trúc ERP
