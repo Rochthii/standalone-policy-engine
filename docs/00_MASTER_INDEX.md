@@ -15,6 +15,19 @@ docs/
 │   ├── DE_CUONG_CHI_TIET_DO_AN_TOT_NGHIEP_CHUAN_KHOA_HOC.docx  # Bản Microsoft Word chuẩn nộp Khoa
 │   └── DE_CUONG_CHI_TIET_DO_AN_TOT_NGHIEP_CHUAN_KHOA_HOC.pdf   # Bản PDF xuất bản chuẩn học thuật
 │
+├── 📑 technical-spec/                 # BỘ 11 TÀI LIỆU KỸ THUẬT & NGHIỆM THU ĐỒ ÁN (SPEC SUITE)
+│   ├── ARCH_SPEC.md                   # Kiến trúc hệ thống, data flow & ma trận trách nhiệm
+│   ├── PROTOCOL_CONTRACT.md           # Hợp đồng gRPC Protobuf, scope resolution & JSON payload
+│   ├── SECURITY_INVARIANTS.md         # Mô hình toán Bộ ngũ Delta, 3 bất biến & TOCTOU O(1)
+│   ├── EVALUATION_MATRIX.md           # 7 kịch bản kiểm thử biên, đối soát baseline & ngân sách ns
+│   ├── PEP_ODOO_INTEGRATION.md        # Hook Odoo ORM, PID-safe client, non-rollback state machine
+│   ├── POLICY_DSL_SPEC.md             # Ngữ pháp EBNF Cedar, toán tử contains vs in, P2P seed rules
+│   ├── THREAT_MODEL.md                # Phân tích nguy cơ STRIDE + OWASP LLM06, 4 kịch bản tấn công
+│   ├── AGENT_TOOLING_SPEC.md          # Tool-Call JSON schema, ToolExecutionContext & feedback loop
+│   ├── RUNBOOK_OPS.md                 # Docker Compose, fail-closed rule, BadgerDB cold start, script
+│   ├── THESIS_CHAPTER_MAPPING.md      # Ánh xạ RQ1-RQ4 vào 5 chương Thuyết minh 100 trang & figures
+│   └── BENCHMARK_REPRODUCIBILITY.md   # Đặc tả testbed, 7 test vectors, lệnh 1 dòng tái lập 100%
+│
 ├── 🗺️ career-roadmap/                 # Lộ Trình 4 Giai Đoạn: SE + ERP + AI Vibe Coding
 │   ├── 00_OVERVIEW.md                 # Tổng quan 3 trục căn tính First Principles
 │   ├── 01_PHASE_1_ODOO_FOUNDATION.md  # Giai đoạn 1: Nắm bắt Odoo & Lập trình phân tán
