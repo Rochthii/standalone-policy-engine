@@ -8,45 +8,41 @@ import (
 
 	"standalone-policy-engine/internal/engine"
 	"standalone-policy-engine/internal/parser"
-	"standalone-policy-engine/internal/storage"
 )
 
 func TestEmbeddedPDP_TenantScoping(t *testing.T) {
-	store, _ := storage.NewStorage("postgres://postgres:postgres@localhost:5432/policy_engine_test?sslmode=disable")
-	if store == nil {
-		// Mock config with dummy storage for unit test
-		p := &EmbeddedPDP{
-			engine:         engine.NewEngine(),
-			allowedTenants: map[string]bool{"tenant-allowed": true},
-			stopChan:       make(chan struct{}),
-		}
-		defer p.Close()
+	// Mock config with in-memory engine for unit test
+	p := &EmbeddedPDP{
+		engine:         engine.NewEngine(),
+		allowedTenants: map[string]bool{"tenant-allowed": true},
+		stopChan:       make(chan struct{}),
+	}
+	defer p.Close()
 
-		// Nạp chính sách mẫu vào engine
-		compiler := parser.NewCompiler()
-		l := parser.NewLexer(`permit(principal == user:"alice", action == action:READ, resource == any);`)
-		pr := parser.NewParser(l)
-		nodes := pr.Parse()
-		nodes[0].ID = "P-1"
-		compiled, _ := compiler.Compile(nodes[0])
-		_ = p.engine.UpdateTenantPolicies("tenant-allowed", []*parser.PolicyNode{compiled}, nil)
+	// Nạp chính sách mẫu vào engine
+	compiler := parser.NewCompiler()
+	l := parser.NewLexer(`permit(principal == user:"alice", action == action:READ, resource == any);`)
+	pr := parser.NewParser(l)
+	nodes := pr.Parse()
+	nodes[0].ID = "P-1"
+	compiled, _ := compiler.Compile(nodes[0])
+	_ = p.engine.UpdateTenantPolicies("tenant-allowed", []*parser.PolicyNode{compiled}, nil)
 
-		ctx := context.Background()
+	ctx := context.Background()
 
-		// 1. Kiểm tra Tenant nằm trong Whitelist -> Thành công
-		res, err := p.CheckPermission(ctx, "tenant-allowed", "user:alice", "READ", "file:doc", nil)
-		if err != nil {
-			t.Fatalf("Không mong đợi lỗi cho allowed tenant: %v", err)
-		}
-		if res.Decision != engine.DecisionAllow {
-			t.Errorf("Mong đợi ALLOW, thực tế: %v", res.Decision)
-		}
+	// 1. Kiểm tra Tenant nằm trong Whitelist -> Thành công
+	res, err := p.CheckPermission(ctx, "tenant-allowed", "user:alice", "READ", "file:doc", nil)
+	if err != nil {
+		t.Fatalf("Không mong đợi lỗi cho allowed tenant: %v", err)
+	}
+	if res.Decision != engine.DecisionAllow {
+		t.Errorf("Mong đợi ALLOW, thực tế: %v", res.Decision)
+	}
 
-		// 2. Kiểm tra Tenant KHÔNG nằm trong Whitelist -> Bị chặn ngay lập tức
-		_, err = p.CheckPermission(ctx, "tenant-hacker", "user:alice", "READ", "file:doc", nil)
-		if err != ErrTenantNotAllowed {
-			t.Fatalf("Mong đợi lỗi ErrTenantNotAllowed, thực tế: %v", err)
-		}
+	// 2. Kiểm tra Tenant KHÔNG nằm trong Whitelist -> Bị chặn ngay lập tức
+	_, err = p.CheckPermission(ctx, "tenant-hacker", "user:alice", "READ", "file:doc", nil)
+	if err != ErrTenantNotAllowed {
+		t.Fatalf("Mong đợi lỗi ErrTenantNotAllowed, thực tế: %v", err)
 	}
 }
 

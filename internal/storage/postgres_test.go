@@ -11,7 +11,8 @@ import (
 func TestStorage_MigrationsIntegration(t *testing.T) {
 	connStr := os.Getenv("TEST_DATABASE_URL")
 	if connStr == "" {
-		connStr = "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable"
+		t.Skip("Bo qua test tich hop Postgres vi bien TEST_DATABASE_URL chua duoc thiet lap")
+		return
 	}
 
 	// Ket noi toi database mac dinh postgres de tao/xoa database kiem thu
@@ -19,6 +20,7 @@ func TestStorage_MigrationsIntegration(t *testing.T) {
 	conn, err := pgx.Connect(ctx, connStr)
 	if err != nil {
 		t.Skipf("Bo qua test tich hop Postgres: khong the ket noi toi %s: %v", connStr, err)
+		return
 	}
 	defer conn.Close(ctx)
 

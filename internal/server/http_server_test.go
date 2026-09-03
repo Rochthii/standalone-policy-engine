@@ -17,13 +17,14 @@ func TestHTTPServer_TenantIsolation(t *testing.T) {
 	// Su dung cung secret key voi middleware_test.go
 	secret := "test-secret-key-for-sprint-6-unit-test"
 
-	store, _ := storage.NewStorage("postgres://postgres:postgres@localhost:5432/policy_engine_test?sslmode=disable")
+	var store *storage.Storage = nil
 	eng := engine.NewEngineWithGC(engine.GCConfig{
 		Enabled:     true,
 		Interval:    1 * time.Hour,
 		IdleTimeout: 1 * time.Hour,
 	})
 	srv := NewHTTPServer(store, eng)
+
 	mux := srv.ConfigureMux()
 
 	makeToken := func(tenantID string) string {
