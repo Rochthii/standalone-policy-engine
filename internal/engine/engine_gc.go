@@ -13,8 +13,8 @@ import (
 
 // tenantAccessRecord ghi nhận thời điểm truy cập cuối và số lượng chính sách cho mỗi Tenant.
 type tenantAccessRecord struct {
-	lastAccess  time.Time
-	policyCount int
+	lastAccessNano atomic.Int64 // Unix nanoseconds
+	policyCount    atomic.Int64
 }
 
 // GCConfig chứa cấu hình cho cơ chế GC dọn dẹp RAM của Engine.
@@ -262,9 +262,9 @@ func (e *EngineWithGC) SimulateDecision(ctx context.Context, tenantID string, si
 func (e *EngineWithGC) touchTenant(tenantID string, policyCount int) {
 	record, _ := e.accessRecords.LoadOrStore(tenantID, &tenantAccessRecord{})
 	r := record.(*tenantAccessRecord)
-	r.lastAccess = time.Now()
+	r.lastAccessNano.Store(time.Now().UnixNano())
 	if policyCount > 0 {
-		r.policyCount = policyCount
+		r.policyCount.Store(int64(policyCount))
 	}
 }
 
@@ -286,13 +286,15 @@ func (e *EngineWithGC) gcWorker(ctx context.Context) {
 }
 
 func (e *EngineWithGC) runGCCycle() {
-	now := time.Now()
+	nowNano := time.Now().UnixNano()
+	idleNano := e.maxIdleTime.Nanoseconds()
 	toUnload := make([]string, 0)
 
 	e.accessRecords.Range(func(key, value interface{}) bool {
 		tenantID := key.(string)
 		record := value.(*tenantAccessRecord)
-		if now.Sub(record.lastAccess) > e.maxIdleTime {
+		lastAccess := record.lastAccessNano.Load()
+		if nowNano-lastAccess > idleNano {
 			toUnload = append(toUnload, tenantID)
 		}
 		return true
