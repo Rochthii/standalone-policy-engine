@@ -71,7 +71,6 @@ type RevokeResponse struct {
 	Message   string `json:"message,omitempty"`
 }
 
-
 // Các phương thức tương thích protobuf interface cơ bản để có thể compile
 func (x *CheckAccessRequest) Reset()         { *x = CheckAccessRequest{} }
 func (x *CheckAccessRequest) String() string { return "" }
@@ -100,7 +99,6 @@ func (*RevokeRequest) ProtoMessage()    {}
 func (x *RevokeResponse) Reset()         { *x = RevokeResponse{} }
 func (x *RevokeResponse) String() string { return "" }
 func (*RevokeResponse) ProtoMessage()    {}
-
 
 type jsonCodec struct{}
 

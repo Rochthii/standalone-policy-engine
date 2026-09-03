@@ -1,9 +1,9 @@
 package engine
 
 import (
+	"standalone-policy-engine/internal/parser"
 	"sync/atomic"
 	"unsafe"
-	"standalone-policy-engine/internal/parser"
 )
 
 // EngineState chứa toàn bộ trạng thái của Data Plane (PDP) trên bộ nhớ RAM.

@@ -39,12 +39,12 @@ type BatchWriter interface {
 
 // AuditLogger quản lý luồng xuất log kiểm toán NDJSON Zero-Allocation
 // bắn dữ liệu qua Non-blocking UDP Unix Domain Socket (unixgram) hoặc io.Writer.
-// 
+//
 // ⚖️ THIẾT KẾ KIẾN TRÚC CLOUD-NATIVE:
-// - Đạt 0 Heap Allocations trên Hot-Path thông qua sync.Pool byte slice.
-// - Định dạng Newline Delimited JSON (NDJSON) tương thích 100% với Vector Sidecar,
-//   Kubernetes stdout, FluentBit và ClickHouse.
-// - Bổ sung trường RevisionID để phục vụ truy vết Eventual Consistency.
+//   - Đạt 0 Heap Allocations trên Hot-Path thông qua sync.Pool byte slice.
+//   - Định dạng Newline Delimited JSON (NDJSON) tương thích 100% với Vector Sidecar,
+//     Kubernetes stdout, FluentBit và ClickHouse.
+//   - Bổ sung trường RevisionID để phục vụ truy vết Eventual Consistency.
 type AuditLogger struct {
 	writer   io.Writer
 	conn     net.Conn

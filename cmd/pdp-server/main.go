@@ -153,5 +153,3 @@ func main() {
 	}
 	log.Println("[PDP-Server] Dừng dịch vụ hoàn tất. Tạm biệt!")
 }
-
-

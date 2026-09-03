@@ -132,5 +132,3 @@ func PrintHealthTable(health *pectl.HealthResp) {
 	}
 	_ = w.Flush()
 }
-
-

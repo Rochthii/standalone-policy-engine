@@ -115,7 +115,6 @@ func locateMigrationsDir() (string, error) {
 	return "", fmt.Errorf("không tìm thấy thư mục db/migrations bắt đầu từ %s", dir)
 }
 
-
 // CreateTenant tạo mới một Tenant và trả về UUID ID.
 func (s *Storage) CreateTenant(ctx context.Context, name string) (string, error) {
 	var id string
@@ -209,7 +208,7 @@ func (s *Storage) GetPolicy(ctx context.Context, policyID string) (*DBPolicy, er
 	query := `SELECT id, tenant_id, effect, policy_text, ast_json, version, status, created_at, updated_at 
               FROM policies WHERE id = $1;`
 	row := s.pool.QueryRow(ctx, query, policyID)
-	
+
 	p := &DBPolicy{}
 	err := row.Scan(&p.ID, &p.TenantID, &p.Effect, &p.PolicyText, &p.ASTJSON, &p.Version, &p.Status, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {

@@ -25,7 +25,7 @@ func (d Decision) String() string {
 // Obligation đại diện cho một nghĩa vụ hoặc rào chắn bắt buộc mà PEP/Caller phải thực thi
 // (ví dụ: yêu cầu con người phê duyệt, che giấu dữ liệu nhạy cảm, ghi log kiểm toán mở rộng).
 type Obligation struct {
-	Type    string            `json:"type"`    // REQUIRE_HUMAN_APPROVAL, MASK_ATTRIBUTES, AUDIT_SENSITIVE_TOOL_CALL
+	Type    string            `json:"type"` // REQUIRE_HUMAN_APPROVAL, MASK_ATTRIBUTES, AUDIT_SENSITIVE_TOOL_CALL
 	Message string            `json:"message"`
 	Payload map[string]string `json:"payload,omitempty"`
 }
@@ -201,4 +201,3 @@ func evaluatePermission(ctx context.Context, trie *TrieRoot, subject, action, re
 		Explanations: emptyExplanations,
 	}
 }
-

@@ -24,10 +24,10 @@ func TestStorage_MigrationsIntegration(t *testing.T) {
 
 	// Ten database kiem thu tam thoi
 	testDBName := "policy_engine_migration_test"
-	
+
 	// Xoa neu da ton tai
 	_, _ = conn.Exec(ctx, "DROP DATABASE IF EXISTS "+testDBName)
-	
+
 	// Tao database moi
 	_, err = conn.Exec(ctx, "CREATE DATABASE "+testDBName)
 	if err != nil {

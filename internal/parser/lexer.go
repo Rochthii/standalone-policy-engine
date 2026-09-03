@@ -63,13 +63,13 @@ type Token struct {
 // Lexer thực hiện quét chuỗi nguồn đầu vào và trả về luồng các token.
 type Lexer struct {
 	input        []rune
-	position     int      // Vị trí hiện tại trong input (chỉ tới ký tự ch)
-	readPosition int      // Vị trí đọc tiếp theo (sau ch)
-	ch           rune     // Ký tự hiện tại đang xét
-	line         int      // Dòng hiện tại (1-indexed)
-	col          int      // Cột hiện tại (1-indexed)
-	inCondition  bool     // Trạng thái Stateful Lexer: true nếu nằm trong mệnh đề { ... }
-	braceCount   int      // Đếm số lượng dấu ngoặc nhọn để biết khi nào thoát khỏi condition
+	position     int  // Vị trí hiện tại trong input (chỉ tới ký tự ch)
+	readPosition int  // Vị trí đọc tiếp theo (sau ch)
+	ch           rune // Ký tự hiện tại đang xét
+	line         int  // Dòng hiện tại (1-indexed)
+	col          int  // Cột hiện tại (1-indexed)
+	inCondition  bool // Trạng thái Stateful Lexer: true nếu nằm trong mệnh đề { ... }
+	braceCount   int  // Đếm số lượng dấu ngoặc nhọn để biết khi nào thoát khỏi condition
 }
 
 // NewLexer tạo mới một instance Lexer.
@@ -313,7 +313,7 @@ func (l *Lexer) readString() string {
 // readNumberOrIP quét một chuỗi các ký số.
 func (l *Lexer) readNumberOrIP() (string, TokenType) {
 	start := l.position
-	
+
 	// Đọc chuỗi chữ số đầu tiên
 	for isDigit(l.ch) {
 		l.readChar()
@@ -334,7 +334,7 @@ func (l *Lexer) readNumberOrIP() (string, TokenType) {
 				l.readChar()
 			}
 		}
-		
+
 		// Hỗ trợ dải mạng CIDR (ví dụ: /24)
 		if l.ch == '/' {
 			l.readChar() // bỏ qua dấu /
@@ -345,7 +345,7 @@ func (l *Lexer) readNumberOrIP() (string, TokenType) {
 				l.readChar()
 			}
 		}
-		
+
 		return string(l.input[start:l.position]), TokIP
 	}
 

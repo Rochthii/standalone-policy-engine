@@ -67,10 +67,11 @@ services:
       testbed-pdp:
         condition: service_started
 
-  # 4. Automated 7 Test Vectors Runner (Go 1.22 Alpine Runner)
+  # 4. Automated 7 Test Vectors Runner (Go Alpine Runner)
   testbed-runner:
-    image: golang:1.22-alpine
+    image: golang:alpine
     container_name: testbed_test_runner
+
     working_dir: /app
     volumes:
       - .:/app

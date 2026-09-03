@@ -73,7 +73,6 @@ func (UnimplementedPolicyDecisionPointServer) RevokeDelegation(context.Context, 
 	return nil, status.Errorf(codes.Unimplemented, "method RevokeDelegation not implemented")
 }
 
-
 func RegisterPolicyDecisionPointServer(s grpc.ServiceRegistrar, srv PolicyDecisionPointServer) {
 	s.RegisterService(&PolicyDecisionPoint_ServiceDesc, srv)
 }
@@ -152,4 +151,3 @@ func _PolicyDecisionPoint_RevokeDelegation_Handler(srv interface{}, ctx context.
 	}
 	return interceptor(ctx, in, info, handler)
 }
-

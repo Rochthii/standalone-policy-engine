@@ -13,8 +13,8 @@ import (
 
 // tenantAccessRecord ghi nhận thời điểm truy cập cuối và số lượng chính sách cho mỗi Tenant.
 type tenantAccessRecord struct {
-	lastAccess   time.Time
-	policyCount  int
+	lastAccess  time.Time
+	policyCount int
 }
 
 // GCConfig chứa cấu hình cho cơ chế GC dọn dẹp RAM của Engine.
@@ -241,7 +241,7 @@ func (e *EngineWithGC) UnloadTenant(tenantID string) {
 // SimulateDecision đánh giá phân quyền giả lập với một chính sách thử nghiệm mà không làm thay đổi state.
 func (e *EngineWithGC) SimulateDecision(ctx context.Context, tenantID string, simPolicy *parser.PolicyNode, subject, action, resource string, ctxMap map[string]string) DecisionResult {
 	trie, exists := e.GetTenantTrie(ctx, tenantID)
-	
+
 	simTrie := NewTrieRoot(tenantID)
 	if exists && trie != nil {
 		for k, v := range trie.Subjects {

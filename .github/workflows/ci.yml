@@ -24,7 +24,7 @@ jobs:
       - name: Build all packages
         run: go build ./...
 
-  # ── Job 2: Vet + Format check ──────────────────────────────────────────
+  # ── Job 2: Vet & Format check ──────────────────────────────────────────
   vet:
     name: Vet & Format
     runs-on: ubuntu-latest
@@ -50,7 +50,7 @@ jobs:
             exit 1
           fi
 
-  # ── Job 3: Unit Tests (in-memory, không cần DB/Redis) ─────────────────
+  # ── Job 3: Unit Tests (in-memory, không cần DB) ───────────────────────
   unit-test:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -65,11 +65,29 @@ jobs:
           cache-dependency-path: go.sum
 
       - name: Run unit tests (race detector)
-        run: go test -v -race -count=1 ./internal/...
+        run: go test -v -race -count=1 ./internal/... ./pkg/...
 
-  # ── Job 4: Benchmark (in-memory decision engine) ───────────────────────
+  # ── Job 4: E2E 7 Delegation Vectors & ERP Scenarios ───────────────────
+  e2e-delegation:
+    name: 7 E2E Delegation Vectors & ERP ABAC
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Run 7 Delegation Vectors & AI Guardrails
+        run: |
+          go test -v -count=1 ./tests -run="TestE2E_P2P_Delegation_7Vectors|TestAIAgent|TestERP|TestDelegation"
+
+  # ── Job 5: Benchmark (in-memory decision engine) ───────────────────────
   benchmark:
-    name: Benchmark
+    name: Benchmark Hot-Path
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -83,7 +101,7 @@ jobs:
 
       - name: Run benchmarks
         run: |
-          go test -bench=. -benchmem -benchtime=5s -count=1 ./tests/... \
+          go test -bench=BenchmarkEvaluatorLatency -benchmem -benchtime=2s -count=1 -run=^$ ./tests/... \
             | tee benchmark_results.txt
           cat benchmark_results.txt
 

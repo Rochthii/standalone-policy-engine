@@ -2,9 +2,9 @@ package storage
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 	"time"
-	"os"
 )
 
 func TestBadgerStoreSaveAndLoad(t *testing.T) {

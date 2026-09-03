@@ -8,8 +8,8 @@ import (
 	"standalone-policy-engine/internal/engine"
 	"standalone-policy-engine/internal/parser"
 )
-func TestDummy(t *testing.T) {}
 
+func TestDummy(t *testing.T) {}
 
 // BenchmarkEvaluatorLatency đo lường độ trễ (Latency) trực tiếp của PDP Engine
 // khi thực hiện quyết định phân quyền CheckPermission trên bộ nhớ RAM.
@@ -20,7 +20,7 @@ func BenchmarkEvaluatorLatency(b *testing.B) {
 	// 1. Tạo tập dữ liệu 1000 chính sách ngẫu nhiên của Tenant
 	tenantID := "tenant-benchmark"
 	policies := make([]*parser.PolicyNode, 1000)
-	
+
 	// Tạo chính sách cho phép cụ thể
 	for i := 0; i < 990; i++ {
 		dsl := fmt.Sprintf(`permit(principal == user:"user_%d", action == action:READ, resource == file:"doc_%d")
@@ -80,7 +80,7 @@ func BenchmarkEvaluatorLatency(b *testing.B) {
 		resource := resList[userID]
 
 		res := eng.CheckPermission(context.Background(), tenantID, subject, "action:READ", resource, reqCtx)
-		
+
 		// Đo lường kết quả để tránh trình biên dịch Go optimize bỏ qua vòng lặp
 		if userID < 990 {
 			if res.Decision != engine.DecisionAllow {

@@ -15,11 +15,11 @@ import (
 
 // APIError represents the RFC 7807 problem details structure.
 type APIError struct {
-	Type     string `json:"type"`
-	Title    string `json:"title"`
-	Status   int    `json:"status"`
-	Detail   string `json:"detail"`
-	Instance string `json:"instance"`
+	Type          string `json:"type"`
+	Title         string `json:"title"`
+	Status        int    `json:"status"`
+	Detail        string `json:"detail"`
+	Instance      string `json:"instance"`
 	InvalidParams []struct {
 		Name   string `json:"name"`
 		Reason string `json:"reason"`

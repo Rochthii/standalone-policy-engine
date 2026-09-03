@@ -79,11 +79,11 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 			Action:   "action:APPROVE_PURCHASE_ORDER",
 			Resource: "purchase_order:PO-2026-001",
 			Context: map[string]string{
-				"amount":                  "4500",
-				"delegation_chain":        "user:manager_bob",
-				"resource.creator_id":     "user:manager_bob",
-				"principal.department":    "Procurement",
-				"resource.department":     "Procurement",
+				"amount":               "4500",
+				"delegation_chain":     "user:manager_bob",
+				"resource.creator_id":  "user:manager_bob",
+				"principal.department": "Procurement",
+				"resource.department":  "Procurement",
 			},
 		}
 		res, err := srv.CheckAccess(ctx, req)
@@ -111,15 +111,15 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 			Action:   "action:APPROVE_PURCHASE_ORDER",
 			Resource: "purchase_order:PO-2026-002",
 			Context: map[string]string{
-				"amount":                  amount,
-				"delegation_grant_id":     grantID,
+				"amount":                 amount,
+				"delegation_grant_id":    grantID,
 				"delegated_by":           delegator,
 				"delegation_valid_until": validUntil,
 				"delegation_proof":       proof,
-				"delegation_chain":        "user:manager_bob,agent:procurement_copilot",
-				"resource.creator_id":     "user:manager_bob", // Trùng với Delegator trong chuỗi
-				"tool_context":            "tool:auto_confirm_po",
-				"execution_mode":          "autonomous_run",
+				"delegation_chain":       "user:manager_bob,agent:procurement_copilot",
+				"resource.creator_id":    "user:manager_bob", // Trùng với Delegator trong chuỗi
+				"tool_context":           "tool:auto_confirm_po",
+				"execution_mode":         "autonomous_run",
 			},
 		}
 		res, err := srv.CheckAccess(ctx, req)
@@ -147,15 +147,15 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 			Action:   "action:APPROVE_PURCHASE_ORDER",
 			Resource: "purchase_order:PO-2026-003",
 			Context: map[string]string{
-				"amount":                  amount,
-				"delegation_grant_id":     grantID,
+				"amount":                 amount,
+				"delegation_grant_id":    grantID,
 				"delegated_by":           delegator,
 				"delegation_valid_until": validUntil,
 				"delegation_proof":       proof,
-				"delegation_chain":        "user:manager_bob,agent:procurement_copilot",
-				"resource.creator_id":     "user:staff_alice", // Alice tạo -> Hợp lệ SoD
-				"tool_context":            "tool:auto_confirm_po",
-				"execution_mode":          "autonomous_run",
+				"delegation_chain":       "user:manager_bob,agent:procurement_copilot",
+				"resource.creator_id":    "user:staff_alice", // Alice tạo -> Hợp lệ SoD
+				"tool_context":           "tool:auto_confirm_po",
+				"execution_mode":         "autonomous_run",
 			},
 		}
 		res, err := srv.CheckAccess(ctx, req)
@@ -183,15 +183,15 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 			Action:   "action:APPROVE_PURCHASE_ORDER",
 			Resource: "purchase_order:PO-2026-004",
 			Context: map[string]string{
-				"amount":                  amount,
-				"delegation_grant_id":     grantID,
+				"amount":                 amount,
+				"delegation_grant_id":    grantID,
 				"delegated_by":           delegator,
 				"delegation_valid_until": validUntil,
 				"delegation_proof":       proof,
-				"delegation_chain":        "user:manager_bob,agent:procurement_copilot",
-				"resource.creator_id":     "user:staff_alice",
-				"tool_context":            "tool:auto_confirm_po",
-				"execution_mode":          "autonomous_run",
+				"delegation_chain":       "user:manager_bob,agent:procurement_copilot",
+				"resource.creator_id":    "user:staff_alice",
+				"tool_context":           "tool:auto_confirm_po",
+				"execution_mode":         "autonomous_run",
 			},
 		}
 		res, err := srv.CheckAccess(ctx, req)
@@ -219,15 +219,15 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 			Action:   "action:APPROVE_PURCHASE_ORDER",
 			Resource: "purchase_order:PO-2026-005",
 			Context: map[string]string{
-				"amount":                  "50000", // Kẻ tấn công sửa context.amount thành 50,000
-				"delegation_grant_id":     grantID,
+				"amount":                 "50000", // Kẻ tấn công sửa context.amount thành 50,000
+				"delegation_grant_id":    grantID,
 				"delegated_by":           delegator,
 				"delegation_valid_until": validUntil,
 				"delegation_proof":       proof,
-				"delegation_chain":        "user:manager_bob,agent:procurement_copilot",
-				"resource.creator_id":     "user:staff_alice",
-				"tool_context":            "tool:auto_confirm_po",
-				"execution_mode":          "autonomous_run",
+				"delegation_chain":       "user:manager_bob,agent:procurement_copilot",
+				"resource.creator_id":    "user:staff_alice",
+				"tool_context":           "tool:auto_confirm_po",
+				"execution_mode":         "autonomous_run",
 			},
 		}
 		_, err := srv.CheckAccess(ctx, req)
@@ -269,15 +269,15 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 			Action:   "action:APPROVE_PURCHASE_ORDER",
 			Resource: "purchase_order:PO-2026-006",
 			Context: map[string]string{
-				"amount":                  amount,
-				"delegation_grant_id":     grantID,
+				"amount":                 amount,
+				"delegation_grant_id":    grantID,
 				"delegated_by":           delegator,
 				"delegation_valid_until": validUntil,
 				"delegation_proof":       proof,
-				"delegation_chain":        "user:manager_bob,agent:procurement_copilot",
-				"resource.creator_id":     "user:staff_alice",
-				"tool_context":            "tool:auto_confirm_po",
-				"execution_mode":          "autonomous_run",
+				"delegation_chain":       "user:manager_bob,agent:procurement_copilot",
+				"resource.creator_id":    "user:staff_alice",
+				"tool_context":           "tool:auto_confirm_po",
+				"execution_mode":         "autonomous_run",
 			},
 		}
 		res, err := srv.CheckAccess(ctx, req)
@@ -308,15 +308,15 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 			Action:   "action:APPROVE_PURCHASE_ORDER",
 			Resource: "purchase_order:PO-2026-007",
 			Context: map[string]string{
-				"amount":                  amount,
-				"delegation_grant_id":     grantID,
+				"amount":                 amount,
+				"delegation_grant_id":    grantID,
 				"delegated_by":           delegator,
 				"delegation_valid_until": pastUntil,
 				"delegation_proof":       proof,
-				"delegation_chain":        "user:manager_bob,agent:procurement_copilot",
-				"resource.creator_id":     "user:staff_alice",
-				"tool_context":            "tool:auto_confirm_po",
-				"execution_mode":          "autonomous_run",
+				"delegation_chain":       "user:manager_bob,agent:procurement_copilot",
+				"resource.creator_id":    "user:staff_alice",
+				"tool_context":           "tool:auto_confirm_po",
+				"execution_mode":         "autonomous_run",
 			},
 		}
 		_, err := srv.CheckAccess(ctx, req)

@@ -47,7 +47,6 @@ func NewGRPCServer(eng *engine.EngineWithGC, logger *audit.AuditLogger) *GRPCSer
 	}
 }
 
-
 // validateTenantAndGetClaims trích xuất, xác thực JWT và kiểm tra tenant isolation.
 func (s *GRPCServer) validateTenantAndGetClaims(ctx context.Context, tenantID string) (jwt.MapClaims, error) {
 	if s.jwtValidator == nil {
@@ -147,7 +146,6 @@ func (s *GRPCServer) CheckAccess(ctx context.Context, req *policyv1.CheckAccessR
 
 	// 1. Thực hiện đánh giá quyết định trên RAM thông qua Engine
 	res := s.engine.CheckPermission(ctx, req.TenantId, req.Subject, req.Action, req.Resource, req.Context)
-
 
 	if err := ctx.Err(); err != nil {
 		if err == context.DeadlineExceeded {
@@ -320,7 +318,6 @@ func (s *GRPCServer) RevokeDelegation(ctx context.Context, req *policyv1.RevokeR
 // mTLS được bật tự động khi biến môi trường PDP_TLS_CERT, PDP_TLS_KEY, PDP_TLS_CA được đặt.
 func StartGRPCServer(lis net.Listener, eng *engine.EngineWithGC, logger *audit.AuditLogger) (*grpc.Server, error) {
 
-
 	// Cấu hình Keepalive parameters tối ưu persistent connection siêu tốc
 	kaep := keepalive.EnforcementPolicy{
 		MinTime:             5 * time.Second, // Thời gian tối thiểu giữa các lần ping keepalive
@@ -427,4 +424,3 @@ func loadMTLSServerCredentials(certFile, keyFile, caFile string) (credentials.Tr
 
 	return credentials.NewTLS(tlsCfg), nil
 }
-

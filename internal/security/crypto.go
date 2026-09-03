@@ -23,7 +23,7 @@ func NewEnvelopeCrypto() (*EnvelopeCrypto, error) {
 		// KEK mac dinh phai co do dai dung 32 bytes cho AES-256
 		kekStr = "default-policy-engine-kek-key-32b"
 	}
-	
+
 	kekBytes := []byte(kekStr)
 	if len(kekBytes) != 32 {
 		// Neu khong du 32 bytes thi pad hoac cat de dam bao an toan

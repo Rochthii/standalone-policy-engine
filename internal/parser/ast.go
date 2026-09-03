@@ -87,8 +87,8 @@ type ScopeOp uint8
 
 const (
 	ScopeOpEq  ScopeOp = iota + 1 // == (so khớp tuyệt đối)
-	ScopeOpIn                      // in (so khớp phân cấp vai trò)
-	ScopeOpAny                     // any (áp dụng cho tất cả)
+	ScopeOpIn                     // in (so khớp phân cấp vai trò)
+	ScopeOpAny                    // any (áp dụng cho tất cả)
 )
 
 // ---------------------------------------------------------------------------
@@ -116,12 +116,12 @@ func (s *ScopeNode) Pos() Position  { return s.pos }
 // PolicyNode là nút gốc (Root Node) đại diện cho một câu chính sách hoàn chỉnh.
 // Mỗi file chính sách có thể chứa nhiều PolicyNode (một mảng các PolicyNode).
 type PolicyNode struct {
-	ID        string     // Mã định danh duy nhất của chính sách (tự sinh hoặc do Control Plane cấp)
-	TenantID  string     // ID của Tenant sở hữu chính sách này (đảm bảo cô lập đa khách thuê)
-	Effect    Effect     // Hiệu lực: EffectPermit hoặc EffectForbid
-	Principal *ScopeNode // Điều khoản phạm vi principal
-	Action    *ScopeNode // Điều khoản phạm vi action
-	Resource  *ScopeNode // Điều khoản phạm vi resource
+	ID                 string     // Mã định danh duy nhất của chính sách (tự sinh hoặc do Control Plane cấp)
+	TenantID           string     // ID của Tenant sở hữu chính sách này (đảm bảo cô lập đa khách thuê)
+	Effect             Effect     // Hiệu lực: EffectPermit hoặc EffectForbid
+	Principal          *ScopeNode // Điều khoản phạm vi principal
+	Action             *ScopeNode // Điều khoản phạm vi action
+	Resource           *ScopeNode // Điều khoản phạm vi resource
 	Condition          Node       // Biểu thức điều kiện when/unless (nil nếu không có mệnh đề điều kiện)
 	IsUnless           bool       // true nếu dùng từ khóa "unless" (đảo logic), false nếu "when"
 	ExplanationList    []string   // Pre-allocated immutable slice [ID] để đạt Zero Allocation ở Decision
@@ -174,7 +174,7 @@ type UnaryOp uint8
 
 const (
 	UnaryOpNot UnaryOp = iota + 1 // ! (phủ định logic)
-	UnaryOpNeg                     // - (phủ định số học, dùng cho Integer âm)
+	UnaryOpNeg                    // - (phủ định số học, dùng cho Integer âm)
 )
 
 // UnaryExprNode đại diện cho biểu thức phủ định.
@@ -197,8 +197,8 @@ type VarScope uint8
 
 const (
 	VarScopePrincipal VarScope = iota + 1 // principal.attr
-	VarScopeResource                       // resource.attr
-	VarScopeContext                        // context.attr
+	VarScopeResource                      // resource.attr
+	VarScopeContext                       // context.attr
 )
 
 // VariableNode đại diện cho một biến tham chiếu thuộc tính động từ context.
@@ -243,11 +243,11 @@ type ValueNode struct {
 
 	// Chỉ một trong các trường bên dưới có giá trị tùy theo ValType.
 	// Không dùng interface{} để tránh heap allocation không cần thiết.
-	StrVal      string   // ValType == ValueTypeString
-	IntVal      int64    // ValType == ValueTypeInt hoặc ValueTypeDateTime (Unix ns)
-	BoolVal     bool     // ValType == ValueTypeBool
-	IPVal       net.IP   // ValType == ValueTypeIP (đã parse)
-	IPNetVal    net.IPNet // ValType == ValueTypeIPNet (đã pre-parse, dùng cho Contains/In check)
+	StrVal   string    // ValType == ValueTypeString
+	IntVal   int64     // ValType == ValueTypeInt hoặc ValueTypeDateTime (Unix ns)
+	BoolVal  bool      // ValType == ValueTypeBool
+	IPVal    net.IP    // ValType == ValueTypeIP (đã parse)
+	IPNetVal net.IPNet // ValType == ValueTypeIPNet (đã pre-parse, dùng cho Contains/In check)
 
 	pos Position
 }

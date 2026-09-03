@@ -116,11 +116,11 @@ func TestERP_PurchaseOrderApproval(t *testing.T) {
 
 	// Case 3: Bob (Manager IT) duyệt PO 30.000.000 VNĐ phòng IT trong giờ hành chính từ IP 10.1.2.3 -> ALLOW
 	ctxBobAllow := map[string]string{
-		"principal.department": "IT",
-		"resource.department":  "IT",
-		"resource.amount":      "30000000",
-		"context.ip_address":   "10.1.2.3",
-		"context.request_time": "14:30:00Z",
+		"principal.department":  "IT",
+		"resource.department":   "IT",
+		"resource.amount":       "30000000",
+		"context.ip_address":    "10.1.2.3",
+		"context.request_time":  "14:30:00Z",
 		"context.device_status": "secure",
 	}
 	res = eng.CheckPermission(ctx, tenantID, "user:bob", "APPROVE_PO", "resource:purchase_order", ctxBobAllow)
@@ -130,11 +130,11 @@ func TestERP_PurchaseOrderApproval(t *testing.T) {
 
 	// Case 4: Bob duyệt PO 70.000.000 VNĐ -> DENY (Vượt quá hạn mức 50M của Manager)
 	ctxBobExceedLimit := map[string]string{
-		"principal.department": "IT",
-		"resource.department":  "IT",
-		"resource.amount":      "70000000",
-		"context.ip_address":   "10.1.2.3",
-		"context.request_time": "14:30:00Z",
+		"principal.department":  "IT",
+		"resource.department":   "IT",
+		"resource.amount":       "70000000",
+		"context.ip_address":    "10.1.2.3",
+		"context.request_time":  "14:30:00Z",
 		"context.device_status": "secure",
 	}
 	res = eng.CheckPermission(ctx, tenantID, "user:bob", "APPROVE_PO", "resource:purchase_order", ctxBobExceedLimit)
@@ -144,11 +144,11 @@ func TestERP_PurchaseOrderApproval(t *testing.T) {
 
 	// Case 5: Bob duyệt PO ngoài giờ hành chính (21:00:00Z) -> DENY
 	ctxBobAfterHours := map[string]string{
-		"principal.department": "IT",
-		"resource.department":  "IT",
-		"resource.amount":      "30000000",
-		"context.ip_address":   "10.1.2.3",
-		"context.request_time": "21:00:00Z",
+		"principal.department":  "IT",
+		"resource.department":   "IT",
+		"resource.amount":       "30000000",
+		"context.ip_address":    "10.1.2.3",
+		"context.request_time":  "21:00:00Z",
 		"context.device_status": "secure",
 	}
 	res = eng.CheckPermission(ctx, tenantID, "user:bob", "APPROVE_PO", "resource:purchase_order", ctxBobAfterHours)
@@ -158,8 +158,8 @@ func TestERP_PurchaseOrderApproval(t *testing.T) {
 
 	// Case 6: Charlie (Director) duyệt PO 200.000.000 VNĐ -> ALLOW
 	ctxCharlie := map[string]string{
-		"resource.amount":      "200000000",
-		"context.ip_address":   "10.5.0.1",
+		"resource.amount":       "200000000",
+		"context.ip_address":    "10.5.0.1",
 		"context.device_status": "secure",
 	}
 	res = eng.CheckPermission(ctx, tenantID, "user:charlie", "APPROVE_PO", "resource:purchase_order", ctxCharlie)
@@ -169,8 +169,8 @@ func TestERP_PurchaseOrderApproval(t *testing.T) {
 
 	// Case 7: David (CFO) duyệt PO 2.000.000.000 VNĐ -> ALLOW
 	ctxDavid := map[string]string{
-		"resource.amount":      "2000000000",
-		"context.ip_address":   "10.0.1.1",
+		"resource.amount":       "2000000000",
+		"context.ip_address":    "10.0.1.1",
 		"context.device_status": "secure",
 	}
 	res = eng.CheckPermission(ctx, tenantID, "user:david", "APPROVE_PO", "resource:purchase_order", ctxDavid)
@@ -180,8 +180,8 @@ func TestERP_PurchaseOrderApproval(t *testing.T) {
 
 	// Case 8: David (CFO) duyệt nhưng máy bị mã độc (device_status == "compromised") -> DENY (Forbid override)
 	ctxDavidCompromised := map[string]string{
-		"resource.amount":      "2000000000",
-		"context.ip_address":   "10.0.1.1",
+		"resource.amount":       "2000000000",
+		"context.ip_address":    "10.0.1.1",
 		"context.device_status": "compromised",
 	}
 	res = eng.CheckPermission(ctx, tenantID, "user:david", "APPROVE_PO", "resource:purchase_order", ctxDavidCompromised)

@@ -20,10 +20,10 @@ type BadgerStore struct {
 
 // PolicySnapshot là cấu trúc dữ liệu lưu trữ bản sao JSON tập chính sách của một Tenant.
 type PolicySnapshot struct {
-	TenantID    string          `json:"tenant_id"`
-	Policies    []json.RawMessage `json:"policies"`
-	Inheritances [][2]string    `json:"inheritances"`
-	SnapshotAt  time.Time       `json:"snapshot_at"`
+	TenantID     string            `json:"tenant_id"`
+	Policies     []json.RawMessage `json:"policies"`
+	Inheritances [][2]string       `json:"inheritances"`
+	SnapshotAt   time.Time         `json:"snapshot_at"`
 }
 
 // NewBadgerStore khởi tạo database BadgerDB cục bộ tại đường dẫn chỉ định.

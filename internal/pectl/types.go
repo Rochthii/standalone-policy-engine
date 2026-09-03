@@ -63,11 +63,11 @@ type SimulatePolicy struct {
 
 // SimulateResp represents the simulation response.
 type SimulateResp struct {
-	SimulatedDecision string    `json:"simulated_decision"`
-	Reason            string    `json:"reason"`
-	MatchedPolicies   []string  `json:"matched_policies"`
-	CompileErrors     []string  `json:"compile_errors"`
-	TenantID          string    `json:"tenant_id"`
+	SimulatedDecision string   `json:"simulated_decision"`
+	Reason            string   `json:"reason"`
+	MatchedPolicies   []string `json:"matched_policies"`
+	CompileErrors     []string `json:"compile_errors"`
+	TenantID          string   `json:"tenant_id"`
 }
 
 // DecisionReq represents the request to check permission or explain decision.
@@ -137,6 +137,6 @@ type HealthComponent struct {
 
 // HealthResp represents health check details.
 type HealthResp struct {
-	Status       string                     `json:"status"` // UP, DOWN, PARTIAL
-	Components   map[string]HealthComponent `json:"components"`
+	Status     string                     `json:"status"` // UP, DOWN, PARTIAL
+	Components map[string]HealthComponent `json:"components"`
 }
