@@ -15,15 +15,18 @@
 ```
 Client / AI Agent (Odoo 17 PEP)
      │
-     ▼ (gRPC :50051 CheckAccess / ExplainDecision / RevokeDelegation)
+     ├──► [Standard ORM Transaction] ──► Postgres ERP DB
+     │
+     ▼ (Sync gRPC :50051 CheckAccess / RevokeDelegation)
 PDP Server (Data Plane)
      │
-     ├──► [Layer 1 Security Interceptor]
+     ├──► [Layer 1 Security Interceptor (< 2 µs)]
      │    ├── Anti-TOCTOU: In-Memory RevocationMap O(1) sync.Map (< 50ns)
      │    ├── Proof Verification: HMAC-SHA256 Canonical String + TTL Check
-     │    └── Tenant Isolation: claims["tenant_id"] == req.TenantId
+     │    ├── Tenant Isolation: claims["tenant_id"] == req.TenantId
+     │    └── [Fail: Tampered / Expired / Revoked] ──► [Fast DENY / 403] ──► Early Return
      │
-     ├──► [Layer 2 In-Memory Evaluation Engine]
+     ├──► [Layer 2 In-Memory Evaluation Engine] (Pass: Valid Proof)
      │    ├── In-Memory Trie O(log N) (FNV-1a 64-bit uint64 index)
      │    ├── Role DAG Closure O(1) (Pre-computed Transitive Graph)
      │    └── AST Evaluator (Zero-Alloc, sync.Pool, Bitmask IP, int64 Unix time)
@@ -35,9 +38,10 @@ Decision: ALLOW / DENY (+ Pre-compiled Obligations: REQUIRE_HUMAN_APPROVAL)
      ├──► Non-Rollback PEP State Machine in Odoo (state -> 'to approve', no DB rollback)
      │
      ▼
-Async Ring Buffer Logger ──► Postgres (pgx.CopyFrom) + AES-GCM Encrypt
+Async Ring Buffer Logger ──► Postgres PDP Audit (pgx.CopyFrom) + AES-GCM Encrypt
                              (Fallback: Spill-to-Disk ./spill-logs)
 ```
+
 
 ### Policy Sync & Distributed Resilience
 1. **Cloud-Native 100% Stateless Profile** (`STORAGE_MODE=cloud`): Boots in < 50ms with Zero-Wait Lazy Loading.

@@ -50,10 +50,11 @@ flowchart TD
     PEP["Odoo 17 PEP Addon\n(custom_addons/pdp_authorizer)\nNon-Rollback State Machine"]
     PDP["Go PDP Server (:50051)\ngRPC CheckAccess / RevokeDelegation"]
 
-    subgraph Layer1 ["Layer 1: Security Interceptor (< 50ns)"]
+    subgraph Layer1 ["Layer 1: Security Interceptor (< 2 µs)"]
         RevMap["In-Memory RevocationMap O(1)\nsync.Map (Anti-TOCTOU)"]
         HMAC["HMAC-SHA256 Canonical String\nProof & TTL Verification"]
         TenantIso["Tenant Isolation\nclaims.tenant_id == req.tenant_id"]
+        FastDeny["Fast DENY / 403\nShort-Circuit Exit"]
     end
 
     subgraph Layer2 ["Layer 2: In-Memory Engine (Lock-Free COW)"]
@@ -65,15 +66,18 @@ flowchart TD
     Postgres[("PostgreSQL 15+\nTransactional Sequence\ntenants.revision")]
 
     Client -->|"Calls Tool / button_confirm()"| PEP
+    PEP -->|"Standard ORM Transaction"| Postgres
     PEP -->|"gRPC with HMAC Proof"| PDP
     PDP --> Layer1
-    Layer1 --> Layer2
+    Layer1 -->|"Pass: Proof Valid"| Layer2
+    Layer1 -->|"Fail: Tampered / Expired / Revoked"| FastDeny
+    FastDeny -->|"Early Response (403 / DENY)"| PDP
     Layer2 -->|"ALLOW / DENY + Obligations"| PDP
     PDP -->|"Decision Response"| PEP
     PEP -->|"state -> 'to approve' (No Rollback)"| Client
 
-    PEP -.->|"action_revoke() RPC"| PDP
-    PDP -.->|"Update RevocationMap RAM"| RevMap
+    PEP -->|"action_revoke() Sync gRPC"| PDP
+    PDP -->|"Instant Write O(1)"| RevMap
 
     PDP -.->|"Async Ring Buffer (pgx.CopyFrom)"| Postgres
     Postgres -->|"LISTEN/NOTIFY Gap Catch-Up (< 50ms)"| PDP
@@ -81,7 +85,9 @@ flowchart TD
     style PDP fill:#1e3a5f,color:#fff
     style Layer1 fill:#4a154b,color:#fff
     style Layer2 fill:#0f2d25,color:#fff
+    style FastDeny fill:#7a1c1c,color:#fff
 ```
+
 
 ---
 
