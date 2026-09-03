@@ -212,8 +212,15 @@ flowchart TD
 ```
 
 #### 5.1. Dự Kiến Đóng Góp Nghiên Cứu & Kỹ Thuật (Expected Contributions)
-1. **Mô Hình Phân Quyền Ủy Quyền Cho Tác Tử AI (Delegation-Aware Agent Authorization):**
-   - Đánh giá phân quyền đa chiều kết hợp giữa định danh tác tử, chuỗi ủy quyền (`DelegationChain`), phạm vi quyền hạn (`Scope`) và ngữ cảnh thực thi công cụ (`ToolContext`).
+1. **Mô Hình Ủy Quyền Có Kiểm Soát (Constrained Delegation Tuple) Cho Tác Tử AI:**
+   - Hình thức hóa hành vi ủy quyền thành bộ 5 thành phần toán học:
+     $$\Delta = \langle \mathcal{U}_{\text{root}}, \mathcal{A}_{\text{exec}}, \Sigma_{\text{scope}}, \Omega_{\text{constraints}}, \mathcal{C}_{\text{chain}} \rangle$$
+     Trong đó, phạm vi nghiên cứu thực nghiệm khóa chặt ở **1-Hop Delegation** ($\text{Depth} = 1$: $\mathcal{U}_{\text{root}} \to \mathcal{A}_{\text{exec}}$), đồng thời cấu trúc giao thức gRPC Protobuf được thiết kế dạng mảng mở rộng sẵn sàng cho Multi-Hop ($N$-Hop) trong tương lai.
+   - **Bảo toàn tính suy giảm quyền lực theo thời gian (Time-Aware Monotonic Attenuation):**
+     $$\mathcal{P}_{\text{effective}}(\mathcal{A} \mid \mathcal{U}, t) = \mathcal{P}_{\text{active}}(\mathcal{U}, t) \cap \mathcal{S}_{\text{delegation}} \cap \Omega_{\text{guardrails}}$$
+     Tại thời điểm $t$, nếu User gốc bị đình chỉ hoặc cạn hạn mức, quyền của Agent lập tức suy biến về $\emptyset$ thông qua đánh giá trực tiếp thuộc tính ngữ cảnh trong RAM mà không cần truy vấn ngược database.
+   - **Triệt tiêu lỗ hổng TOCTOU (Time-of-Check to Time-of-Use):** Xây dựng bảng tra cứu thu hồi tức thời trong RAM (In-Memory Revocation Map $O(1)$) cập nhật dưới $1\,\mu\text{s}$ khi người dùng hủy ủy quyền trên giao diện ERP.
+   - **Bảo toàn phân tách trách nhiệm tổng quát (Generalized SoD):** Nghiêm cấm mọi sự giao thoa giữa Người tạo tài nguyên và bất kỳ mắt xích nào trong chuỗi ủy quyền của Người duyệt: $\mathcal{U}_{\text{creator}} \notin \mathcal{C}_{\text{chain}}(\text{Approver})$.
 2. **Cơ Chế Rào Chắn Tiền Định & Runtime Obligations (NIST AI RMF & OWASP LLM06):**
    - Đánh giá tức thời trong RAM: Cho phép (`ALLOW`), Từ chối vi phạm cứng (`DENY`), hoặc trả về `DENY` kèm **Runtime Obligations** (`REQUIRE_HUMAN_APPROVAL`, `AUDIT_SENSITIVE_TOOL_CALL`, `MASK_ATTRIBUTES`) để ứng dụng tự động điều hướng phê duyệt cấp trên đối với các giao dịch vượt ngưỡng tự trị.
 3. **Cấu Trúc Tra Cứu Bộ Nhớ Độ Trễ Thấp & Zero Heap Allocation Trên Hot-Path:**
