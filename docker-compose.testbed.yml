@@ -1,20 +1,18 @@
 # ============================================================================
-# STANDALONE POLICY ENGINE & ODOO 17 TESTBED (FROZEN ENVIRONMENT 2026 - 2029)
-# All base images and libraries are strictly pinned to eliminate Dependency Drift.
-# Single command reproducible testbed:
-#   docker compose -f docker-compose.testbed.yml up --abort-on-container-exit
+# STANDALONE POLICY ENGINE & ODOO 17 DEVELOPMENT TESTBED
+# The Odoo E2E profile is self-contained and verified, but base image tags still
+# require digest pinning before this can be called a frozen 2026-2029 testbed.
+# Real Odoo transaction gate: make test-odoo-e2e
 # ============================================================================
 
-version: '3.8'
-
 services:
-  # 1. PostgreSQL 15 Database (Pinned)
+  # 1. PostgreSQL 15 Database
   testbed-db:
     image: postgres:15-alpine
     container_name: testbed_postgres
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "${PDP_TESTBED_POSTGRES_PORT:-15432}:5432"
     environment:
       POSTGRES_USER: pdp_admin
       POSTGRES_PASSWORD: pdp_secret_password_2026
@@ -26,8 +24,9 @@ services:
       retries: 10
     volumes:
       - testbed_pg_data:/var/lib/postgresql/data
+      - ./deployments/docker/init-testbed-databases.sql:/docker-entrypoint-initdb.d/10-create-odoo.sql:ro
 
-  # 2. Standalone Go PDP Server Data Plane (Pinned Go 1.22 + Alpine 3.19)
+  # 2. Standalone Go PDP Server Data Plane
   testbed-pdp:
     build:
       context: .
@@ -36,39 +35,94 @@ services:
     container_name: testbed_pdp_server
     restart: unless-stopped
     ports:
-      - "50051:50051"
+      - "${PDP_TESTBED_GRPC_PORT:-15051}:50051"
     environment:
       STORAGE_MODE: cloud
       DATABASE_URL: postgres://pdp_admin:pdp_secret_password_2026@testbed-db:5432/policy_engine?sslmode=disable
-      PDP_SHARED_SECRET: pdp_master_secret_key_32bytes!
+      JWT_SECRET: testbed-jwt-secret-at-least-32-characters
+      JWT_ISSUER: standalone-policy-engine-testbed
+      JWT_AUDIENCE: standalone-policy-engine-pdp
+      PDP_DELEGATION_ACTIVE_KID: testbed-2026
+      PDP_DELEGATION_KEYS_JSON: '{"testbed-2026":"testbed-delegation-secret-at-least-32-characters"}'
       APP_PORT: "50051"
     depends_on:
       testbed-db:
         condition: service_healthy
 
-  # 3. Odoo 17.0 ERP Core (Pinned official Odoo 17)
+  # 3. Odoo 17.0 ERP Core
   testbed-odoo:
-    image: odoo:17.0
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile.odoo
+    image: standalone-pdp-odoo:17.0-client-v1
     container_name: testbed_odoo_erp
     restart: unless-stopped
     ports:
-      - "8069:8069"
+      - "${PDP_TESTBED_ODOO_PORT:-18069}:8069"
+    command: ["--database=odoo", "--db-filter=^odoo$"]
     environment:
       HOST: testbed-db
       USER: pdp_admin
       PASSWORD: pdp_secret_password_2026
       PDP_GRPC_TARGET: testbed-pdp:50051
-      PDP_SHARED_SECRET: pdp_master_secret_key_32bytes!
+      PDP_CLIENT_ENV: test
+      PDP_TENANT_ID: 00000000-0000-0000-0000-000000000017
+      PDP_JWT_SECRET: testbed-jwt-secret-at-least-32-characters
+      PDP_JWT_ISSUER: standalone-policy-engine-testbed
+      PDP_JWT_AUDIENCE: standalone-policy-engine-pdp
+      PDP_DELEGATION_ACTIVE_KID: testbed-2026
+      PDP_DELEGATION_KEYS_JSON: '{"testbed-2026":"testbed-delegation-secret-at-least-32-characters"}'
+      PYTHONPATH: /opt/pdp-clients
     volumes:
-      - ../ERP_Mastery_Hub/02_Project_2_Odoo_Go_PDP_Approval/custom_addons:/mnt/extra-addons
+      - ./custom_addons:/mnt/extra-addons:ro
+      - ./clients/python:/opt/pdp-clients:ro
     depends_on:
       testbed-db:
         condition: service_healthy
       testbed-pdp:
         condition: service_started
 
-  # 4. Automated 7 Test Vectors Runner (Go Alpine Runner)
+  # 4. Real Odoo ORM -> gRPC -> Go PDP transaction gate
+  testbed-odoo-e2e:
+    profiles: ["e2e"]
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile.odoo
+    image: standalone-pdp-odoo:17.0-client-v1
+    container_name: testbed_odoo_e2e
+    restart: "no"
+    entrypoint: ["python3", "/opt/pdp-e2e/run-odoo-e2e.py"]
+    environment:
+      HOST: testbed-db
+      USER: pdp_admin
+      PASSWORD: pdp_secret_password_2026
+      PDP_DB_HOST: testbed-db
+      PDP_GRPC_TARGET: testbed-pdp:50051
+      PDP_CLIENT_ENV: test
+      PDP_TENANT_ID: 00000000-0000-0000-0000-000000000017
+      PDP_JWT_SECRET: testbed-jwt-secret-at-least-32-characters
+      PDP_JWT_ISSUER: standalone-policy-engine-testbed
+      PDP_JWT_AUDIENCE: standalone-policy-engine-pdp
+      PDP_DELEGATION_ACTIVE_KID: testbed-2026
+      PDP_DELEGATION_KEYS_JSON: '{"testbed-2026":"testbed-delegation-secret-at-least-32-characters"}'
+      PDP_E2E_POLICY_SQL: /opt/pdp-e2e/policies.sql
+      PDP_E2E_CONCURRENCY_RUNNER: /opt/pdp-e2e/run-odoo-concurrency.py
+      PYTHONPATH: /opt/pdp-clients
+    volumes:
+      - ./custom_addons:/mnt/extra-addons:ro
+      - ./clients/python:/opt/pdp-clients:ro
+      - ./deployments/docker/run-odoo-e2e.py:/opt/pdp-e2e/run-odoo-e2e.py:ro
+      - ./deployments/docker/run-odoo-concurrency.py:/opt/pdp-e2e/run-odoo-concurrency.py:ro
+      - ./deployments/docker/odoo-e2e-policies.sql:/opt/pdp-e2e/policies.sql:ro
+    depends_on:
+      testbed-db:
+        condition: service_healthy
+      testbed-pdp:
+        condition: service_started
+
+  # 5. Automated in-process core vectors and benchmark runner
   testbed-runner:
+    profiles: ["core-benchmark"]
     image: golang:alpine
     container_name: testbed_test_runner
 

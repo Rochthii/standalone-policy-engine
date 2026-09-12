@@ -32,6 +32,9 @@ services:
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/policy_engine?sslmode=disable
       JWT_SECRET: test-secret-key-for-sprint-6-unit-test
+      JWT_ISSUER: standalone-policy-engine-test
+      JWT_AUDIENCE: standalone-policy-engine-pdp-test
+      PDP_SHARED_SECRET: test-delegation-secret-at-least-32-characters
     depends_on:
       db:
         condition: service_healthy
@@ -46,6 +49,9 @@ services:
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/policy_engine?sslmode=disable
       JWT_SECRET: test-secret-key-for-sprint-6-unit-test
+      JWT_ISSUER: standalone-policy-engine-test
+      JWT_AUDIENCE: standalone-policy-engine-pdp-test
+      PDP_SHARED_SECRET: test-delegation-secret-at-least-32-characters
     depends_on:
       db:
         condition: service_healthy

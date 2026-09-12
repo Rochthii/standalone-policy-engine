@@ -1,0 +1,21 @@
+{
+    "name": "Standalone PDP AI Agent Authorizer",
+    "version": "17.0.2.0.0",
+    "category": "Purchases",
+    "summary": "Fail-closed Odoo PEP for the standalone Go policy engine",
+    "description": "Repository-owned Odoo 17 policy enforcement point for the standalone PDP.",
+    "author": "Chăm Rốch Thi",
+    "depends": ["purchase", "mail"],
+    "external_dependencies": {"python": ["grpcio", "protobuf"]},
+    "data": [
+        "security/ir.model.access.csv",
+        "views/res_company_views.xml",
+        "views/res_users_views.xml",
+        "views/delegation_grant_views.xml",
+        "views/purchase_order_views.xml",
+    ],
+    "installable": True,
+    "application": True,
+    "auto_install": False,
+    "license": "LGPL-3",
+}
