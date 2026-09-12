@@ -40,7 +40,7 @@
 | SEC-CONFIG-08 | Centralize production JWT/delegation secrets and issuer/audience validation. | `VERIFIED` | Production config matrix and issuer/audience JWT tests pass. |
 | SEC-RBAC-09 | Require explicit signed permissions for Control Plane routes. | `VERIFIED` | `policy:read/write/simulate/operate` middleware tests pass. |
 | SEC-TLS-10 | Require cert/key/client-CA configuration in production and pass it through centralized config. | `VERIFIED` | Production config tests and full repository compile pass. |
-
+| SEC-TLS-E2E-11 | Run the Odoo -> PDP boundary with real server/client certificates and client-CA verification in the frozen testbed. | `TODO` | Requires generated test CA, mounted certs, hostname verification and a passing Odoo E2E run over mTLS. |
 ## Wave 2 — Policy and revocation consistency
 
 | ID | Atomic task | Status | Exit evidence |
@@ -89,4 +89,4 @@
 
 ## Next task
 
-Next: run the verified Odoo boundary with mTLS. Replay/idempotency and the real Odoo concurrency gate are now verified; remote CI evidence and image digest pinning remain separate tasks.
+Next: implement and run the verified Odoo boundary with real mTLS certificates (`SEC-TLS-E2E-11`). Replay/idempotency and the real Odoo concurrency gate are now verified; remote CI evidence and image digest pinning remain separate tasks.
