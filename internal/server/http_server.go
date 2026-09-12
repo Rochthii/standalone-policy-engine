@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 
+	"standalone-policy-engine/internal/config"
 	"standalone-policy-engine/internal/engine"
 	"standalone-policy-engine/internal/security"
 	"standalone-policy-engine/internal/storage"
@@ -14,15 +15,29 @@ import (
 
 // HTTPServer cung cấp REST API cho Control Plane (CRUD chính sách) và Data Plane Fallback.
 type HTTPServer struct {
-	storage *storage.Storage
-	engine  *engine.EngineWithGC
+	storage      *storage.Storage
+	engine       *engine.EngineWithGC
+	jwtValidator *security.JWTValidator
 }
 
 // NewHTTPServer khởi tạo mới một instance HTTPServer.
 func NewHTTPServer(store *storage.Storage, eng *engine.EngineWithGC) *HTTPServer {
 	return &HTTPServer{
+		storage:      store,
+		engine:       eng,
+		jwtValidator: security.NewJWTValidator(),
+	}
+}
+
+func NewHTTPServerWithSecurity(store *storage.Storage, eng *engine.EngineWithGC, securityConfig config.SecurityConfig) *HTTPServer {
+	return &HTTPServer{
 		storage: store,
 		engine:  eng,
+		jwtValidator: security.NewJWTValidatorWithConfig(
+			securityConfig.JWTSecret,
+			securityConfig.JWTIssuer,
+			securityConfig.JWTAudience,
+		),
 	}
 }
 
@@ -30,28 +45,30 @@ func NewHTTPServer(store *storage.Storage, eng *engine.EngineWithGC) *HTTPServer
 // Các endpoint Control Plane được bảo vệ bởi TenantAuthMiddleware (JWT + cross-tenant check).
 func (s *HTTPServer) ConfigureMux() *http.ServeMux {
 	mux := http.NewServeMux()
-	jwtValidator := security.NewJWTValidator()
-	tenantAuth := TenantAuthMiddleware(jwtValidator)
+	tenantAuth := TenantAuthMiddleware(s.jwtValidator)
+	protect := func(permission string, handler http.Handler) http.Handler {
+		return tenantAuth(RequirePermission(permission)(handler))
+	}
 
-	// Control Plane API endpoints — yêu cầu JWT hợp lệ và tenant isolation
+	// Control Plane API endpoints require tenant isolation and explicit permission.
 	mux.Handle("POST /api/v1/tenants/{tenant_id}/policies",
-		tenantAuth(http.HandlerFunc(s.handleCreatePolicy)))
+		protect("policy:write", http.HandlerFunc(s.handleCreatePolicy)))
 	mux.Handle("PUT /api/v1/tenants/{tenant_id}/policies/{policy_id}",
-		tenantAuth(http.HandlerFunc(s.handleUpdatePolicy)))
+		protect("policy:write", http.HandlerFunc(s.handleUpdatePolicy)))
 	mux.Handle("DELETE /api/v1/tenants/{tenant_id}/policies/{policy_id}",
-		tenantAuth(http.HandlerFunc(s.handleDeletePolicy)))
+		protect("policy:write", http.HandlerFunc(s.handleDeletePolicy)))
 	mux.Handle("POST /api/v1/tenants/{tenant_id}/policies/{policy_id}/publish",
-		tenantAuth(http.HandlerFunc(s.handlePublishPolicy)))
+		protect("policy:write", http.HandlerFunc(s.handlePublishPolicy)))
 	mux.Handle("POST /api/v1/tenants/{tenant_id}/simulate",
-		tenantAuth(http.HandlerFunc(s.handleSimulate)))
+		protect("policy:simulate", http.HandlerFunc(s.handleSimulate)))
 	mux.Handle("GET /api/v1/tenants/{tenant_id}/schema",
-		tenantAuth(http.HandlerFunc(s.handleGetTenantSchema)))
+		protect("policy:read", http.HandlerFunc(s.handleGetTenantSchema)))
 	mux.Handle("POST /api/v1/tenants/{tenant_id}/prewarm",
-		tenantAuth(http.HandlerFunc(s.handlePrewarm)))
+		protect("policy:operate", http.HandlerFunc(s.handlePrewarm)))
 
-	// Data Plane Fallback REST endpoints — không yêu cầu tenant auth (PDP public)
-	mux.HandleFunc("POST /api/v1/decisions", s.handleDecisions)
-	mux.HandleFunc("POST /api/v1/decisions/explain", s.handleExplain)
+	// Data Plane Fallback REST endpoints use the same authenticated identity boundary as gRPC.
+	mux.Handle("POST /api/v1/decisions", tenantAuth(http.HandlerFunc(s.handleDecisions)))
+	mux.Handle("POST /api/v1/decisions/explain", tenantAuth(http.HandlerFunc(s.handleExplain)))
 
 	// Prometheus metrics endpoint
 	mux.Handle("GET /metrics", promhttp.Handler())
@@ -60,8 +77,8 @@ func (s *HTTPServer) ConfigureMux() *http.ServeMux {
 }
 
 // StartHTTPServer khởi chạy HTTP server tại cổng chỉ định.
-func StartHTTPServer(port int, store *storage.Storage, eng *engine.EngineWithGC) (*http.Server, error) {
-	s := NewHTTPServer(store, eng)
+func StartHTTPServer(port int, store *storage.Storage, eng *engine.EngineWithGC, securityConfig config.SecurityConfig) (*http.Server, error) {
+	s := NewHTTPServerWithSecurity(store, eng, securityConfig)
 	mux := s.ConfigureMux()
 
 	server := &http.Server{

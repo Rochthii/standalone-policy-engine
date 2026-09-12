@@ -45,12 +45,21 @@ func main() {
 	})
 	eng.StartGC(ctxServer)
 
-	// 3. Khởi tạo Cloud-Native Decoupled Stream Audit Logger
-	auditLogger := audit.NewStreamAuditLogger(os.Stdout)
-	log.Println("[PDP-Server] Khởi chạy Cloud-Native Stream Audit Logger (Stdout/UDS, Zero-GC) thành công.")
+	// 3. Khởi tạo bounded asynchronous audit pipeline tới PostgreSQL.
+	auditLogger, err := audit.NewBatchAuditLogger(store, audit.BatchConfig{
+		QueueCapacity: cfg.Audit.QueueCapacity,
+		BatchSize:     cfg.Audit.BatchSize,
+		FlushInterval: cfg.Audit.FlushInterval,
+		WriteTimeout:  cfg.Audit.WriteTimeout,
+	})
+	if err != nil {
+		log.Fatalf("[PDP-Server] Cấu hình Audit Logger thất bại: %v", err)
+	}
+	auditLogger.Start(ctxServer)
+	log.Println("[PDP-Server] Khởi chạy bounded PostgreSQL Audit Logger thành công.")
 
 	// 4. Khởi tạo Syncer đồng bộ cache nóng qua PostgreSQL LISTEN/NOTIFY
-	syncer := engine.NewSyncer(eng, store)
+	syncer := engine.NewSyncer(eng, store, cfg.Engine.ReconcileInterval)
 
 	if cfg.Engine.StorageMode == "edge" {
 		badgerStore, err := storage.NewBadgerStore(cfg.Engine.BadgerDir)
@@ -67,8 +76,7 @@ func main() {
 
 	// Đăng ký lazyLoader callback để tự động tải lại Tenant từ Postgres khi bị GC unload
 	eng.SetLazyLoader(func(ctx context.Context, tenantID string) error {
-		syncer.SyncTenant(ctx, tenantID)
-		return nil
+		return syncer.SyncTenant(ctx, tenantID)
 	})
 
 	syncer.Start(ctxServer)
@@ -134,7 +142,7 @@ func main() {
 		}
 	}
 
-	grpcServer, err := server.StartGRPCServer(listener, eng, auditLogger)
+	grpcServer, err := server.StartGRPCServer(listener, eng, auditLogger, cfg.Security, cfg.Server)
 	if err != nil {
 		log.Fatalf("[PDP-Server] Không thể chạy gRPC server: %v", err)
 	}

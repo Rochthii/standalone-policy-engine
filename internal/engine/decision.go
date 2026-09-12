@@ -22,18 +22,13 @@ func (d Decision) String() string {
 	return "DENY"
 }
 
-// Obligation đại diện cho một nghĩa vụ hoặc rào chắn bắt buộc mà PEP/Caller phải thực thi
-// (ví dụ: yêu cầu con người phê duyệt, che giấu dữ liệu nhạy cảm, ghi log kiểm toán mở rộng).
-type Obligation struct {
-	Type    string            `json:"type"` // REQUIRE_HUMAN_APPROVAL, MASK_ATTRIBUTES, AUDIT_SENSITIVE_TOOL_CALL
-	Message string            `json:"message"`
-	Payload map[string]string `json:"payload,omitempty"`
-}
+// Obligation aliases the compiler-validated immutable policy representation.
+type Obligation = parser.ObligationNode
 
 const (
-	ObligationTypeRequireApproval = "REQUIRE_HUMAN_APPROVAL"
-	ObligationTypeAuditSensitive  = "AUDIT_SENSITIVE_TOOL_CALL"
-	ObligationTypeMaskAttributes  = "MASK_ATTRIBUTES"
+	ObligationTypeRequireApproval = parser.ObligationRequireHumanApproval
+	ObligationTypeAuditSensitive  = parser.ObligationAuditSensitive
+	ObligationTypeMaskAttributes  = parser.ObligationMaskAttributes
 )
 
 // DecisionResult chứa thông tin quyết định phân quyền cuối cùng.
@@ -179,6 +174,7 @@ func evaluatePermission(ctx context.Context, trie *TrieRoot, subject, action, re
 			Decision:     DecisionDeny,
 			Reason:       ReasonDenyForbid,
 			Explanations: exps,
+			Obligations:  firstForbidPolicy.Obligations,
 		}
 	}
 
@@ -191,6 +187,7 @@ func evaluatePermission(ctx context.Context, trie *TrieRoot, subject, action, re
 			Decision:     DecisionAllow,
 			Reason:       ReasonAllowPermit,
 			Explanations: exps,
+			Obligations:  firstPermitPolicy.Obligations,
 		}
 	}
 

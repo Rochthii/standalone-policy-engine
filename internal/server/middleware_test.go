@@ -16,13 +16,53 @@ import (
 // makeTestToken tạo JWT token với các claims cho mục đích test.
 func makeTestToken(tenantID, subject string, exp time.Duration) string {
 	claims := jwt.MapClaims{
-		"sub":       subject,
-		"tenant_id": tenantID,
-		"exp":       time.Now().Add(exp).Unix(),
+		"sub":         subject,
+		"tenant_id":   tenantID,
+		"permissions": []string{"policy:read", "policy:write", "policy:simulate", "policy:operate", "delegation:revoke"},
+		"exp":         time.Now().Add(exp).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenStr, _ := token.SignedString([]byte("test-secret-key-for-sprint-6-unit-test"))
 	return tokenStr
+}
+
+func TestRequirePermission(t *testing.T) {
+	jv := security.NewJWTValidator()
+	protected := TenantAuthMiddleware(jv)(RequirePermission("policy:write")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})))
+	makeTokenWithPermissions := func(permissions []string) string {
+		claims := jwt.MapClaims{
+			"sub": "user:admin", "tenant_id": "tenant-a", "permissions": permissions,
+			"exp": time.Now().Add(time.Hour).Unix(),
+		}
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+		tokenString, err := token.SignedString([]byte("test-secret-key-for-sprint-6-unit-test"))
+		if err != nil {
+			t.Fatalf("sign permission token: %v", err)
+		}
+		return tokenString
+	}
+
+	for _, test := range []struct {
+		name        string
+		permissions []string
+		want        int
+	}{
+		{name: "missing permission", permissions: []string{"policy:read"}, want: http.StatusForbidden},
+		{name: "required permission", permissions: []string{"policy:write"}, want: http.StatusNoContent},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/tenants/tenant-a/policies", nil)
+			req.SetPathValue("tenant_id", "tenant-a")
+			req.Header.Set("Authorization", "Bearer "+makeTokenWithPermissions(test.permissions))
+			rr := httptest.NewRecorder()
+			protected.ServeHTTP(rr, req)
+			if rr.Code != test.want {
+				t.Fatalf("expected %d, got %d", test.want, rr.Code)
+			}
+		})
+	}
 }
 
 func TestMain(m *testing.M) {

@@ -19,8 +19,8 @@ import (
 )
 
 func TestGRPCServer_TenantIsolation(t *testing.T) {
-	// Su dung cung secret key voi middleware_test.go
-	secret := "test-secret-key-for-sprint-6-unit-test"
+	configureGRPCTestJWT(t)
+	secret := grpcTestJWTSecret
 
 	eng := engine.NewEngineWithGC(engine.GCConfig{
 		Enabled:     true,
@@ -168,7 +168,171 @@ func TestGRPCServer_TenantIsolation(t *testing.T) {
 	})
 }
 
+func TestGRPCServer_RequiredAuthentication(t *testing.T) {
+	configureGRPCTestJWT(t)
+	eng := engine.NewEngineWithGC(engine.GCConfig{Enabled: false})
+	srv := NewGRPCServer(eng, nil)
+	checkRequest := &policyv1.CheckAccessRequest{
+		TenantId: "tenant-a",
+		Subject:  "user:untrusted",
+		Action:   "READ",
+		Resource: "file:doc",
+	}
+	explainRequest := &policyv1.ExplainRequest{
+		TenantId: "tenant-a",
+		Subject:  "user:untrusted",
+		Action:   "READ",
+		Resource: "file:doc",
+	}
+
+	tests := []struct {
+		name string
+		ctx  context.Context
+		call func(context.Context) error
+	}{
+		{
+			name: "CheckAccess missing metadata",
+			ctx:  context.Background(),
+			call: func(ctx context.Context) error {
+				_, err := srv.CheckAccess(ctx, checkRequest)
+				return err
+			},
+		},
+		{
+			name: "ExplainDecision missing metadata",
+			ctx:  context.Background(),
+			call: func(ctx context.Context) error {
+				_, err := srv.ExplainDecision(ctx, explainRequest)
+				return err
+			},
+		},
+		{
+			name: "missing tenant claim",
+			ctx: incomingJWTContextWithClaims(t, jwt.MapClaims{
+				"sub": "user:test",
+				"exp": time.Now().Add(time.Hour).Unix(),
+			}),
+			call: func(ctx context.Context) error {
+				_, err := srv.CheckAccess(ctx, checkRequest)
+				return err
+			},
+		},
+		{
+			name: "missing subject claim",
+			ctx: incomingJWTContextWithClaims(t, jwt.MapClaims{
+				"tenant_id": "tenant-a",
+				"exp":       time.Now().Add(time.Hour).Unix(),
+			}),
+			call: func(ctx context.Context) error {
+				_, err := srv.CheckAccess(ctx, checkRequest)
+				return err
+			},
+		},
+		{
+			name: "missing expiration claim",
+			ctx: incomingJWTContextWithClaims(t, jwt.MapClaims{
+				"sub":       "user:test",
+				"tenant_id": "tenant-a",
+			}),
+			call: func(ctx context.Context) error {
+				_, err := srv.CheckAccess(ctx, checkRequest)
+				return err
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.call(test.ctx)
+			if status.Code(err) != codes.Unauthenticated {
+				t.Fatalf("expected Unauthenticated, got %v", err)
+			}
+		})
+	}
+}
+
+func TestGRPCServer_TrustedPrincipalAttributes(t *testing.T) {
+	configureGRPCTestJWT(t)
+	eng := engine.NewEngineWithGC(engine.GCConfig{Enabled: false})
+	l := parser.NewLexer(`permit(principal == any, action == action:READ, resource == file:doc) when { principal.department == "finance" };`)
+	p := parser.NewParser(l)
+	nodes := p.Parse()
+	if len(nodes) != 1 || len(p.Errors()) != 0 {
+		t.Fatalf("parse trusted-attribute policy: %v", p.Errors())
+	}
+	nodes[0].ID = "policy-trusted-principal"
+	compiled, err := parser.NewCompiler().Compile(nodes[0])
+	if err != nil {
+		t.Fatalf("compile trusted-attribute policy: %v", err)
+	}
+	if err := eng.UpdateTenantPoliciesWithRevision("tenant-a", []*parser.PolicyNode{compiled}, nil, 1); err != nil {
+		t.Fatalf("load trusted-attribute policy: %v", err)
+	}
+	srv := NewGRPCServer(eng, nil)
+
+	request := func(attributes map[string]string) *policyv1.CheckAccessRequest {
+		return &policyv1.CheckAccessRequest{
+			TenantId: "tenant-a",
+			Subject:  "user:forged",
+			Action:   "READ",
+			Resource: "file:doc",
+			Context:  attributes,
+		}
+	}
+	claims := func(department string) jwt.MapClaims {
+		result := jwt.MapClaims{
+			"sub":       "user:alice",
+			"tenant_id": "tenant-a",
+			"exp":       time.Now().Add(time.Hour).Unix(),
+		}
+		if department != "" {
+			result["department"] = department
+		}
+		return result
+	}
+
+	tests := []struct {
+		name       string
+		claims     jwt.MapClaims
+		attributes map[string]string
+		want       policyv1.CheckAccessResponse_Decision
+	}{
+		{
+			name:       "token claim overrides forged namespaced attribute",
+			claims:     claims("finance"),
+			attributes: map[string]string{"principal.department": "engineering"},
+			want:       policyv1.CheckAccessResponse_ALLOW,
+		},
+		{
+			name:       "request cannot elevate a token claim",
+			claims:     claims("engineering"),
+			attributes: map[string]string{"principal.department": "finance"},
+			want:       policyv1.CheckAccessResponse_DENY,
+		},
+		{
+			name:       "raw fallback cannot invent missing principal claim",
+			claims:     claims(""),
+			attributes: map[string]string{"department": "finance"},
+			want:       policyv1.CheckAccessResponse_DENY,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := incomingJWTContextWithClaims(t, test.claims)
+			response, err := srv.CheckAccess(ctx, request(test.attributes))
+			if err != nil {
+				t.Fatalf("CheckAccess returned error: %v", err)
+			}
+			if response.Decision != test.want {
+				t.Fatalf("expected %v, got %v", test.want, response.Decision)
+			}
+		})
+	}
+}
+
 func TestGRPCServer_AuditLogWithRevision(t *testing.T) {
+	configureGRPCTestJWT(t)
 	eng := engine.NewEngineWithGC(engine.GCConfig{
 		Enabled: false,
 	})
@@ -201,7 +365,7 @@ func TestGRPCServer_AuditLogWithRevision(t *testing.T) {
 		Resource: "file:confidential",
 	}
 
-	resp, err := srv.CheckAccess(context.Background(), req)
+	resp, err := srv.CheckAccess(incomingJWTContext(t, "tenant-rev", "role:admin"), req)
 	if err != nil {
 		t.Fatalf("CheckAccess lỗi không mong muốn: %v", err)
 	}

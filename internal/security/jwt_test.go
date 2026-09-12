@@ -111,6 +111,68 @@ func TestJWTValidateWrongSecret(t *testing.T) {
 	}
 }
 
+func TestJWTValidateRequiresExpiration(t *testing.T) {
+	t.Setenv("JWT_SECRET", "test-secret-key-for-required-exp")
+	v := NewJWTValidator()
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":       "user:alice",
+		"tenant_id": "tenant-a",
+	})
+	tokenString, err := token.SignedString([]byte("test-secret-key-for-required-exp"))
+	if err != nil {
+		t.Fatalf("Khong the tao JWT token: %v", err)
+	}
+
+	if _, err := v.ValidateToken(tokenString); err == nil {
+		t.Fatal("ValidateToken phai tu choi token thieu exp")
+	}
+}
+
+func TestJWTValidateRejectsNonHS256Algorithm(t *testing.T) {
+	t.Setenv("JWT_SECRET", "test-secret-key-for-algorithm-check")
+	v := NewJWTValidator()
+	token := jwt.NewWithClaims(jwt.SigningMethodHS384, jwt.MapClaims{
+		"sub":       "user:alice",
+		"tenant_id": "tenant-a",
+		"exp":       time.Now().Add(time.Hour).Unix(),
+	})
+	tokenString, err := token.SignedString([]byte("test-secret-key-for-algorithm-check"))
+	if err != nil {
+		t.Fatalf("Khong the tao JWT token: %v", err)
+	}
+
+	if _, err := v.ValidateToken(tokenString); err == nil {
+		t.Fatal("ValidateToken phai tu choi thuat toan khac HS256")
+	}
+}
+
+func TestJWTValidateIssuerAndAudience(t *testing.T) {
+	secret := "test-secret-key-for-issuer-audience"
+	v := NewJWTValidatorWithConfig(secret, "https://issuer.example.test", "policy-engine")
+	makeToken := func(issuer, audience string) string {
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"sub": "user:alice", "tenant_id": "tenant-a",
+			"iss": issuer, "aud": audience,
+			"exp": time.Now().Add(time.Hour).Unix(),
+		})
+		tokenString, err := token.SignedString([]byte(secret))
+		if err != nil {
+			t.Fatalf("Khong the tao JWT token: %v", err)
+		}
+		return tokenString
+	}
+
+	if _, err := v.ValidateToken(makeToken("https://issuer.example.test", "policy-engine")); err != nil {
+		t.Fatalf("expected matching issuer/audience to pass: %v", err)
+	}
+	if _, err := v.ValidateToken(makeToken("https://attacker.example.test", "policy-engine")); err == nil {
+		t.Fatal("expected wrong issuer to fail")
+	}
+	if _, err := v.ValidateToken(makeToken("https://issuer.example.test", "other-service")); err == nil {
+		t.Fatal("expected wrong audience to fail")
+	}
+}
+
 // TestJWTExtractSubjectAttributes kiem thu chiet xuat sub va cac attributes phi JWT metadata.
 func TestJWTExtractSubjectAttributes(t *testing.T) {
 	v := NewJWTValidator()
@@ -161,5 +223,27 @@ func TestJWTExtractMissingSub(t *testing.T) {
 	_, _, err := v.ExtractSubjectAttributes(claims)
 	if err == nil {
 		t.Error("ExtractSubjectAttributes phai tra ve loi khi thieu truong 'sub'")
+	}
+}
+
+func TestHasPermission(t *testing.T) {
+	tests := []struct {
+		name   string
+		claims jwt.MapClaims
+		want   bool
+	}{
+		{name: "JSON array", claims: jwt.MapClaims{"permissions": []interface{}{"policy:read", "delegation:revoke"}}, want: true},
+		{name: "string array", claims: jwt.MapClaims{"permissions": []string{"delegation:revoke"}}, want: true},
+		{name: "comma string", claims: jwt.MapClaims{"permissions": "policy:read,delegation:revoke"}, want: true},
+		{name: "missing permission", claims: jwt.MapClaims{"permissions": []interface{}{"policy:read"}}, want: false},
+		{name: "missing claim", claims: jwt.MapClaims{}, want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := HasPermission(test.claims, "delegation:revoke"); got != test.want {
+				t.Fatalf("HasPermission()=%v, want %v", got, test.want)
+			}
+		})
 	}
 }

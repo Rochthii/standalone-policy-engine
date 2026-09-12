@@ -18,18 +18,19 @@ const (
 	TokIP     TokenType = "IP" // IPAddressLiteral trần (ví dụ: 192.168.1.1 hoặc 10.0.0.0/8)
 
 	// Keywords
-	TokPermit    TokenType = "permit"
-	TokForbid    TokenType = "forbid"
-	TokPrincipal TokenType = "principal"
-	TokAction    TokenType = "action"
-	TokResource  TokenType = "resource"
-	TokAny       TokenType = "any"
-	TokWhen      TokenType = "when"
-	TokUnless    TokenType = "unless"
-	TokIn        TokenType = "in"
-	TokContains  TokenType = "contains"
-	TokTrue      TokenType = "true"
-	TokFalse     TokenType = "false"
+	TokPermit     TokenType = "permit"
+	TokForbid     TokenType = "forbid"
+	TokPrincipal  TokenType = "principal"
+	TokAction     TokenType = "action"
+	TokResource   TokenType = "resource"
+	TokAny        TokenType = "any"
+	TokWhen       TokenType = "when"
+	TokUnless     TokenType = "unless"
+	TokIn         TokenType = "in"
+	TokContains   TokenType = "contains"
+	TokObligation TokenType = "obligation"
+	TokTrue       TokenType = "true"
+	TokFalse      TokenType = "false"
 
 	// Operators
 	TokEq  TokenType = "=="
@@ -289,6 +290,8 @@ func lookupIdent(ident string) TokenType {
 		return TokIn
 	case "contains":
 		return TokContains
+	case "obligation":
+		return TokObligation
 	case "true":
 		return TokTrue
 	case "false":

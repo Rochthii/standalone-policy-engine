@@ -2,11 +2,13 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"standalone-policy-engine/internal/parser"
+	"standalone-policy-engine/internal/storage"
 )
 
 type createPolicyRequest struct {
@@ -54,6 +56,11 @@ func (s *HTTPServer) handleCreatePolicy(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *HTTPServer) handleUpdatePolicy(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if tenantID == "" {
+		http.Error(w, "Thiếu tenant_id trong path", http.StatusBadRequest)
+		return
+	}
 	policyID := r.PathValue("policy_id")
 	if policyID == "" {
 		http.Error(w, "Thiếu policy_id trong path", http.StatusBadRequest)
@@ -71,8 +78,12 @@ func (s *HTTPServer) handleUpdatePolicy(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	err := s.storage.UpdatePolicy(r.Context(), policyID, req.PolicyText)
+	err := s.storage.UpdatePolicy(r.Context(), tenantID, policyID, req.PolicyText)
 	if err != nil {
+		if errors.Is(err, storage.ErrPolicyNotFound) {
+			http.Error(w, "Không tìm thấy policy", http.StatusNotFound)
+			return
+		}
 		http.Error(w, fmt.Sprintf("Lỗi cập nhật policy: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -83,14 +94,23 @@ func (s *HTTPServer) handleUpdatePolicy(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *HTTPServer) handleDeletePolicy(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if tenantID == "" {
+		http.Error(w, "Thiếu tenant_id trong path", http.StatusBadRequest)
+		return
+	}
 	policyID := r.PathValue("policy_id")
 	if policyID == "" {
 		http.Error(w, "Thiếu policy_id trong path", http.StatusBadRequest)
 		return
 	}
 
-	err := s.storage.DeletePolicy(r.Context(), policyID)
+	err := s.storage.DeletePolicy(r.Context(), tenantID, policyID)
 	if err != nil {
+		if errors.Is(err, storage.ErrPolicyNotFound) {
+			http.Error(w, "Không tìm thấy policy", http.StatusNotFound)
+			return
+		}
 		http.Error(w, fmt.Sprintf("Lỗi xóa policy: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -101,13 +121,18 @@ func (s *HTTPServer) handleDeletePolicy(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *HTTPServer) handlePublishPolicy(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if tenantID == "" {
+		http.Error(w, "Thiếu tenant_id trong path", http.StatusBadRequest)
+		return
+	}
 	policyID := r.PathValue("policy_id")
 	if policyID == "" {
 		http.Error(w, "Thiếu policy_id trong path", http.StatusBadRequest)
 		return
 	}
 
-	p, err := s.storage.GetPolicy(r.Context(), policyID)
+	p, err := s.storage.GetPolicy(r.Context(), tenantID, policyID)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Không tìm thấy policy: %v", err), http.StatusNotFound)
 		return
@@ -139,7 +164,7 @@ func (s *HTTPServer) handlePublishPolicy(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	newVersion, err := s.storage.PublishPolicy(r.Context(), policyID, astJSON)
+	newVersion, err := s.storage.PublishPolicy(r.Context(), tenantID, policyID, astJSON)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Lỗi lưu DB: %v", err), http.StatusInternalServerError)
 		return

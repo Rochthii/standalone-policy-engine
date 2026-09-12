@@ -33,7 +33,9 @@ forbid(
 )
 when {
     context.amount > 5000
-};
+}
+obligation REQUIRE_HUMAN_APPROVAL "Purchase order exceeds the department-manager approval limit"
+;
 
 // RULE 4: AI Agent được tự động duyệt PO nhỏ trong trần tự hành (<= $2,000)
 permit(
@@ -56,7 +58,9 @@ forbid(
 )
 when {
     context.amount > 2000
-};
+}
+obligation REQUIRE_HUMAN_APPROVAL "Autonomous agent spending requires human approval"
+;
 
 // RULE 6: BẢO TOÀN PHÂN TÁCH TRÁCH NHIỆM TỔNG QUÁT (GENERALIZED SOD)
 // Nghiêm cấm mọi hành vi tự duyệt (kể cả mượn AI Agent để duyệt hộ)

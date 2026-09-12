@@ -41,35 +41,23 @@ func (s *HTTPServer) handlePrewarm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbPolicies, err := s.storage.GetActivePolicies(r.Context(), tenantID)
+	bundle, err := s.storage.GetTenantPolicyBundle(r.Context(), tenantID)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Lỗi truy vấn DB: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	compiler := parser.NewCompiler()
-	compiledPolicies := make([]*parser.PolicyNode, 0, len(dbPolicies))
-	for _, dbP := range dbPolicies {
-		lexer := parser.NewLexer(dbP.PolicyText)
-		pr := parser.NewParser(lexer)
-		nodes := pr.Parse()
-		if len(pr.Errors()) > 0 {
-			continue
-		}
-		nodes[0].ID = dbP.ID
-		compiled, err := compiler.Compile(nodes[0])
-		if err != nil {
-			continue
-		}
-		compiledPolicies = append(compiledPolicies, compiled)
+	sources := make([]parser.PolicySource, 0, len(bundle.Policies))
+	for _, dbP := range bundle.Policies {
+		sources = append(sources, parser.PolicySource{ID: dbP.ID, Text: dbP.PolicyText})
+	}
+	compiledPolicies, err := parser.CompilePolicySet(sources)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Không thể prewarm ruleset không hợp lệ: %v", err), http.StatusUnprocessableEntity)
+		return
 	}
 
-	rev, _ := s.storage.GetTenantRevision(r.Context(), tenantID)
-	if rev == 0 {
-		rev = 1
-	}
-
-	err = s.engine.UpdateTenantPoliciesWithRevision(tenantID, compiledPolicies, nil, rev)
+	err = s.engine.UpdateTenantPoliciesWithRevision(tenantID, compiledPolicies, bundle.Inheritances, bundle.Revision)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Lỗi nạp RAM: %v", err), http.StatusInternalServerError)
 		return
@@ -77,5 +65,5 @@ func (s *HTTPServer) handlePrewarm(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(fmt.Sprintf(`{"status":"PREWARMED","tenant_id":"%s","revision":%d,"active_policies":%d}`, tenantID, rev, len(compiledPolicies))))
+	_, _ = w.Write([]byte(fmt.Sprintf(`{"status":"PREWARMED","tenant_id":"%s","revision":%d,"active_policies":%d}`, tenantID, bundle.Revision, len(compiledPolicies))))
 }

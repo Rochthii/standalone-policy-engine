@@ -21,10 +21,13 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	HTTPPort   int
-	GRPCPort   int
-	SocketPath string
-	UseZiti    bool
+	HTTPPort            int
+	GRPCPort            int
+	SocketPath          string
+	UseZiti             bool
+	EvaluationTimeout   time.Duration
+	GRPCMaxReceiveBytes int
+	GRPCMaxSendBytes    int
 }
 
 type DatabaseConfig struct {
@@ -36,20 +39,21 @@ type RedisConfig struct {
 }
 
 type EngineConfig struct {
-	StorageMode string // "cloud" hoặc "edge"
-	BadgerDir   string
-	DisableGC   bool
-	GCInterval  time.Duration
-	GCIdle      time.Duration
+	StorageMode       string // "cloud" hoặc "edge"
+	BadgerDir         string
+	DisableGC         bool
+	GCInterval        time.Duration
+	GCIdle            time.Duration
+	ReconcileInterval time.Duration
 }
 
 type AuditConfig struct {
-	SocketPath string
-}
-
-type SecurityConfig struct {
-	JWTSecret string
-	LogKEK    string
+	SocketPath    string
+	SpillDir      string
+	QueueCapacity int
+	BatchSize     int
+	FlushInterval time.Duration
+	WriteTimeout  time.Duration
 }
 
 // Load nạp cấu hình từ môi trường và kiểm tra tính hợp lệ (Fail-Fast Validation).
@@ -65,6 +69,21 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("GRPC_PORT khong hop le: %w", err)
 	}
+	evaluationTimeout, err := getEnvDuration("GRPC_EVALUATION_TIMEOUT", 100*time.Millisecond)
+	if err != nil {
+		return nil, fmt.Errorf("GRPC_EVALUATION_TIMEOUT khong hop le: %w", err)
+	}
+	grpcMaxReceiveBytes, err := getEnvInt("GRPC_MAX_RECEIVE_BYTES", 1024*1024)
+	if err != nil {
+		return nil, fmt.Errorf("GRPC_MAX_RECEIVE_BYTES khong hop le: %w", err)
+	}
+	grpcMaxSendBytes, err := getEnvInt("GRPC_MAX_SEND_BYTES", 1024*1024)
+	if err != nil {
+		return nil, fmt.Errorf("GRPC_MAX_SEND_BYTES khong hop le: %w", err)
+	}
+	if evaluationTimeout <= 0 || grpcMaxReceiveBytes < 1024 || grpcMaxSendBytes < 1024 {
+		return nil, errors.New("gRPC timeout phai duong va message limits phai toi thieu 1024 bytes")
+	}
 
 	gcInterval, err := getEnvDuration("GC_INTERVAL", 1*time.Hour)
 	if err != nil {
@@ -75,19 +94,52 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("GC_IDLE_TIMEOUT khong hop le: %w", err)
 	}
-
-	dbURL := getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/policy_engine?sslmode=disable")
-	if appEnv == "production" && (dbURL == "" || strings.Contains(dbURL, "localhost")) {
-		return nil, errors.New("DATABASE_URL tren Production khong duoc de trong hoac tro vao localhost")
+	reconcileInterval, err := getEnvDuration("SYNC_RECONCILE_INTERVAL", 10*time.Second)
+	if err != nil {
+		return nil, fmt.Errorf("SYNC_RECONCILE_INTERVAL khong hop le: %w", err)
+	}
+	if reconcileInterval <= 0 {
+		return nil, errors.New("SYNC_RECONCILE_INTERVAL phai lon hon 0")
+	}
+	auditQueueCapacity, err := getEnvInt("AUDIT_QUEUE_CAPACITY", 8192)
+	if err != nil {
+		return nil, fmt.Errorf("AUDIT_QUEUE_CAPACITY khong hop le: %w", err)
+	}
+	auditBatchSize, err := getEnvInt("AUDIT_BATCH_SIZE", 128)
+	if err != nil {
+		return nil, fmt.Errorf("AUDIT_BATCH_SIZE khong hop le: %w", err)
+	}
+	auditFlushInterval, err := getEnvDuration("AUDIT_FLUSH_INTERVAL", 100*time.Millisecond)
+	if err != nil {
+		return nil, fmt.Errorf("AUDIT_FLUSH_INTERVAL khong hop le: %w", err)
+	}
+	auditWriteTimeout, err := getEnvDuration("AUDIT_WRITE_TIMEOUT", 2*time.Second)
+	if err != nil {
+		return nil, fmt.Errorf("AUDIT_WRITE_TIMEOUT khong hop le: %w", err)
+	}
+	if auditQueueCapacity <= 0 || auditBatchSize <= 0 || auditBatchSize > auditQueueCapacity {
+		return nil, errors.New("AUDIT_QUEUE_CAPACITY va AUDIT_BATCH_SIZE phai duong, batch khong vuot queue")
+	}
+	if auditFlushInterval <= 0 || auditWriteTimeout <= 0 {
+		return nil, errors.New("AUDIT_FLUSH_INTERVAL va AUDIT_WRITE_TIMEOUT phai lon hon 0")
 	}
 
+	dbURL := getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/policy_engine?sslmode=disable")
+	delegationSecret := getEnv("PDP_SHARED_SECRET", developmentDelegationSecret)
+	delegationActiveKeyID, delegationKeys, delegationKeyringExplicit, err := loadDelegationKeyring(delegationSecret)
+	if err != nil {
+		return nil, err
+	}
 	cfg := &Config{
 		AppEnv: appEnv,
 		Server: ServerConfig{
-			HTTPPort:   httpPort,
-			GRPCPort:   grpcPort,
-			SocketPath: getEnv("LISTEN_SOCKET_PATH", ""),
-			UseZiti:    strings.EqualFold(getEnv("USE_ZITI", "false"), "true"),
+			HTTPPort:            httpPort,
+			GRPCPort:            grpcPort,
+			SocketPath:          getEnv("LISTEN_SOCKET_PATH", ""),
+			UseZiti:             strings.EqualFold(getEnv("USE_ZITI", "false"), "true"),
+			EvaluationTimeout:   evaluationTimeout,
+			GRPCMaxReceiveBytes: grpcMaxReceiveBytes,
+			GRPCMaxSendBytes:    grpcMaxSendBytes,
 		},
 		Database: DatabaseConfig{
 			URL: dbURL,
@@ -96,21 +148,39 @@ func Load() (*Config, error) {
 			URL: getEnv("REDIS_URL", "localhost:6379"),
 		},
 		Engine: EngineConfig{
-			StorageMode: strings.ToLower(getEnv("STORAGE_MODE", "cloud")),
-			BadgerDir:   getEnv("BADGER_DATA_DIR", "./badger-data"),
-			DisableGC:   strings.EqualFold(getEnv("DISABLE_GC", "false"), "true"),
-			GCInterval:  gcInterval,
-			GCIdle:      gcIdle,
+			StorageMode:       strings.ToLower(getEnv("STORAGE_MODE", "cloud")),
+			BadgerDir:         getEnv("BADGER_DATA_DIR", "./badger-data"),
+			DisableGC:         strings.EqualFold(getEnv("DISABLE_GC", "false"), "true"),
+			GCInterval:        gcInterval,
+			GCIdle:            gcIdle,
+			ReconcileInterval: reconcileInterval,
 		},
 		Audit: AuditConfig{
-			SocketPath: getEnv("AUDIT_SOCKET_PATH", "/var/run/vector/audit.sock"),
+			SocketPath:    getEnv("AUDIT_SOCKET_PATH", "/var/run/vector/audit.sock"),
+			SpillDir:      getEnv("AUDIT_SPILL_DIR", "./spill-logs"),
+			QueueCapacity: auditQueueCapacity,
+			BatchSize:     auditBatchSize,
+			FlushInterval: auditFlushInterval,
+			WriteTimeout:  auditWriteTimeout,
 		},
 		Security: SecurityConfig{
-			JWTSecret: getEnv("JWT_SECRET", "standalone-policy-engine-super-secret-key-32b"),
-			LogKEK:    getEnv("LOG_KEK", "01234567890123456789012345678901"),
+			JWTSecret:                 getEnv("JWT_SECRET", developmentJWTSecret),
+			JWTIssuer:                 getEnv("JWT_ISSUER", "standalone-policy-engine-dev"),
+			JWTAudience:               getEnv("JWT_AUDIENCE", "standalone-policy-engine-pdp"),
+			DelegationSecret:          delegationSecret,
+			DelegationActiveKeyID:     delegationActiveKeyID,
+			DelegationKeys:            delegationKeys,
+			DelegationKeyringExplicit: delegationKeyringExplicit,
+			TLSCertFile:               getEnv("PDP_TLS_CERT", ""),
+			TLSKeyFile:                getEnv("PDP_TLS_KEY", ""),
+			TLSCAFile:                 getEnv("PDP_TLS_CA", ""),
+			LogKEK:                    getEnv("LOG_KEK", "01234567890123456789012345678901"),
 		},
 	}
 
+	if err := validateProductionConfig(cfg); err != nil {
+		return nil, err
+	}
 	return cfg, nil
 }
 

@@ -29,9 +29,10 @@ func TestHTTPServer_TenantIsolation(t *testing.T) {
 
 	makeToken := func(tenantID string) string {
 		claims := jwt.MapClaims{
-			"sub":       "user:admin",
-			"tenant_id": tenantID,
-			"exp":       time.Now().Add(1 * time.Hour).Unix(),
+			"sub":         "user:admin",
+			"tenant_id":   tenantID,
+			"permissions": []string{"policy:read", "policy:write", "policy:simulate", "policy:operate"},
+			"exp":         time.Now().Add(1 * time.Hour).Unix(),
 		}
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 		tokenStr, _ := token.SignedString([]byte(secret))

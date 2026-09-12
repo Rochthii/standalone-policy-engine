@@ -152,7 +152,7 @@ func (p *Parser) Parse() []*PolicyNode {
 }
 
 // parsePolicy phân tích một câu chính sách hoàn chỉnh.
-// Định dạng: Effect "(" Scope ")" [ ConditionClause ] ";"
+// Định dạng: Effect "(" Scope ")" [ ConditionClause ] [ ObligationClause... ] ";"
 func (p *Parser) parsePolicy() *PolicyNode {
 	policy := &PolicyNode{
 		pos: p.curToken.Pos,
@@ -224,6 +224,14 @@ func (p *Parser) parsePolicy() *PolicyNode {
 		if !p.expectPeek(TokRBrace) {
 			return nil
 		}
+	}
+	for p.peekTokenIs(TokObligation) {
+		p.nextToken()
+		obligation := p.parseObligation()
+		if obligation == nil {
+			return nil
+		}
+		policy.Obligations = append(policy.Obligations, *obligation)
 	}
 
 	// 6. Phân tích dấu kết thúc câu ";"

@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -36,6 +37,8 @@ type DBPolicy struct {
 type Storage struct {
 	pool *pgxpool.Pool
 }
+
+var ErrPolicyNotFound = errors.New("policy not found")
 
 // NewStorage khởi tạo kết nối database và chạy script DDL tự động khởi tạo bảng.
 func NewStorage(connStr string) (*Storage, error) {
@@ -139,16 +142,34 @@ func (s *Storage) CreatePolicy(ctx context.Context, tenantID, effect, policyText
 }
 
 // UpdatePolicy cập nhật nội dung văn bản thô của một chính sách (reset về DRAFT).
-func (s *Storage) UpdatePolicy(ctx context.Context, policyID, policyText string) error {
-	query := `UPDATE policies SET policy_text = $1, status = 'DRAFT', updated_at = CURRENT_TIMESTAMP WHERE id = $2;`
-	tag, err := s.pool.Exec(ctx, query, policyText, policyID)
+func (s *Storage) UpdatePolicy(ctx context.Context, tenantID, policyID, policyText string) error {
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
-	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("không tìm thấy policy để cập nhật: %s", policyID)
+	defer tx.Rollback(ctx)
+
+	var previousStatus string
+	query := `WITH target AS (
+                SELECT status FROM policies WHERE id = $2 AND tenant_id = $3 FOR UPDATE
+              )
+              UPDATE policies AS p
+              SET policy_text = $1, status = 'DRAFT', ast_json = NULL, updated_at = CURRENT_TIMESTAMP
+              FROM target
+              WHERE p.id = $2 AND p.tenant_id = $3
+              RETURNING target.status;`
+	if err := tx.QueryRow(ctx, query, policyText, policyID, tenantID).Scan(&previousStatus); err != nil {
+		if err == pgx.ErrNoRows {
+			return fmt.Errorf("%w: %s", ErrPolicyNotFound, policyID)
+		}
+		return err
 	}
-	return nil
+	if previousStatus == "ACTIVE" {
+		if _, err := incrementTenantRevisionAndNotify(ctx, tx, tenantID, policyID, "UPDATE"); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }
 
 // DBPolicyUpdateEvent cấu trúc tin nhắn thông báo cập nhật qua PostgreSQL NOTIFY.
@@ -160,7 +181,7 @@ type DBPolicyUpdateEvent struct {
 }
 
 // PublishPolicy xuất bản một chính sách: đổi status sang ACTIVE, lưu AST JSON, tăng version và tăng revision của Tenant nguyên tử trong Transaction.
-func (s *Storage) PublishPolicy(ctx context.Context, policyID string, astJSON []byte) (int, error) {
+func (s *Storage) PublishPolicy(ctx context.Context, tenantID, policyID string, astJSON []byte) (int, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return 0, err
@@ -168,32 +189,19 @@ func (s *Storage) PublishPolicy(ctx context.Context, policyID string, astJSON []
 	defer tx.Rollback(ctx)
 
 	var version int
-	var tenantID string
 	query := `UPDATE policies 
               SET status = 'ACTIVE', ast_json = $1, version = version + 1, updated_at = CURRENT_TIMESTAMP 
-              WHERE id = $2 RETURNING version, tenant_id;`
-	err = tx.QueryRow(ctx, query, astJSON, policyID).Scan(&version, &tenantID)
+              WHERE id = $2 AND tenant_id = $3 RETURNING version;`
+	err = tx.QueryRow(ctx, query, astJSON, policyID, tenantID).Scan(&version)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return 0, fmt.Errorf("không tìm thấy policy để publish: %s", policyID)
+			return 0, fmt.Errorf("%w: %s", ErrPolicyNotFound, policyID)
 		}
 		return 0, err
 	}
 
-	var newRevision uint64
-	revQuery := `UPDATE tenants 
-                 SET revision = revision + 1, updated_at = CURRENT_TIMESTAMP 
-                 WHERE id = $1 RETURNING revision;`
-	err = tx.QueryRow(ctx, revQuery, tenantID).Scan(&newRevision)
-	if err != nil {
-		// Fallback nếu bảng tenants chưa có dòng hoặc lỗi
-		newRevision = 1
-	}
-
-	// Phát thông báo pg_notify (chỉ được gửi khi Transaction commit thành công)
-	notifyQuery := fmt.Sprintf(`NOTIFY policy_events, '{"tenant_id":"%s","policy_id":"%s","action":"UPDATE","revision":%d}';`, tenantID, policyID, newRevision)
-	if _, err := tx.Exec(ctx, notifyQuery); err != nil {
-		log.Printf("[Storage] Cảnh báo lỗi NOTIFY: %v", err)
+	if _, err := incrementTenantRevisionAndNotify(ctx, tx, tenantID, policyID, "UPDATE"); err != nil {
+		return 0, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -204,52 +212,76 @@ func (s *Storage) PublishPolicy(ctx context.Context, policyID string, astJSON []
 }
 
 // GetPolicy lấy thông tin chi tiết của một chính sách.
-func (s *Storage) GetPolicy(ctx context.Context, policyID string) (*DBPolicy, error) {
+func (s *Storage) GetPolicy(ctx context.Context, tenantID, policyID string) (*DBPolicy, error) {
 	query := `SELECT id, tenant_id, effect, policy_text, ast_json, version, status, created_at, updated_at 
-              FROM policies WHERE id = $1;`
-	row := s.pool.QueryRow(ctx, query, policyID)
+              FROM policies WHERE id = $1 AND tenant_id = $2;`
+	row := s.pool.QueryRow(ctx, query, policyID, tenantID)
 
 	p := &DBPolicy{}
 	err := row.Scan(&p.ID, &p.TenantID, &p.Effect, &p.PolicyText, &p.ASTJSON, &p.Version, &p.Status, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("%w: %s", ErrPolicyNotFound, policyID)
+		}
 		return nil, err
 	}
 	return p, nil
 }
 
 // DeletePolicy xóa bỏ một chính sách và tăng revision của Tenant nguyên tử trong Transaction.
-func (s *Storage) DeletePolicy(ctx context.Context, policyID string) error {
+func (s *Storage) DeletePolicy(ctx context.Context, tenantID, policyID string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
 
-	var tenantID string
-	query := `DELETE FROM policies WHERE id = $1 RETURNING tenant_id;`
-	err = tx.QueryRow(ctx, query, policyID).Scan(&tenantID)
+	query := `DELETE FROM policies WHERE id = $1 AND tenant_id = $2 RETURNING id;`
+	var deletedPolicyID string
+	err = tx.QueryRow(ctx, query, policyID, tenantID).Scan(&deletedPolicyID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return fmt.Errorf("không tìm thấy policy để xóa: %s", policyID)
+			return fmt.Errorf("%w: %s", ErrPolicyNotFound, policyID)
 		}
 		return err
 	}
 
-	var newRevision uint64
-	revQuery := `UPDATE tenants 
-                 SET revision = revision + 1, updated_at = CURRENT_TIMESTAMP 
-                 WHERE id = $1 RETURNING revision;`
-	err = tx.QueryRow(ctx, revQuery, tenantID).Scan(&newRevision)
-	if err != nil {
-		newRevision = 1
-	}
-
-	notifyQuery := fmt.Sprintf(`NOTIFY policy_events, '{"tenant_id":"%s","policy_id":"%s","action":"DELETE","revision":%d}';`, tenantID, policyID, newRevision)
-	if _, err := tx.Exec(ctx, notifyQuery); err != nil {
-		log.Printf("[Storage] Cảnh báo lỗi NOTIFY: %v", err)
+	if _, err := incrementTenantRevisionAndNotify(ctx, tx, tenantID, policyID, "DELETE"); err != nil {
+		return err
 	}
 
 	return tx.Commit(ctx)
+}
+
+func incrementTenantRevisionAndNotify(
+	ctx context.Context,
+	tx pgx.Tx,
+	tenantID, policyID, action string,
+) (uint64, error) {
+	var revision uint64
+	revisionQuery := `UPDATE tenants
+                      SET revision = revision + 1, updated_at = CURRENT_TIMESTAMP
+                      WHERE id = $1 RETURNING revision;`
+	if err := tx.QueryRow(ctx, revisionQuery, tenantID).Scan(&revision); err != nil {
+		if err == pgx.ErrNoRows {
+			return 0, fmt.Errorf("tenant not found while advancing policy revision: %s", tenantID)
+		}
+		return 0, fmt.Errorf("advance tenant revision: %w", err)
+	}
+
+	payload, err := json.Marshal(DBPolicyUpdateEvent{
+		TenantID: tenantID,
+		PolicyID: policyID,
+		Action:   action,
+		Revision: revision,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("encode policy event: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT pg_notify('policy_events', $1);`, string(payload)); err != nil {
+		return 0, fmt.Errorf("notify policy event: %w", err)
+	}
+	return revision, nil
 }
 
 // GetTenantRevision lấy số hiệu phiên bản revision hiện tại của một Tenant từ PostgreSQL.
@@ -258,7 +290,10 @@ func (s *Storage) GetTenantRevision(ctx context.Context, tenantID string) (uint6
 	query := `SELECT COALESCE(revision, 1) FROM tenants WHERE id = $1;`
 	err := s.pool.QueryRow(ctx, query, tenantID).Scan(&revision)
 	if err != nil {
-		return 1, nil // Fallback mặc định
+		if err == pgx.ErrNoRows {
+			return 0, fmt.Errorf("tenant not found: %s", tenantID)
+		}
+		return 0, err
 	}
 	return revision, nil
 }

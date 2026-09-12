@@ -34,6 +34,9 @@ func (c *Compiler) Compile(policy *PolicyNode) (*PolicyNode, error) {
 	if policy == nil {
 		return nil, fmt.Errorf("policy node là nil")
 	}
+	if err := validatePolicyObligations(policy); err != nil {
+		return nil, err
+	}
 
 	// 1. Kiểm tra độ sâu tối đa của AST (giới hạn 15 cấp)
 	if policy.Condition != nil {

@@ -39,7 +39,8 @@ func TestAIAgent_AutonomousGuardrailsAndObligations(t *testing.T) {
 	) when {
 		context.amount > 2000 &&
 		context.execution_mode == "autonomous_run"
-	};`
+	}
+	obligation REQUIRE_HUMAN_APPROVAL "Khoản chi vượt hạn mức tự trị; cần cấp quản lý phê duyệt";`
 
 	// Rule 3: Cấm tuyệt đối nếu số tiền vượt trần 1,000,000 USD (Chống Prompt Injection / Hallucination)
 	dsl3 := `forbid(
@@ -93,21 +94,6 @@ func TestAIAgent_AutonomousGuardrailsAndObligations(t *testing.T) {
 		})
 		if res.Decision != engine.DecisionDeny {
 			t.Fatalf("Kỳ vọng DENY cho khoản chi ,000 tự trị, thực tế: %v", res.Decision)
-		}
-
-		// Gán Obligation theo chuẩn NIST AI RMF
-		if res.Reason == engine.ReasonDenyForbid && len(res.Explanations) > 0 && res.Explanations[0] == "POL-AGENT-AUTONOMOUS-HIGH-FORBID" {
-			res.Obligations = []engine.Obligation{
-				{
-					Type:    engine.ObligationTypeRequireApproval,
-					Message: "Khoản chi vượt hạn mức tự trị (,000). Yêu cầu phê duyệt từ cấp quản lý trước khi thực thi.",
-					Payload: map[string]string{
-						"risk_level":             "HIGH",
-						"required_approver_role": "role:cfo",
-						"amount":                 "50000",
-					},
-				},
-			}
 		}
 
 		if len(res.Obligations) != 1 || res.Obligations[0].Type != engine.ObligationTypeRequireApproval {

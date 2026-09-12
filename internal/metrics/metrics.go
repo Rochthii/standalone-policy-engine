@@ -39,6 +39,16 @@ var (
 		Name: "audit_logs_spilled_total",
 		Help: "Tổng số lượng audit log bị ghi tạm thời xuống SSD vật lý do PostgreSQL bị nghẽn kết nối.",
 	}, []string{"tenant_id"})
+
+	AuditLogsDroppedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "audit_logs_dropped_total",
+		Help: "Audit records dropped because the bounded queue or durable sink was unavailable.",
+	}, []string{"tenant_id"})
+
+	AuditBatchWriteFailuresTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "audit_batch_write_failures_total",
+		Help: "Durable audit batch writes that failed or timed out.",
+	})
 )
 
 // ObserveEvaluationDuration ghi nhận độ trễ thời gian xử lý quyết định.
@@ -59,4 +69,12 @@ func UpdateActivePoliciesCount(tenantID string, count int) {
 // IncrementAuditLogsSpilled tăng bộ đếm log bị ghi đĩa dự phòng.
 func IncrementAuditLogsSpilled(tenantID string) {
 	AuditLogsSpilledTotal.WithLabelValues(tenantID).Inc()
+}
+
+func AddAuditLogsDropped(tenantID string, count uint64) {
+	AuditLogsDroppedTotal.WithLabelValues(tenantID).Add(float64(count))
+}
+
+func IncrementAuditBatchWriteFailures() {
+	AuditBatchWriteFailuresTotal.Inc()
 }

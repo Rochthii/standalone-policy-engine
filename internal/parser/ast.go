@@ -126,11 +126,28 @@ type PolicyNode struct {
 	IsUnless           bool       // true nếu dùng từ khóa "unless" (đảo logic), false nếu "when"
 	ExplanationList    []string   // Pre-allocated immutable slice [ID] để đạt Zero Allocation ở Decision
 	RequiredAttributes []string   // Danh sách các thuộc tính biến được trích xuất từ AST điều kiện tại compile-time
+	Obligations        []ObligationNode
 	pos                Position
 }
 
 func (p *PolicyNode) Type() NodeType { return NodePolicy }
 func (p *PolicyNode) Pos() Position  { return p.pos }
+
+// ObligationType is a closed compiler-validated policy obligation type.
+type ObligationType string
+
+const (
+	ObligationRequireHumanApproval ObligationType = "REQUIRE_HUMAN_APPROVAL"
+	ObligationAuditSensitive       ObligationType = "AUDIT_SENSITIVE_TOOL_CALL"
+	ObligationMaskAttributes       ObligationType = "MASK_ATTRIBUTES"
+)
+
+type ObligationNode struct {
+	Type    ObligationType    `json:"type"`
+	Message string            `json:"message"`
+	Payload map[string]string `json:"payload,omitempty"`
+	pos     Position
+}
 
 // ---------------------------------------------------------------------------
 // BinaryExprNode — toán tử hai ngôi

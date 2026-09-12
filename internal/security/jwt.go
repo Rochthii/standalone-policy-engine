@@ -11,6 +11,8 @@ import (
 // JWTValidator chiu trach nhiem xac thuc JWT token va chiet xuat claims.
 type JWTValidator struct {
 	secretKey []byte
+	issuer    string
+	audience  string
 }
 
 // NewJWTValidator khoi tao mot JWTValidator. Khoi tao tu bien moi truong JWT_SECRET.
@@ -19,9 +21,13 @@ func NewJWTValidator() *JWTValidator {
 	if secret == "" {
 		secret = "default-policy-engine-super-secret-key-12345"
 	}
-	return &JWTValidator{
-		secretKey: []byte(secret),
-	}
+	return NewJWTValidatorWithConfig(secret, os.Getenv("JWT_ISSUER"), os.Getenv("JWT_AUDIENCE"))
+}
+
+// NewJWTValidatorWithConfig builds a validator from already-loaded application
+// configuration. Non-empty issuer and audience are enforced during parsing.
+func NewJWTValidatorWithConfig(secret, issuer, audience string) *JWTValidator {
+	return &JWTValidator{secretKey: []byte(secret), issuer: issuer, audience: audience}
 }
 
 // ValidateToken xac thuc chu ky va thoi gian song cua token, tra ve map cac claims.
@@ -31,13 +37,21 @@ func (v *JWTValidator) ValidateToken(tokenStr string) (jwt.MapClaims, error) {
 		tokenStr = tokenStr[7:]
 	}
 
-	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-		// Kiem tra thuat toan sign co phai HMAC khong
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("thuat toan ky khong hop le: %v", token.Header["alg"])
-		}
-		return v.secretKey, nil
-	})
+	options := []jwt.ParserOption{
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+		jwt.WithExpirationRequired(),
+	}
+	if v.issuer != "" {
+		options = append(options, jwt.WithIssuer(v.issuer))
+	}
+	if v.audience != "" {
+		options = append(options, jwt.WithAudience(v.audience))
+	}
+	token, err := jwt.Parse(
+		tokenStr,
+		func(_ *jwt.Token) (interface{}, error) { return v.secretKey, nil },
+		options...,
+	)
 
 	if err != nil {
 		return nil, fmt.Errorf("loi parse token: %w", err)
@@ -80,4 +94,39 @@ func (v *JWTValidator) ExtractSubjectAttributes(claims jwt.MapClaims) (string, m
 	}
 
 	return sub, attrs, nil
+}
+
+// HasPermission checks an authorization permission carried by a signed JWT.
+// It supports a JSON string array and comma/space-delimited strings so common
+// identity providers can map their permission claim without custom decoding.
+func HasPermission(claims jwt.MapClaims, required string) bool {
+	value, exists := claims["permissions"]
+	if !exists || required == "" {
+		return false
+	}
+
+	switch permissions := value.(type) {
+	case string:
+		for _, permission := range strings.FieldsFunc(permissions, func(r rune) bool {
+			return r == ',' || r == ' '
+		}) {
+			if permission == required {
+				return true
+			}
+		}
+	case []string:
+		for _, permission := range permissions {
+			if permission == required {
+				return true
+			}
+		}
+	case []interface{}:
+		for _, permission := range permissions {
+			if text, ok := permission.(string); ok && text == required {
+				return true
+			}
+		}
+	}
+
+	return false
 }

@@ -1,7 +1,9 @@
 package engine
 
 import (
+	"fmt"
 	"standalone-policy-engine/internal/parser"
+	"sync"
 	"sync/atomic"
 	"unsafe"
 )
@@ -18,6 +20,9 @@ type Engine struct {
 	// state là con trỏ unsafe.Pointer trỏ tới struct *EngineState.
 	// Cho phép luồng đọc CheckAccess hoàn toàn lock-free sử dụng atomic.LoadPointer.
 	state unsafe.Pointer
+
+	// writeMu serializes COW snapshots. Readers never acquire it.
+	writeMu sync.Mutex
 }
 
 // NewEngine khởi tạo mới một PDP Engine trống.
@@ -60,8 +65,21 @@ func (e *Engine) GetTenantSchema(tenantID string) []string {
 
 // UpdateTenantPolicies cập nhật tập luật và phân cấp vai trò cho một Tenant cụ thể (tự động tăng revision).
 func (e *Engine) UpdateTenantPolicies(tenantID string, policies []*parser.PolicyNode, inheritances [][2]string) error {
-	currentRev := e.GetTenantRevision(tenantID)
-	return e.UpdateTenantPoliciesWithRevision(tenantID, policies, inheritances, currentRev+1)
+	newTrie, err := buildTenantTrie(tenantID, policies, inheritances, 0)
+	if err != nil {
+		return err
+	}
+
+	e.writeMu.Lock()
+	defer e.writeMu.Unlock()
+	oldState := e.GetState()
+	if current, exists := oldState.Tenants[tenantID]; exists {
+		newTrie.Revision = current.Revision + 1
+	} else {
+		newTrie.Revision = 1
+	}
+	atomic.StorePointer(&e.state, unsafe.Pointer(stateWithTenant(oldState, tenantID, newTrie)))
+	return nil
 }
 
 // UpdateTenantPoliciesWithRevision cập nhật tập luật và phân cấp vai trò cho một Tenant với số hiệu Revision cụ thể.
@@ -70,45 +88,19 @@ func (e *Engine) UpdateTenantPolicies(tenantID string, policies []*parser.Policy
 //  2. Xây dựng lại toàn bộ TrieRoot mới cho Tenant cần cập nhật (nạp vai trò và chính sách).
 //  3. Hoán đổi con trỏ nguyên tử (Atomic Pointer Swap) sang state mới.
 func (e *Engine) UpdateTenantPoliciesWithRevision(tenantID string, policies []*parser.PolicyNode, inheritances [][2]string, revision uint64) error {
+	newTrie, err := buildTenantTrie(tenantID, policies, inheritances, revision)
+	if err != nil {
+		return err
+	}
+	e.writeMu.Lock()
+	defer e.writeMu.Unlock()
 	oldState := e.GetState()
-
-	// 1. Tạo EngineState mới
-	newState := &EngineState{
-		Tenants: make(map[string]*TrieRoot),
+	if revisionIsStale(oldState, tenantID, revision) {
+		return fmt.Errorf("%w: tenant=%s current=%d received=%d", ErrStaleRevision, tenantID, oldState.Tenants[tenantID].Revision, revision)
 	}
-
-	// 2. Sao chép nông (shallow copy) các con trỏ Trie của các Tenant khác
-	for tid, trie := range oldState.Tenants {
-		if tid != tenantID {
-			newState.Tenants[tid] = trie
-		}
+	if revisionIsDuplicate(oldState, tenantID, revision) {
+		return nil
 	}
-
-	// 3. Xây dựng mới hoàn toàn TrieRoot cho Tenant được cập nhật
-	newTrie := NewTrieRoot(tenantID)
-	if revision > 0 {
-		newTrie.Revision = revision
-	}
-
-	// Nạp phân cấp vai trò DAG trước
-	for _, pair := range inheritances {
-		parent := pair[0]
-		child := pair[1]
-		if err := newTrie.RoleDAG.AddInheritance(parent, child); err != nil {
-			return err
-		}
-	}
-
-	// Nạp các chính sách vào Trie (tự động tổng hợp RequiredAttributes)
-	for _, policy := range policies {
-		newTrie.AddPolicy(policy)
-	}
-
-	// Đưa Trie mới vào state mới
-	newState.Tenants[tenantID] = newTrie
-
-	// 4. Hoán đổi con trỏ nguyên tử
-	atomic.StorePointer(&e.state, unsafe.Pointer(newState))
-
+	atomic.StorePointer(&e.state, unsafe.Pointer(stateWithTenant(oldState, tenantID, newTrie)))
 	return nil
 }

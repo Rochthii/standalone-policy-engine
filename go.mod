@@ -7,11 +7,13 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/golang-migrate/migrate/v4 v4.17.0
 	github.com/jackc/pgx/v5 v5.5.5
+	github.com/openziti/sdk-golang v1.9.0
 	github.com/prometheus/client_golang v1.18.0
 	github.com/redis/go-redis/v9 v9.5.1
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.18.2
-	google.golang.org/grpc v1.62.1
+	google.golang.org/grpc v1.64.1
+	google.golang.org/protobuf v1.36.12
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -57,7 +59,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/glog v1.2.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/golang/protobuf v1.5.3 // indirect
+	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/flatbuffers v2.0.8+incompatible // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -90,7 +92,6 @@ require (
 	github.com/openziti/foundation/v2 v2.0.95 // indirect
 	github.com/openziti/identity v1.0.133 // indirect
 	github.com/openziti/metrics v1.4.5 // indirect
-	github.com/openziti/sdk-golang v1.9.0 // indirect
 	github.com/openziti/secretstream v0.1.51 // indirect
 	github.com/openziti/transport/v2 v2.0.216 // indirect
 	github.com/orcaman/concurrent-map/v2 v2.0.1 // indirect
@@ -135,8 +136,7 @@ require (
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/term v0.44.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80 // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240318140521-94a12d6c2237 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	nhooyr.io/websocket v1.8.17 // indirect
 )

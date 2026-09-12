@@ -27,7 +27,8 @@ func TestAIAgentGuardrails_ToolAuthorization(t *testing.T) {
 		resource == any
 	) when {
 		context.tool_risk == "HIGH" || context.delegation_depth > 3
-	};`
+	}
+	obligation REQUIRE_HUMAN_APPROVAL "Yêu cầu phê duyệt từ cấp quản lý trước khi thực thi công cụ rủi ro cao";`
 
 	l1 := parser.NewLexer(permitDSL)
 	p1 := parser.NewParser(l1)
@@ -63,19 +64,6 @@ func TestAIAgentGuardrails_ToolAuthorization(t *testing.T) {
 		t.Fatalf("Mong đợi DENY cho high risk tool, thực tế: %v", res2.Decision)
 	}
 
-	// Gắn thêm Obligation vào quyết định DENY cho client
-	if res2.Decision == DecisionDeny && res2.Reason == ReasonDenyForbid {
-		res2.Obligations = []Obligation{
-			{
-				Type:    ObligationTypeRequireApproval,
-				Message: "Yêu cầu phê duyệt từ cấp quản lý trước khi thực thi công cụ rủi ro cao",
-				Payload: map[string]string{
-					"tool_name":  "transfer_funds",
-					"risk_level": "HIGH",
-				},
-			},
-		}
-	}
 	if len(res2.Obligations) != 1 || res2.Obligations[0].Type != ObligationTypeRequireApproval {
 		t.Errorf("Mong đợi Obligation REQUIRE_HUMAN_APPROVAL, thực tế: %v", res2.Obligations)
 	}

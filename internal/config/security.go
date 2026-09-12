@@ -1,0 +1,92 @@
+package config
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"strings"
+)
+
+type SecurityConfig struct {
+	JWTSecret                 string
+	JWTIssuer                 string
+	JWTAudience               string
+	DelegationSecret          string // Development compatibility fallback only.
+	DelegationActiveKeyID     string
+	DelegationKeys            map[string]string
+	DelegationKeyringExplicit bool
+	TLSCertFile               string
+	TLSKeyFile                string
+	TLSCAFile                 string
+	LogKEK                    string
+}
+
+const (
+	developmentJWTSecret        = "standalone-policy-engine-dev-jwt-secret"
+	developmentDelegationSecret = "standalone-policy-engine-dev-delegation-secret"
+)
+
+func validateProductionConfig(cfg *Config) error {
+	if !strings.EqualFold(cfg.AppEnv, "production") {
+		return nil
+	}
+	if cfg.Database.URL == "" || strings.Contains(strings.ToLower(cfg.Database.URL), "localhost") {
+		return errors.New("DATABASE_URL tren Production khong duoc de trong hoac tro vao localhost")
+	}
+	if len(cfg.Security.JWTSecret) < 32 || cfg.Security.JWTSecret == developmentJWTSecret {
+		return errors.New("JWT_SECRET tren Production phai la secret rieng, toi thieu 32 ky tu")
+	}
+	if strings.TrimSpace(cfg.Security.JWTIssuer) == "" || cfg.Security.JWTIssuer == "standalone-policy-engine-dev" {
+		return errors.New("JWT_ISSUER tren Production phai duoc cau hinh ro rang")
+	}
+	if strings.TrimSpace(cfg.Security.JWTAudience) == "" || cfg.Security.JWTAudience == "standalone-policy-engine-pdp" {
+		return errors.New("JWT_AUDIENCE tren Production phai duoc cau hinh ro rang")
+	}
+	if err := validateProductionDelegationKeyring(cfg.Security); err != nil {
+		return err
+	}
+	if strings.TrimSpace(cfg.Security.TLSCertFile) == "" || strings.TrimSpace(cfg.Security.TLSKeyFile) == "" || strings.TrimSpace(cfg.Security.TLSCAFile) == "" {
+		return errors.New("PDP_TLS_CERT, PDP_TLS_KEY va PDP_TLS_CA bat buoc tren Production")
+	}
+	return nil
+}
+
+func validateProductionDelegationKeyring(cfg SecurityConfig) error {
+	if !cfg.DelegationKeyringExplicit {
+		return errors.New("PDP_DELEGATION_KEYS_JSON va PDP_DELEGATION_ACTIVE_KID bat buoc tren Production")
+	}
+	activeSecret, exists := cfg.DelegationKeys[cfg.DelegationActiveKeyID]
+	if !exists || len(activeSecret) < 32 {
+		return errors.New("delegation active key tren Production phai ton tai va dai toi thieu 32 ky tu")
+	}
+	for keyID, secret := range cfg.DelegationKeys {
+		if len(secret) < 32 {
+			return fmt.Errorf("delegation key %q tren Production phai dai toi thieu 32 ky tu", keyID)
+		}
+	}
+	return nil
+}
+
+func loadDelegationKeyring(fallbackSecret string) (string, map[string]string, bool, error) {
+	activeKeyID, activeExplicit := os.LookupEnv("PDP_DELEGATION_ACTIVE_KID")
+	rawKeys, keysExplicit := os.LookupEnv("PDP_DELEGATION_KEYS_JSON")
+	if !activeExplicit && !keysExplicit {
+		return "legacy", map[string]string{"legacy": fallbackSecret}, false, nil
+	}
+	if strings.TrimSpace(activeKeyID) == "" || strings.TrimSpace(rawKeys) == "" {
+		return "", nil, false, errors.New("PDP_DELEGATION_ACTIVE_KID va PDP_DELEGATION_KEYS_JSON phai duoc cau hinh cung nhau")
+	}
+
+	keys := make(map[string]string)
+	if err := json.Unmarshal([]byte(rawKeys), &keys); err != nil {
+		return "", nil, false, fmt.Errorf("PDP_DELEGATION_KEYS_JSON khong hop le: %w", err)
+	}
+	if len(keys) == 0 {
+		return "", nil, false, errors.New("PDP_DELEGATION_KEYS_JSON khong duoc rong")
+	}
+	if _, exists := keys[activeKeyID]; !exists {
+		return "", nil, false, errors.New("PDP_DELEGATION_ACTIVE_KID khong co trong key ring")
+	}
+	return activeKeyID, keys, true, nil
+}

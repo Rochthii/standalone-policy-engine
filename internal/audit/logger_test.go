@@ -2,6 +2,7 @@ package audit
 
 import (
 	"bytes"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -10,6 +11,49 @@ type noopWriter struct{}
 
 func (n *noopWriter) Write(p []byte) (int, error) {
 	return len(p), nil
+}
+
+func TestAuditLogger_RedactsCredentialsProofsAndPII(t *testing.T) {
+	buf := &bytes.Buffer{}
+	logger := NewStreamAuditLogger(buf)
+	defer logger.Stop()
+
+	contextValues := map[string]string{
+		"delegation_proof": "raw-proof-must-not-leak",
+		"Authorization":    "Bearer raw-token-must-not-leak",
+		"principal.email":  "alice@example.test",
+		"client_ip":        "203.0.113.42",
+		"department":       "Procurement",
+	}
+	logger.Log(7, "tenant-a", "user:alice", "READ", "invoice:42", "ALLOW", "policy-1", contextValues)
+
+	raw := buf.String()
+	for _, forbidden := range []string{
+		"raw-proof-must-not-leak",
+		"raw-token-must-not-leak",
+		"alice@example.test",
+		"203.0.113.42",
+	} {
+		if strings.Contains(raw, forbidden) {
+			t.Fatalf("sensitive value leaked into audit output: %q", forbidden)
+		}
+	}
+
+	entry, err := DecodeNDJSONLogEntry(buf.Bytes())
+	if err != nil {
+		t.Fatalf("decode redacted audit entry: %v", err)
+	}
+	for _, key := range []string{"delegation_proof", "Authorization", "principal.email", "client_ip"} {
+		if entry.Context[key] != redactedAuditValue {
+			t.Fatalf("context %q was not redacted: %q", key, entry.Context[key])
+		}
+	}
+	if entry.Context["department"] != "Procurement" {
+		t.Fatal("non-sensitive context must remain available for audit correlation")
+	}
+	if contextValues["delegation_proof"] != "raw-proof-must-not-leak" {
+		t.Fatal("redaction must not mutate the caller's authorization context")
+	}
 }
 
 func TestAuditLogger_NDJSONPackagingAndDecoding(t *testing.T) {
@@ -55,7 +99,7 @@ func TestAuditLogger_NDJSONPackagingAndDecoding(t *testing.T) {
 	if entry.MatchedPolicyID != "P-ALLOW-1" {
 		t.Errorf("MatchedPolicyID không khớp: %s", entry.MatchedPolicyID)
 	}
-	if entry.Context["ip"] != "192.168.1.100" || entry.Context["device"] != "ios_secure" {
+	if entry.Context["ip"] != redactedAuditValue || entry.Context["device"] != "ios_secure" {
 		t.Errorf("Context map không khớp: %+v", entry.Context)
 	}
 	if entry.Timestamp <= 0 {
@@ -69,7 +113,7 @@ func TestAuditLogger_SpecialCharactersEscape(t *testing.T) {
 	defer logger.Stop()
 
 	ctxMap := map[string]string{
-		"user_agent": "Mozilla/5.0 \"quoted\"\nline2\ttab\\slash",
+		"details": "Mozilla/5.0 \"quoted\"\nline2\ttab\\slash",
 	}
 
 	logger.Log(10, "tenant\"bad", "user:bob\nadmin", "WRITE", "doc\\secret", "DENY", "P-DENY", ctxMap)
@@ -85,8 +129,8 @@ func TestAuditLogger_SpecialCharactersEscape(t *testing.T) {
 	if entry.Subject != "user:bob\nadmin" {
 		t.Errorf("Subject escape không đúng: %s", entry.Subject)
 	}
-	if entry.Context["user_agent"] != "Mozilla/5.0 \"quoted\"\nline2\ttab\\slash" {
-		t.Errorf("Context escape không đúng: %s", entry.Context["user_agent"])
+	if entry.Context["details"] != "Mozilla/5.0 \"quoted\"\nline2\ttab\\slash" {
+		t.Errorf("Context escape không đúng: %s", entry.Context["details"])
 	}
 }
 

@@ -38,7 +38,7 @@ func main() {
 	})
 
 	// 3. Khởi chạy HTTP Server
-	httpServer, err := server.StartHTTPServer(cfg.Server.HTTPPort, store, eng)
+	httpServer, err := server.StartHTTPServer(cfg.Server.HTTPPort, store, eng, cfg.Security)
 	if err != nil {
 		log.Fatalf("[Control-Plane] Không thể chạy HTTP server: %v", err)
 	}

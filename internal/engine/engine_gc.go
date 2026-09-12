@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -29,6 +30,9 @@ type GCConfig struct {
 type EngineWithGC struct {
 	// Nhúng Engine cơ bản (COW + atomic pointer)
 	state unsafe.Pointer
+
+	// writeMu serializes COW snapshots while keeping CheckPermission lock-free.
+	writeMu sync.Mutex
 
 	// accessRecords theo dõi thời điểm truy cập cuối của từng Tenant
 	accessRecords sync.Map // map[tenantID string]*tenantAccessRecord
@@ -177,39 +181,41 @@ func (e *EngineWithGC) GetTenantSchema(tenantID string) []string {
 
 // UpdateTenantPolicies cập nhật tập luật cho Tenant sử dụng COW.
 func (e *EngineWithGC) UpdateTenantPolicies(tenantID string, policies []*parser.PolicyNode, inheritances [][2]string) error {
-	currentRev := e.GetTenantRevision(tenantID)
-	return e.UpdateTenantPoliciesWithRevision(tenantID, policies, inheritances, currentRev+1)
+	newTrie, err := buildTenantTrie(tenantID, policies, inheritances, 0)
+	if err != nil {
+		return err
+	}
+	e.writeMu.Lock()
+	oldState := e.GetState()
+	if current, exists := oldState.Tenants[tenantID]; exists {
+		newTrie.Revision = current.Revision + 1
+	} else {
+		newTrie.Revision = 1
+	}
+	atomic.StorePointer(&e.state, unsafe.Pointer(stateWithTenant(oldState, tenantID, newTrie)))
+	e.writeMu.Unlock()
+	e.touchTenant(tenantID, len(policies))
+	return nil
 }
 
 // UpdateTenantPoliciesWithRevision cập nhật tập luật cho Tenant với số hiệu Revision cụ thể.
 func (e *EngineWithGC) UpdateTenantPoliciesWithRevision(tenantID string, policies []*parser.PolicyNode, inheritances [][2]string, revision uint64) error {
+	newTrie, err := buildTenantTrie(tenantID, policies, inheritances, revision)
+	if err != nil {
+		return err
+	}
+	e.writeMu.Lock()
 	oldState := e.GetState()
-
-	newState := &EngineState{
-		Tenants: make(map[string]*TrieRoot, len(oldState.Tenants)+1),
+	if revisionIsStale(oldState, tenantID, revision) {
+		e.writeMu.Unlock()
+		return fmt.Errorf("%w: tenant=%s current=%d received=%d", ErrStaleRevision, tenantID, oldState.Tenants[tenantID].Revision, revision)
 	}
-	for tid, trie := range oldState.Tenants {
-		if tid != tenantID {
-			newState.Tenants[tid] = trie
-		}
+	if revisionIsDuplicate(oldState, tenantID, revision) {
+		e.writeMu.Unlock()
+		return nil
 	}
-
-	newTrie := NewTrieRoot(tenantID)
-	if revision > 0 {
-		newTrie.Revision = revision
-	}
-
-	for _, pair := range inheritances {
-		if err := newTrie.RoleDAG.AddInheritance(pair[0], pair[1]); err != nil {
-			return err
-		}
-	}
-	for _, policy := range policies {
-		newTrie.AddPolicy(policy)
-	}
-	newState.Tenants[tenantID] = newTrie
-
-	atomic.StorePointer(&e.state, unsafe.Pointer(newState))
+	atomic.StorePointer(&e.state, unsafe.Pointer(stateWithTenant(oldState, tenantID, newTrie)))
+	e.writeMu.Unlock()
 
 	// Cập nhật record khi Tenant có chính sách mới
 	e.touchTenant(tenantID, len(policies))
@@ -218,22 +224,15 @@ func (e *EngineWithGC) UpdateTenantPoliciesWithRevision(tenantID string, policie
 
 // UnloadTenant xóa Trie của Tenant ra khỏi RAM (dùng bởi GC).
 func (e *EngineWithGC) UnloadTenant(tenantID string) {
+	e.writeMu.Lock()
+	defer e.writeMu.Unlock()
 	oldState := e.GetState()
 
 	if _, exists := oldState.Tenants[tenantID]; !exists {
 		return
 	}
 
-	newState := &EngineState{
-		Tenants: make(map[string]*TrieRoot, len(oldState.Tenants)-1),
-	}
-	for tid, trie := range oldState.Tenants {
-		if tid != tenantID {
-			newState.Tenants[tid] = trie
-		}
-	}
-
-	atomic.StorePointer(&e.state, unsafe.Pointer(newState))
+	atomic.StorePointer(&e.state, unsafe.Pointer(stateWithoutTenant(oldState, tenantID)))
 	e.accessRecords.Delete(tenantID)
 	log.Printf("[GC-Engine] Đã unload Tenant %s ra khỏi RAM để giải phóng bộ nhớ.", tenantID)
 }

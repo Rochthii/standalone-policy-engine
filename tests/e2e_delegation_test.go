@@ -1,7 +1,6 @@
 package tests
 
 import (
-	"context"
 	"os"
 	"strconv"
 	"testing"
@@ -19,6 +18,7 @@ import (
 
 // setupE2ETestEngine khởi tạo máy chủ PDP hoàn chỉnh với 6 luật P2P hạt giống từ configs/policies.cedar
 func setupE2ETestEngine(t *testing.T) (*server.GRPCServer, *engine.EngineWithGC) {
+	configureIntegrationTestJWT(t)
 	eng := engine.NewEngineWithGC(engine.GCConfig{Enabled: false})
 	compiler := parser.NewCompiler()
 
@@ -64,8 +64,6 @@ func setupE2ETestEngine(t *testing.T) (*server.GRPCServer, *engine.EngineWithGC)
 func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 	srv, _ := setupE2ETestEngine(t)
 	delegationMgr := security.NewDelegationManager()
-	ctx := context.Background()
-
 	validUntil := strconv.FormatInt(time.Now().Add(2*time.Hour).Unix(), 10)
 	pastUntil := strconv.FormatInt(time.Now().Add(-10*time.Minute).Unix(), 10)
 
@@ -80,13 +78,12 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 			Resource: "purchase_order:PO-2026-001",
 			Context: map[string]string{
 				"amount":               "4500",
-				"delegation_chain":     "user:manager_bob",
 				"resource.creator_id":  "user:manager_bob",
 				"principal.department": "Procurement",
 				"resource.department":  "Procurement",
 			},
 		}
-		res, err := srv.CheckAccess(ctx, req)
+		res, err := srv.CheckAccess(authenticatedIncomingContext(t, "tenant-odoo", "user:manager_bob"), req)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -103,26 +100,15 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 		delegator := "user:manager_bob"
 		agent := "agent:procurement_copilot"
 		amount := "1800"
-		proof := delegationMgr.GenerateProof(grantID, delegator, agent, amount, validUntil)
-
 		req := &policyv1.CheckAccessRequest{
 			TenantId: "tenant-odoo",
 			Subject:  agent,
 			Action:   "action:APPROVE_PURCHASE_ORDER",
 			Resource: "purchase_order:PO-2026-002",
-			Context: map[string]string{
-				"amount":                 amount,
-				"delegation_grant_id":    grantID,
-				"delegated_by":           delegator,
-				"delegation_valid_until": validUntil,
-				"delegation_proof":       proof,
-				"delegation_chain":       "user:manager_bob,agent:procurement_copilot",
-				"resource.creator_id":    "user:manager_bob", // Trùng với Delegator trong chuỗi
-				"tool_context":           "tool:auto_confirm_po",
-				"execution_mode":         "autonomous_run",
-			},
+			Context: signedDelegationContext(t, delegationMgr, "tenant-odoo", grantID, delegator, agent,
+				"action:APPROVE_PURCHASE_ORDER", "purchase_order:PO-2026-002", amount, validUntil, "user:manager_bob"),
 		}
-		res, err := srv.CheckAccess(ctx, req)
+		res, err := srv.CheckAccess(authenticatedIncomingContext(t, "tenant-odoo", agent), req)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -139,26 +125,15 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 		delegator := "user:manager_bob"
 		agent := "agent:procurement_copilot"
 		amount := "1500"
-		proof := delegationMgr.GenerateProof(grantID, delegator, agent, amount, validUntil)
-
 		req := &policyv1.CheckAccessRequest{
 			TenantId: "tenant-odoo",
 			Subject:  agent,
 			Action:   "action:APPROVE_PURCHASE_ORDER",
 			Resource: "purchase_order:PO-2026-003",
-			Context: map[string]string{
-				"amount":                 amount,
-				"delegation_grant_id":    grantID,
-				"delegated_by":           delegator,
-				"delegation_valid_until": validUntil,
-				"delegation_proof":       proof,
-				"delegation_chain":       "user:manager_bob,agent:procurement_copilot",
-				"resource.creator_id":    "user:staff_alice", // Alice tạo -> Hợp lệ SoD
-				"tool_context":           "tool:auto_confirm_po",
-				"execution_mode":         "autonomous_run",
-			},
+			Context: signedDelegationContext(t, delegationMgr, "tenant-odoo", grantID, delegator, agent,
+				"action:APPROVE_PURCHASE_ORDER", "purchase_order:PO-2026-003", amount, validUntil, "user:staff_alice"),
 		}
-		res, err := srv.CheckAccess(ctx, req)
+		res, err := srv.CheckAccess(authenticatedIncomingContext(t, "tenant-odoo", agent), req)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -175,26 +150,15 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 		delegator := "user:manager_bob"
 		agent := "agent:procurement_copilot"
 		amount := "3500"
-		proof := delegationMgr.GenerateProof(grantID, delegator, agent, amount, validUntil)
-
 		req := &policyv1.CheckAccessRequest{
 			TenantId: "tenant-odoo",
 			Subject:  agent,
 			Action:   "action:APPROVE_PURCHASE_ORDER",
 			Resource: "purchase_order:PO-2026-004",
-			Context: map[string]string{
-				"amount":                 amount,
-				"delegation_grant_id":    grantID,
-				"delegated_by":           delegator,
-				"delegation_valid_until": validUntil,
-				"delegation_proof":       proof,
-				"delegation_chain":       "user:manager_bob,agent:procurement_copilot",
-				"resource.creator_id":    "user:staff_alice",
-				"tool_context":           "tool:auto_confirm_po",
-				"execution_mode":         "autonomous_run",
-			},
+			Context: signedDelegationContext(t, delegationMgr, "tenant-odoo", grantID, delegator, agent,
+				"action:APPROVE_PURCHASE_ORDER", "purchase_order:PO-2026-004", amount, validUntil, "user:staff_alice"),
 		}
-		res, err := srv.CheckAccess(ctx, req)
+		res, err := srv.CheckAccess(authenticatedIncomingContext(t, "tenant-odoo", agent), req)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -210,27 +174,19 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 		grantID := "grant-tc05"
 		delegator := "user:manager_bob"
 		agent := "agent:procurement_copilot"
-		// Proof được ký cho $1,500
-		proof := delegationMgr.GenerateProof(grantID, delegator, agent, "1500", validUntil)
+		// Proof được ký cho $1,500, sau đó amount bị sửa thành $50,000.
+		contextValues := signedDelegationContext(t, delegationMgr, "tenant-odoo", grantID, delegator, agent,
+			"action:APPROVE_PURCHASE_ORDER", "purchase_order:PO-2026-005", "1500", validUntil, "user:staff_alice")
+		contextValues["amount"] = "50000"
 
 		req := &policyv1.CheckAccessRequest{
 			TenantId: "tenant-odoo",
 			Subject:  agent,
 			Action:   "action:APPROVE_PURCHASE_ORDER",
 			Resource: "purchase_order:PO-2026-005",
-			Context: map[string]string{
-				"amount":                 "50000", // Kẻ tấn công sửa context.amount thành 50,000
-				"delegation_grant_id":    grantID,
-				"delegated_by":           delegator,
-				"delegation_valid_until": validUntil,
-				"delegation_proof":       proof,
-				"delegation_chain":       "user:manager_bob,agent:procurement_copilot",
-				"resource.creator_id":    "user:staff_alice",
-				"tool_context":           "tool:auto_confirm_po",
-				"execution_mode":         "autonomous_run",
-			},
+			Context:  contextValues,
 		}
-		_, err := srv.CheckAccess(ctx, req)
+		_, err := srv.CheckAccess(authenticatedIncomingContext(t, "tenant-odoo", agent), req)
 		if err == nil {
 			t.Fatalf("TC-05 FAILED: Expected error for tampered HMAC proof, but got nil")
 		}
@@ -248,8 +204,6 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 		delegator := "user:manager_bob"
 		agent := "agent:procurement_copilot"
 		amount := "1200"
-		proof := delegationMgr.GenerateProof(grantID, delegator, agent, amount, validUntil)
-
 		// Manager bấm thu hồi qua gRPC RPC
 		revokeReq := &policyv1.RevokeRequest{
 			TenantId:  "tenant-odoo",
@@ -257,7 +211,7 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 			RevokedBy: "user:manager_bob",
 			Reason:    "Kích hoạt quy trình khẩn cấp thu hồi ủy quyền",
 		}
-		_, err := srv.RevokeDelegation(ctx, revokeReq)
+		_, err := srv.RevokeDelegation(authenticatedIncomingContextWithPermissions(t, "tenant-odoo", delegator, "delegation:revoke"), revokeReq)
 		if err != nil {
 			t.Fatalf("RevokeDelegation failed: %v", err)
 		}
@@ -268,19 +222,10 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 			Subject:  agent,
 			Action:   "action:APPROVE_PURCHASE_ORDER",
 			Resource: "purchase_order:PO-2026-006",
-			Context: map[string]string{
-				"amount":                 amount,
-				"delegation_grant_id":    grantID,
-				"delegated_by":           delegator,
-				"delegation_valid_until": validUntil,
-				"delegation_proof":       proof,
-				"delegation_chain":       "user:manager_bob,agent:procurement_copilot",
-				"resource.creator_id":    "user:staff_alice",
-				"tool_context":           "tool:auto_confirm_po",
-				"execution_mode":         "autonomous_run",
-			},
+			Context: signedDelegationContext(t, delegationMgr, "tenant-odoo", grantID, delegator, agent,
+				"action:APPROVE_PURCHASE_ORDER", "purchase_order:PO-2026-006", amount, validUntil, "user:staff_alice"),
 		}
-		res, err := srv.CheckAccess(ctx, req)
+		res, err := srv.CheckAccess(authenticatedIncomingContext(t, "tenant-odoo", agent), req)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -300,26 +245,15 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 		delegator := "user:manager_bob"
 		agent := "agent:procurement_copilot"
 		amount := "1200"
-		proof := delegationMgr.GenerateProof(grantID, delegator, agent, amount, pastUntil)
-
 		req := &policyv1.CheckAccessRequest{
 			TenantId: "tenant-odoo",
 			Subject:  agent,
 			Action:   "action:APPROVE_PURCHASE_ORDER",
 			Resource: "purchase_order:PO-2026-007",
-			Context: map[string]string{
-				"amount":                 amount,
-				"delegation_grant_id":    grantID,
-				"delegated_by":           delegator,
-				"delegation_valid_until": pastUntil,
-				"delegation_proof":       proof,
-				"delegation_chain":       "user:manager_bob,agent:procurement_copilot",
-				"resource.creator_id":    "user:staff_alice",
-				"tool_context":           "tool:auto_confirm_po",
-				"execution_mode":         "autonomous_run",
-			},
+			Context: signedDelegationContext(t, delegationMgr, "tenant-odoo", grantID, delegator, agent,
+				"action:APPROVE_PURCHASE_ORDER", "purchase_order:PO-2026-007", amount, pastUntil, "user:staff_alice"),
 		}
-		_, err := srv.CheckAccess(ctx, req)
+		_, err := srv.CheckAccess(authenticatedIncomingContext(t, "tenant-odoo", agent), req)
 		if err == nil {
 			t.Fatalf("TC-07 FAILED: Expected error for expired TTL proof, but got nil")
 		}

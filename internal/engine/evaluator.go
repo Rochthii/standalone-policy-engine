@@ -108,13 +108,10 @@ func (ctx *EvalContext) GetAttribute(scope parser.VarScope, field string, expect
 			node.StrVal = ctx.Subject
 			return node, nil
 		}
-		// Thử tìm trong Context map với tiền tố principal.
+		// Principal attributes must use an explicit namespace. A raw-key fallback
+		// would let untrusted request context impersonate identity-provider claims.
 		if ctx.Context != nil {
 			val, exists := ctx.Context["principal."+field]
-			if !exists {
-				// Fallback tìm trực tiếp
-				val, exists = ctx.Context[field]
-			}
 			if exists {
 				return ctx.parseStringValue(val, expectedType)
 			}
@@ -127,12 +124,10 @@ func (ctx *EvalContext) GetAttribute(scope parser.VarScope, field string, expect
 			node.StrVal = ctx.Resource
 			return node, nil
 		}
-		// Thử tìm trong Context map với tiền tố resource.
+		// Resource attributes also require an explicit namespace to avoid
+		// ambiguous raw keys being interpreted in multiple scopes.
 		if ctx.Context != nil {
 			val, exists := ctx.Context["resource."+field]
-			if !exists {
-				val, exists = ctx.Context[field]
-			}
 			if exists {
 				return ctx.parseStringValue(val, expectedType)
 			}

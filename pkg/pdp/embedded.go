@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -61,7 +62,9 @@ func New(cfg Config) (*EmbeddedPDP, error) {
 	defer cancel()
 
 	for tenantID := range p.allowedTenants {
-		p.syncTenant(ctx, tenantID)
+		if err := p.syncTenant(ctx, tenantID); err != nil {
+			return nil, fmt.Errorf("initial sync tenant %s: %w", tenantID, err)
+		}
 	}
 
 	// Khởi chạy background worker đồng bộ ngầm (hoàn toàn không block luồng chính)
@@ -113,7 +116,7 @@ func (p *EmbeddedPDP) syncLoop() {
 		case <-ticker.C:
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			for tenantID := range p.allowedTenants {
-				p.syncTenant(ctx, tenantID)
+				_ = p.syncTenant(ctx, tenantID)
 			}
 			cancel()
 		}
@@ -142,37 +145,29 @@ func (p *EmbeddedPDP) redisSubscriber() {
 			if err := json.Unmarshal([]byte(msg.Payload), &event); err == nil {
 				// Chỉ nạp nếu tenant nằm trong Whitelist
 				if p.allowedTenants[event.TenantID] {
-					p.syncTenant(ctx, event.TenantID)
+					_ = p.syncTenant(ctx, event.TenantID)
 				}
 			}
 		}
 	}
 }
 
-func (p *EmbeddedPDP) syncTenant(ctx context.Context, tenantID string) {
-	dbPolicies, err := p.storage.GetActivePolicies(ctx, tenantID)
+func (p *EmbeddedPDP) syncTenant(ctx context.Context, tenantID string) error {
+	bundle, err := p.storage.GetTenantPolicyBundle(ctx, tenantID)
 	if err != nil {
-		return
+		return fmt.Errorf("load policy bundle: %w", err)
 	}
 
-	compiler := parser.NewCompiler()
-	compiledPolicies := make([]*parser.PolicyNode, 0, len(dbPolicies))
-
-	for _, dbP := range dbPolicies {
-		lexer := parser.NewLexer(dbP.PolicyText)
-		pr := parser.NewParser(lexer)
-		nodes := pr.Parse()
-		if len(pr.Errors()) > 0 {
-			continue
-		}
-		nodes[0].ID = dbP.ID
-		compiled, err := compiler.Compile(nodes[0])
-		if err != nil {
-			continue
-		}
-		compiledPolicies = append(compiledPolicies, compiled)
+	sources := make([]parser.PolicySource, 0, len(bundle.Policies))
+	for _, dbP := range bundle.Policies {
+		sources = append(sources, parser.PolicySource{ID: dbP.ID, Text: dbP.PolicyText})
 	}
-
-	rev, _ := p.storage.GetTenantRevision(ctx, tenantID)
-	_ = p.engine.UpdateTenantPoliciesWithRevision(tenantID, compiledPolicies, nil, rev)
+	compiledPolicies, err := parser.CompilePolicySet(sources)
+	if err != nil {
+		return fmt.Errorf("compile active policy set: %w", err)
+	}
+	if err := p.engine.UpdateTenantPoliciesWithRevision(tenantID, compiledPolicies, bundle.Inheritances, bundle.Revision); err != nil {
+		return fmt.Errorf("publish in-memory policy set: %w", err)
+	}
+	return nil
 }

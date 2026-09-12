@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"os/exec"
 	"testing"
 	"time"
@@ -124,7 +125,7 @@ func TestE2E_DockerComposeFlow(t *testing.T) {
 
 	// 6. Ket noi gRPC toi pdp-server de kiem tra quyet dinh quyen (Data Plane)
 	t.Log("Buoc 3: Goi gRPC pdp-server CheckAccess...")
-	conn, err := grpc.Dial("localhost:50061", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDefaultCallOptions(grpc.CallContentSubtype("json")))
+	conn, err := grpc.Dial("localhost:50061", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatalf("Dial gRPC that bai: %v", err)
 	}
@@ -236,10 +237,21 @@ func waitForServices(t *testing.T) {
 }
 
 func generateJWT(secret, tenantID, subject string) string {
+	issuer := os.Getenv("JWT_ISSUER")
+	if issuer == "" {
+		issuer = "standalone-policy-engine-test"
+	}
+	audience := os.Getenv("JWT_AUDIENCE")
+	if audience == "" {
+		audience = "standalone-policy-engine-pdp-test"
+	}
 	claims := jwt.MapClaims{
-		"sub":       subject,
-		"tenant_id": tenantID,
-		"exp":       time.Now().Add(1 * time.Hour).Unix(),
+		"sub":         subject,
+		"tenant_id":   tenantID,
+		"permissions": []string{"policy:read", "policy:write", "policy:simulate", "policy:operate", "delegation:revoke"},
+		"iss":         issuer,
+		"aud":         audience,
+		"exp":         time.Now().Add(1 * time.Hour).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenStr, _ := token.SignedString([]byte(secret))
