@@ -24,6 +24,14 @@
 
 ---
 
+## HIỆU ĐÍNH PHẠM VI VÀ EVIDENCE HIỆN TRẠNG (2026-09-11)
+
+Đề cương này giữ nguyên hướng nghiên cứu, 4 RQ và phạm vi 1-Hop Delegation trên Odoo 17. Tuy nhiên, các mô tả kiến trúc và số đo lịch sử trong các phần sau chỉ là baseline hoặc mục tiêu nếu chưa được xác nhận bởi mã nguồn và bộ thực nghiệm hiện hành. Tài liệu hiệu đính bắt buộc khi viết luận văn là [`THESIS_SCOPE_AND_EVIDENCE_ALIGNMENT.md`](./THESIS_SCOPE_AND_EVIDENCE_ALIGNMENT.md); trạng thái kỹ thuật chi tiết lấy từ [`CURRENT_STATE_AUDIT.md`](../technical-spec/CURRENT_STATE_AUDIT.md).
+
+Odoo PEP được kế thừa từ baseline Project 2 tại `E:\Projects\ERP_Mastery_Hub\02_Project_2_Odoo_Go_PDP_Approval`. Addon tồn tại nhưng chưa tương thích với hợp đồng PDP hiện tại (JWT/mTLS, full-tuple proof, protobuf và obligations có cấu trúc), nên chưa được tính là kết quả tích hợp thực nghiệm.
+
+---
+
 ## PHẦN B. NỘI DUNG THUYẾT MINH CHI TIẾT
 
 ```text
@@ -138,7 +146,7 @@ flowchart LR
 │  • Cấu trúc chỉ mục Trie phân cấp    │  • Cơ chế đánh giá chuỗi ủy quyền    │
 │  • Đồ thị Role DAG Transitive Closure│    nhiều cấp (Delegation Chain)      │
 │  • Cơ chế Copy-On-Write Lock-Free    │  • Đánh giá ngữ cảnh Tool-Call AI    │
-│  • Server gRPC nhị phân & JSON Codec │  • Rào chắn tiền định & Obligations: │
+│  • Server gRPC Protobuf chuẩn         │  • Rào chắn tiền định & Obligations: │
 │  • Đồng bộ Postgres Monotonic Seq    │    ALLOW / DENY / REQUIRE_APPROVAL   │
 │  • Bộ đo tải Benchmark vi mô cơ sở   │  • Bộ khung thực nghiệm 3 chiều:     │
 │                                      │    Functional - Security - Compare   │
@@ -174,7 +182,7 @@ flowchart TD
     end
 
     subgraph PDP_Core["ĐỘNG CƠ POLICY DECISION POINT (GO IN-MEMORY PDP :50051)"]
-        GRPC["gRPC Server (mTLS, JWT Context, JSON Codec)"]
+        GRPC["gRPC Server (Protobuf chuẩn, mTLS, JWT Context)"]
         
         subgraph RAM_Engine["In-Memory Execution Engine (Zero-Allocation Hot-Path)"]
             Trie["Radix Trie Index [FNV-1a 64-bit Hash Prefix Lookup]"]
@@ -187,8 +195,8 @@ flowchart TD
 
     subgraph Storage["TẦNG LƯU TRỮ, ĐỒNG BỘ & KIỂM TOÁN BỀN VỮNG"]
         Postgres[("PostgreSQL 15+ (Transactional Sequence `tenants.revision`)")]
-        Vector["Vector Sidecar (UDS Non-blocking Datagram)"]
-        ClickHouse[("ClickHouse / Storage (Immutable WORM Audit Trail)")]
+        Vector["Vector Sidecar (hướng mở rộng)"]
+        ClickHouse[("Kho lưu trữ WORM (hướng mở rộng)")]
         Badger[("BadgerDB LSM-Tree (Edge Cold-Start Snapshot)")]
     end
 
@@ -201,8 +209,8 @@ flowchart TD
     AST --> Guardrail
     Guardrail -->|"Quyết định: ALLOW / DENY + Obligations"| GRPC
 
-    GRPC -.->|"UDS Socket Datagram"| Vector
-    Vector -.->|"Batch Stream"| ClickHouse
+    GRPC -.->|"audit integration (hướng mở rộng)"| Vector
+    Vector -.->|"batch stream (hướng mở rộng)"| ClickHouse
     Postgres -.->|"NOTIFY metadata (< 120B) + Fast Gap Catch-Up"| COW
     Badger -.->|"Cold Startup"| COW
 
@@ -232,12 +240,12 @@ flowchart TD
    - *Pha 1 (Baseline Engine Hiện Hữu):* Giữ nguyên tính tối giản và hiệu năng cao của Lexer/Parser. Engine thực hiện đánh giá nhị phân thuần túy (`ALLOW` / `DENY`), và tầng **Decision Synthesizer** kích hoạt nghĩa vụ `REQUIRE_HUMAN_APPROVAL` dựa trên ánh xạ siêu dữ liệu (`matched_policy_id == "POL-AGENT-AUTONOMOUS-HIGH-FORBID"`).
    - *Pha 2 (Đóng Góp Mở Rộng Học Thuật):* Mở rộng ngữ pháp EBNF của Cedar-like DSL (`lexer.go`, `ast.go`, `parser.go`) để hỗ trợ trực tiếp khối khai báo `advice { ... }` / `obligations { ... }`, cho phép chính sách tự mô tả nghĩa vụ thời gian thực mà không cần hardcode metadata mapping.
 
-3. **Kiến Trúc Phân Tầng: Tách Biệt Tầng Biên An Ninh (Security Interceptor) & Lõi Đánh Giá Nóng (Hot-Path Core 27ns):**
+3. **Kiến Trúc Phân Tầng: Tách Biệt Tầng Biên An Ninh (Security Interceptor) & Lõi Đánh Giá Nóng:**
    - *Tầng 1 - gRPC Security Interceptor (Gateway Middleware):* Xác thực kênh truyền mTLS, kiểm tra tính toàn vẹn `delegation_proof` (HMAC-SHA256 trong $\sim 1 - 2\,\mu\text{s}$) và tra cứu In-Memory Revocation Blacklist $O(1)$ để bảo vệ Trust Boundary.
-   - *Tầng 2 - In-Memory Evaluation Core (27ns Hot-Path):* Tra cứu chỉ mục Radix Trie FNV-1a 64-bit và Role DAG Transitive Closure đạt $O(1)$ sau tiền tính toán. Hoàn toàn không thực hiện tính toán mật mã trên hot-path, bảo toàn trọn vẹn $0$ byte heap allocation và thông lượng 36.8M RPS.
+   - *Tầng 2 - In-Memory Evaluation Core:* Tra cứu chỉ mục và Role DAG nhằm giảm chi phí đánh giá; đường hot-path tách khỏi kiểm tra mật mã. Chỉ số hiệu năng chỉ được công bố sau khi tái lập theo cấu hình, commit và phạm vi benchmark đã nêu rõ.
 
 4. **Kiến Trúc Bền Vững Đa Tầng & Đồng Bộ Không Redis (Failure-Resilient Policy Runtime):**
-   - Xử lý yêu cầu Stateless dựa trên bản chụp trạng thái chính sách trong RAM, đồng bộ tức thời $< 50$ms qua PostgreSQL Monotonic Sequence (`tenants.revision`) và Replay Ring Buffer, nạp snapshot từ BadgerDB khi khởi động lạnh, và UDS Datagram Vector Logging chống nghẽn đường truyền nóng.
+   - Xử lý yêu cầu stateless bằng snapshot chính sách trong RAM và PostgreSQL monotonic revision/LISTEN-NOTIFY. Edge restore, durable multi-replica revocation, WORM logging và Vector/ClickHouse là các hạng mục cần hoàn thiện hoặc hướng mở rộng, không phải kết quả đã nghiệm thu.
 
 ---
 
@@ -253,7 +261,7 @@ flowchart TD
 
 ---
 
-### VII. KHUNG ĐÁNH GIÁ THỰC NGHIỆM VÀ KẾT QUẢ SƠ BỘ (EVALUATION FRAMEWORK)
+### VII. KHUNG ĐÁNH GIÁ THỰC NGHIỆM VÀ KẾ HOẠCH ĐO (EVALUATION FRAMEWORK)
 
 Đề tài áp dụng **Khung Đánh Giá Thực Nghiệm 3 Chiều** chuẩn mực khoa học nhằm trả lời trọn vẹn câu hỏi nghiên cứu **RQ4**:
 
@@ -264,20 +272,18 @@ flowchart TD
 │  1. FUNCTIONAL EVALUATION (TÍNH ĐÚNG ĐẮN CHỨC NĂNG):                        │
 │     • Kiểm chứng 7 kịch bản ERP thực tế (Hạn mức PO, SoD, Chi nhánh, Lương)│
 │     • Kiểm chứng cơ chế ủy quyền và Tool-Call Context của AI Agent.         │
-│     • Tỷ lệ đạt: 100% PASS các trường hợp kiểm thử nghiệp vụ.               │
+│     • Tiêu chí hoàn thành: 100% PASS các trường hợp kiểm thử nghiệp vụ.     │
 │                                                                             │
 │  2. SECURITY EVALUATION & THREAT MODEL (AN TOÀN BẢO MẬT):                   │
 │     • Kiểm thử khả năng chống leo thang đặc quyền (Privilege Escalation).   │
 │     • Hạn chế tác động (Impact Mitigation) khi AI Agent bị Prompt Injection │
-│       (Chặn đứng gian lận $10M trong 286.3 ns theo chuẩn NIST/OWASP LLM06). │
-│     • Kiểm tra tính toàn vẹn của nhật ký kiểm toán Append-Only WORM.        │
+│       bằng các request Tool-Call vượt phạm vi/hạn mức được kiểm soát.        │
+│     • Kiểm tra bảo mật, tính toàn vẹn và khả năng khôi phục của audit trail.│
 │                                                                             │
-│  3. PERFORMANCE EVALUATION (KẾT QUẢ ĐO TẢI THỰC TẾ TRÊN 20 CORES CPU):      │
-│     • Thông lượng đánh giá đồng thời: ~36.800.000 decisions/s (27.12 ns/op) │
-│     • Tải 10.000 Policies đồng thời: ~27.800.000 decisions/s (35.94 ns/op)  │
-│     • Rào chắn AI Agent & Obligations: ~3.490.000 decisions/s (286.3 ns/op) │
-│     • Đồ thị DAG 11 cấp + 5.000 Decoy Policies: 810.9 ns/op                 │
-│     • Mức tiêu thụ bộ nhớ: 0 byte heap allocation (0 allocs/op) tuyệt đối.  │
+│  3. PERFORMANCE EVALUATION (CÔNG BỐ THEO BỘ ĐO TÁI LẬP):                    │
+│     • Đo tách bạch evaluator, authentication/proof, gRPC và Odoo E2E.        │
+│     • Báo cáo p50/p95/p99/p99.9, throughput, CPU/RSS/GC và allocations/op.  │
+│     • Gắn mỗi kết quả với cấu hình phần cứng, commit và lệnh tái lập.         │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -298,16 +304,16 @@ flowchart TD
   - Trình biên dịch Pratt Parser, AST Evaluator Zero-Allocation, In-Memory Policy Snapshots.
   - Kiến trúc phân tầng: Tầng 1 gRPC Security Interceptor (mTLS, HMAC-SHA256 verify `delegation_proof`, In-Memory Revocation Blacklist $O(1)$ chống TOCTOU) và Tầng 2 In-Memory Hot-Path Core (27ns).
   - Lộ trình kỹ thuật 2 pha cho Runtime Obligations (`REQUIRE_HUMAN_APPROVAL`): Pha 1 Metadata Mapping, Pha 2 mở rộng EBNF Parser.
-  - Kiến trúc đồng bộ trạng thái Stateless qua PostgreSQL Monotonic Sequence (`tenants.revision`) LISTEN/NOTIFY và UDS Socket WORM Logger.
+  - Kiến trúc đồng bộ trạng thái qua PostgreSQL Monotonic Sequence (`tenants.revision`) LISTEN/NOTIFY; audit durable/WORM và edge restore được trình bày như các release gate hoặc hướng mở rộng cho tới khi có evidence.
 * **Chương 4: Hiện Thực Hóa & Tích Hợp Vào Hệ Thống Doanh Nghiệp Thực Tế (Odoo Platform)**
-  - Hiện thực hóa Custom Module Odoo 17 (`pdp_authorizer`) kế thừa model `purchase.order`, trích xuất ngữ cảnh Tool-Call và chuỗi ủy quyền (`context.delegation_chain`).
+  - Migrate và kiểm chứng Custom Module Odoo 17 (`pdp_authorizer`) kế thừa model `purchase.order`, trích xuất ngữ cảnh Tool-Call và chuỗi ủy quyền dưới hợp đồng protobuf/JWT/mTLS hiện tại.
   - Chuẩn hóa giao thức dữ liệu: Phân tách chuỗi bằng dấu phẩy và thực thi luật SoD qua toán tử `contains` (`evaluator.go:387`).
   - Điều phối quy trình Human-in-the-Loop trên Odoo workflow: Chuyển state `to approve` mà không gây rollback transaction.
   - (Định vị kiến trúc Two-Tier ERP tích hợp SAP S/4HANA là hướng mở rộng quy mô tập đoàn sau tốt nghiệp).
 * **Chương 5: Đánh Giá Thực Nghiệm (Functional - Security - Comparative Performance), Kết Luận & Hướng Phát Triển**
   - Báo cáo kết quả đánh giá 3 chiều chi tiết nhằm trả lời toàn diện 4 câu hỏi nghiên cứu (RQ1–RQ4).
-  - Kiểm chứng 7 kịch bản ERP P2P, chặn đứng Prompt Injection \$10M trong 286.3 ns, triệt tiêu TOCTOU trong $< 1\,\mu\text{s}$.
-  - Đo đạc định lượng so sánh độ trễ gRPC Go PDP ($< 1$ms) vs logic Record Rules nhúng trong Odoo ORM (10ms - 50ms).
+  - Kiểm chứng các kịch bản P2P/AI Tool-Call, proof tamper, revocation và fail-closed; chỉ công bố số liệu sau khi tái lập được.
+  - Đo đạc định lượng gRPC và Odoo ORM trên cùng workload, cùng môi trường, kèm raw results và percentiles.
   - Kết luận đóng góp học thuật và hướng phát triển mở rộng.
 
 ---

@@ -1,227 +1,120 @@
-# PEP_ODOO_INTEGRATION.md — Odoo 17 PEP Technical Specification
+# Odoo 17 PEP Integration
 
-## 1. Odoo ORM Hook Architecture
+> **Updated:** 2026-09-12
+> **Status:** Addon is repository-owned; seven real Odoo transaction cases and the two-session concurrency/retry boundary pass. Runtime mTLS remains open.
 
-### 1.1. Model Inheritance & Interception Point
-The PEP intercepts purchase order confirmation by overriding `button_confirm()` on `purchase.order`:
+The authoritative addon is
+[`custom_addons/pdp_authorizer`](../../custom_addons/pdp_authorizer). The external
+Project 2 addon is historical input only and is incompatible with the current
+security and Protobuf contract.
 
-```python
-# custom_addons/pdp_authorizer/models/purchase_order.py
-from odoo import models, fields, api, _
-from odoo.exceptions import AccessError, UserError
-from .pdp_client import get_pdp_client
+## 1. Enforcement boundary
 
-class PurchaseOrder(models.Model):
-    _inherit = "purchase.order"
+`purchase.order.button_confirm()` is the protected business boundary. The PEP:
 
-    pdp_status = fields.Selection([
-        ('pending', 'Pending PDP Check'),
-        ('allow', 'Allowed'),
-        ('require_approval', 'Requires Human Approval'),
-        ('deny', 'Denied')
-    ], string="PDP Decision Status", default='pending', readonly=True, copy=False)
-    
-    ai_agent_id = fields.Char("Executing AI Agent ID", readonly=True, copy=False)
-    delegated_by_id = fields.Many2one("res.users", "Delegating Principal", readonly=True, copy=False)
-    delegation_grant_id = fields.Many2one("pdp.delegation.grant", "Delegation Grant", readonly=True, copy=False)
+1. resolves the exact PDP tenant configured on `res.company`;
+2. derives the subject, resource and trusted Odoo resource attributes;
+3. creates a short-lived tenant-bound JWT for the effective user or AI agent;
+4. for delegated execution, signs the complete tuple with the active delegation key;
+5. inserts the nonce ledger row before `CheckAccess`;
+6. executes the Odoo mutation only after `ALLOW`;
+7. commits `to approve` without raising on `REQUIRE_HUMAN_APPROVAL`; and
+8. raises `AccessError` on hard deny or PDP failure so the transaction rolls back.
 
-    def button_confirm(self):
-        for order in self:
-            decision, obligations, advice = order._evaluate_pdp_access()
-            
-            if decision == "ALLOW":
-                order.write({'pdp_status': 'allow'})
-                return super(PurchaseOrder, order).button_confirm()
-                
-            elif decision == "DENY":
-                if "REQUIRE_HUMAN_APPROVAL" in obligations:
-                    # Non-rollback transition to approval state
-                    order.write({
-                        'state': 'to approve',
-                        'pdp_status': 'require_approval'
-                    })
-                    order._schedule_supervisor_activity(advice)
-                    return True
-                else:
-                    # Hard Deny / SoD violation -> Transaction rollback
-                    order.write({'pdp_status': 'deny'})
-                    raise AccessError(_("PDP Policy Denied: Action prohibited by security rules."))
-                    
-        return True
+The PDP remains an idempotent decision service. Exactly-once ERP execution is
+owned by the Odoo transaction, as specified in
+[`DELEGATION_REPLAY_IDEMPOTENCY.md`](./DELEGATION_REPLAY_IDEMPOTENCY.md).
+
+## 2. Replay-safe transaction state
+
+`pdp.authorization.attempt` has a database unique constraint on:
+
+```text
+(tenant_id, delegation_grant_id, delegation_nonce)
 ```
 
----
+Nonce creation first locks the target `purchase_order` row with `FOR UPDATE`.
+Concurrent confirmations therefore reuse the same business-command nonce rather
+than racing to create different valid nonces.
 
-## 2. PID-Safe gRPC Client for Pre-Fork Multi-Process Workers
+The row also stores a SHA-256 fingerprint of the canonical business tuple,
+business model/record identity, validity deadline and one terminal state:
 
-### 2.1. C-Core Epoll Fork Safety
-Odoo uses `gevent` or pre-fork multi-process workers (`workers > 0`). Sharing an initialized `grpc.Channel` across an `os.fork()` call leads to deadlocks inside the C-core `epoll` engine. 
+- `executed`: the protected ORM mutation completed in the same transaction;
+- `approval_required`: the non-rollback approval state and Activity were written.
 
-### 2.2. Thread-Local & Process-Safe Client Singleton
-```python
-# custom_addons/pdp_authorizer/models/pdp_client.py
-import os
-import threading
-import grpc
-from policy_v1_pb2_grpc import PolicyDecisionPointStub
+A retry with the same tuple returns the recorded outcome without re-executing
+the mutation or scheduling a duplicate Activity. Reusing the nonce with a
+different tuple or business record fails closed. An uncommitted `pending` row is
+rolled back with a hard deny, PDP outage or ORM failure.
 
-class SafePDPClient:
-    _instance = None
-    _lock = threading.Lock()
+## 3. Identity, proof and transport
 
-    def __init__(self, target="localhost:50051", timeout=0.5):
-        self._target = target
-        self._timeout = timeout
-        self._pid = os.getpid()
-        self._channel = None
-        self._stub = None
-        self._init_channel()
+- RPC metadata is `Authorization: Bearer <JWT>`.
+- JWT `sub` equals the effective Odoo user or delegated AI agent; the server
+  replaces the request `subject` with this signed value.
+- Human `principal.department` comes from the Odoo user `PDP Department` field
+  and is embedded in the signed JWT; it is never trusted from request context.
+- JWT tenant, issuer and audience must match the PDP configuration.
+- Delegated calls include every field required by
+  [`PROTOCOL_CONTRACT.md`](./PROTOCOL_CONTRACT.md), including nonce and validity window.
+- The proof is `v1.<kid>.<hex-hmac>` and uses the same length-prefixed canonical
+  bytes as `internal/security/delegation_proof.go`.
+- The client recreates its channel after a PID change and uses a 350 ms deadline.
+- Development/test may use insecure transport. Production startup rejects a
+  client configuration without CA, certificate and private key.
 
-    def _init_channel(self):
-        self._channel = grpc.insecure_channel(
-            self._target,
-            options=[
-                ('grpc.keepalive_time_ms', 10000),
-                ('grpc.keepalive_timeout_ms', 2000),
-                ('grpc.keepalive_permit_without_calls', True),
-                ('grpc.http2.max_pings_without_data', 0),
-            ]
-        )
-        self._stub = PolicyDecisionPointStub(self._channel)
+Generated files are not copied into the addon. `clients/python` is the single
+generated Python contract and is mounted read-only at `/opt/pdp-clients` with
+that path in `PYTHONPATH`.
 
-    def get_stub(self):
-        current_pid = os.getpid()
-        if current_pid != self._pid:
-            # Worker process was forked -> Recreate channel
-            with self._lock:
-                if current_pid != self._pid:
-                    self._pid = current_pid
-                    self._init_channel()
-        return self._stub
+## 4. Decision behavior
 
-_client_singleton = None
+| PDP result | Odoo behavior | Transaction outcome |
+|---|---|---|
+| `ALLOW` | call the native `button_confirm()` and mark attempt `executed` | commit together |
+| `DENY` + `REQUIRE_HUMAN_APPROVAL` | write `state=to approve`, schedule Activity, mark `approval_required` | commit; no exception |
+| hard `DENY` | raise `AccessError` | rollback |
+| RPC/auth/config failure | fail closed | rollback |
+| repeated completed nonce | return recorded outcome | no duplicate mutation |
 
-def get_pdp_client():
-    global _client_singleton
-    if _client_singleton is None:
-        _client_singleton = SafePDPClient()
-    return _client_singleton
+Obligations are read as typed Protobuf messages (`type`, `message`, `payload`),
+not compared as raw strings.
+
+## 5. Configuration and testbed
+
+The complete variable list and operator notes are in the
+[addon README](../../custom_addons/pdp_authorizer/README.md). The repository
+Compose file now mounts both the addon and the canonical Python generated
+client from repository-local paths. Its Odoo image installs the pinned Python
+runtime dependencies.
+
+## 6. Required evidence before verification
+
+The code must not be marked production-ready until a fresh Odoo database proves:
+
+1. addon install/upgrade succeeds;
+2. ALLOW performs one native confirmation;
+3. hard deny rolls back the protected mutation;
+4. approval obligation persists `to approve` and one Activity;
+5. retrying a completed nonce does not repeat either outcome;
+6. a different tuple with the same nonce fails closed;
+7. PDP outage fails closed without consuming the command nonce;
+8. tampered and revoked proofs fail; and
+9. the same suite runs with mTLS enabled.
+
+The repository contains seven real-boundary transaction tests covering items
+1–8 plus a two-session runner for the concurrent form of item 5. The Compose
+gate recreates an isolated `odoo_e2e` database and seeds the live PDP. Run it
+with:
+
+```bash
+make test-odoo-e2e
 ```
 
----
-
-## 3. Non-Rollback State Machine Coordination
-
-```mermaid
-stateDiagram-v2
-    [*] --> Draft : Create PO
-    Draft --> PDP_Check : button_confirm()
-    
-    state PDP_Check <<choice>>
-    PDP_Check --> Purchase : ALLOW (pdp_status='allow')
-    PDP_Check --> To_Approve : DENY + REQUIRE_HUMAN_APPROVAL (No Rollback)
-    PDP_Check --> Denied_Rollback : Hard DENY / SoD (Raise AccessError)
-    
-    To_Approve --> Purchase : Director approves in Odoo
-    Denied_Rollback --> [*] : DB Transaction Rolled Back
-    Purchase --> [*]
-```
-
-### 3.1. Activity Scheduling Implementation
-```python
-def _schedule_supervisor_activity(self, advice):
-    approver_role = advice.get("required_approver_role", "role:manager")
-    approver = self._resolve_user_by_role(approver_role)
-    self.activity_schedule(
-        activity_type_id=self.env.ref('mail.mail_activity_data_todo').id,
-        summary=f"Phê duyệt yêu cầu vượt ngưỡng AI: PO {self.name}",
-        note=advice.get("reason", "Khoản chi vượt hạn mức tự trị của AI Agent."),
-        user_id=approver.id
-    )
-```
-
----
-
-## 4. Schema Model: `pdp.delegation.grant`
-
-### 4.1. PostgreSQL Table / Model Specification
-```python
-# custom_addons/pdp_authorizer/models/delegation_grant.py
-from odoo import models, fields, api
-import hmac
-import hashlib
-import time
-
-class PdpDelegationGrant(models.Model):
-    _name = "pdp.delegation.grant"
-    _description = "AI Agent Delegation Grant"
-
-    user_id = fields.Many2one("res.users", "Delegating Principal", required=True, index=True)
-    agent_id = fields.Char("Agent Identifier", required=True, index=True) # e.g. "agent:procurement_copilot"
-    max_amount = fields.Float("Autonomous Spending Ceiling", required=True)
-    valid_from = fields.Datetime("Valid From", default=fields.Datetime.now, required=True)
-    valid_until = fields.Datetime("Valid Until", required=True)
-    state = fields.Selection([
-        ('draft', 'Draft'),
-        ('active', 'Active'),
-        ('revoked', 'Revoked'),
-        ('expired', 'Expired')
-    ], default='draft', index=True)
-    
-    shared_secret = fields.Char("Signing Secret", copy=False)
-    proof_token = fields.Char("Current HMAC Signature", compute="_compute_proof")
-
-    def action_activate(self):
-        self.write({'state': 'active'})
-
-    def action_revoke(self):
-        for rec in self:
-            rec.write({'state': 'revoked'})
-            # Notify Go PDP In-Memory Revocation Blacklist (O(1) in RAM)
-            client = get_pdp_client()
-            client.revoke_delegation(
-                tenant_id=rec.user_id.company_id.name.lower().replace(" ", "_"),
-                grant_id=str(rec.id),
-                revoked_by=f"user:{rec.env.user.login}",
-                reason="User initiated revocation from Odoo UI"
-            )
-
-    def generate_proof(self, amount, shared_secret=None):
-        # Canonical String Formula: grant_id | delegator | agent | amount | valid_until
-        secret = shared_secret or os.environ.get("PDP_SHARED_SECRET", "pdp_master_secret_key_32bytes!")
-        valid_until_ts = int(self.valid_until.timestamp()) if self.valid_until else 0
-        payload = f"{self.id}|{self.user_id.login}|{self.agent_id}|{int(amount)}|{valid_until_ts}"
-        return hmac.new(
-            secret.encode('utf-8'),
-            payload.encode('utf-8'),
-            hashlib.sha256
-        ).hexdigest()
-
----
-
-## 5. Addon Manifest Specification (`__manifest__.py`)
-
-```python
-# custom_addons/pdp_authorizer/__manifest__.py
-{
-    'name': 'Odoo PDP AI Agent Authorizer',
-    'version': '17.0.1.0.0',
-    'category': 'Sales/Purchases',
-    'summary': 'Delegation-Aware PDP Authorization for AI Agents via In-Memory Go PDP (gRPC)',
-    'author': 'PTIT Capstone Research Group',
-    'depends': ['purchase', 'mail'],
-    'external_dependencies': {
-        'python': ['grpcio', 'protobuf'],
-    },
-    'data': [
-        'security/ir.model.access.csv',
-        'views/delegation_grant_views.xml',
-        'views/purchase_order_views.xml',
-    ],
-    'installable': True,
-    'application': True,
-    'license': 'LGPL-3',
-}
-```
-
-```
+On 2026-09-12 the suite installed the addon in a freshly recreated Odoo 17
+database, passed all seven transaction cases with 0 failures/errors and passed
+the two-session serialization-retry assertion with one nonce, attempt and
+mutation. The exact command, environment and result are recorded in
+[`evidence/ODOO_E2E_2026_09_12.md`](./evidence/ODOO_E2E_2026_09_12.md). A
+mTLS variant is still required.

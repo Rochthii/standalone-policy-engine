@@ -1,6 +1,8 @@
 # Standalone In-Memory Policy Decision Point (PDP)
 ### Delegation-Aware Authorization & Guardrails for ERP AI Agents (Odoo 17)
 
+> **Current implementation status (audit update 2026-09-12):** The in-memory core is verified for the measured benchmark cases, and the repository-owned Odoo PEP passes seven real ORM/gRPC/PostgreSQL transaction cases plus a two-session concurrency/retry case. The full distributed PDP/Odoo system is still **not production-ready**: mTLS runtime verification, durable multi-replica revocation, audit cryptography and deployment gates remain open. See [`CURRENT_STATE_AUDIT.md`](./docs/technical-spec/CURRENT_STATE_AUDIT.md) and [`PRODUCTION_READINESS_CHECKLIST.md`](./docs/technical-spec/PRODUCTION_READINESS_CHECKLIST.md).
+
 **Author:** Chăm Rốch Thi  
 **Affiliation:** Posts and Telecommunications Institute of Technology (PTIT)  
 **Thesis:** Software Engineering Master / Graduation Thesis  
@@ -11,34 +13,33 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Verification](https://img.shields.io/badge/7%2F7%20Vectors-PASS-brightgreen.svg)](./tests/e2e_delegation_test.go)
 
-An ultra-high-performance, In-Memory Policy Decision Point (PDP) in Go implementing the PBAC/ABAC model with deterministic Constrained Delegation and AI Agent Guardrails (NIST AI RMF & OWASP LLM06). Engineered specifically to eliminate the Odoo Rollback Trap, prevent Time-of-Check to Time-of-Use (TOCTOU) race conditions in under 50ns, and achieve Zero GC allocations on the evaluation hot path.
+An in-memory Policy Decision Point (PDP) research prototype in Go implementing PBAC/ABAC, constrained delegation and deterministic ERP AI-agent guardrails. The measured core path is zero-allocation for the audited cases. The Odoo non-rollback and database-level nonce/retry workflows are verified for the listed real-boundary cases; distributed TOCTOU safety and the remaining release gates are still open.
 
 ---
 
-## Key Highlights & Live Benchmark Results
+## Key Highlights & Audited Core Benchmark Results
 
-**Benchmarked on:** 13th Gen Intel Core i7-13700H (20 cores), Go 1.26+, Linux / Windows
+**Audited on 2026-09-11:** 13th Gen Intel Core i7-13700H (20 logical CPUs), Go 1.26.4, Windows/amd64. These values measure the in-memory `Engine` only; they do not include JWT, HMAC, GC tracking, Prometheus, audit logging, gRPC serialization, TLS, network, or Odoo.
 
 | Scenario / Benchmark | Latency | Allocation | Throughput / Speedup |
 |---|---|---|---|
-| **Hot-Path Decision Latency** (`BenchmarkEvaluatorLatency`) | **393.1 - 540.2 ns/op** | **0 B/op, 0 allocs/op** | **~2.5M - 3.7M RPS** |
-| **Concurrent Hot-Path Load** (`BenchmarkConcurrentLoad`) | **27.12 ns/op** | **0 B/op, 0 allocs/op** | **~36.8M RPS** |
-| **10,000 Policies Load Contention** (`BenchmarkUltraExtreme_10kPolicies`) | **35.94 ns/op** | **0 B/op, 0 allocs/op** | **~27.8M RPS** |
-| **In-Memory Revocation Lookup** (`RevocationMap` O(1)) | **< 50 ns** | **0 B/op, 0 allocs/op** | **Instant TOCTOU Defense** |
-| **Deep 11-Level DAG + 5,000 Decoy Policies** (`BenchmarkUltraExtreme_DeepDAG`) | **810.9 ns/op** | **0 B/op, 0 allocs/op** | **~1.23M RPS** |
+| **Hot-Path Decision Latency** (`BenchmarkEvaluatorLatency`) | **390.3–492.8 ns/op** | **0 B/op, 0 allocs/op** | Three 1-second samples; narrow in-memory path |
+| **Concurrent Hot-Path Load** (`BenchmarkConcurrentLoad`) | **26.74–27.51 ns/op** | **0 B/op, 0 allocs/op** | Aggregate throughput-normalized result, not per-request latency |
+| **10,000 Policies Concurrent Contention** | **34.30–67.11 ns/op** | **0 B/op, 0 allocs/op** | Three 1-second samples; narrow in-memory path |
+| **Deep DAG + Heavy ABAC** | **839.8–845.1 ns/op** | **0 B/op, 0 allocs/op** | Three 1-second samples; narrow in-memory path |
 
-### Scientific Baseline Comparison: Odoo Native ORM vs Standalone Go PDP
+### Synthetic Timing Model: Odoo Native ORM vs Standalone Go PDP
 
-*(Comparative benchmark data measured directly via `tests/baseline_odoo_orm_benchmark.py`)*
+`tests/baseline_odoo_orm_benchmark.py` currently uses a configured `time.sleep` for the Odoo side and a hardcoded PDP value. The table below is retained as a historical illustrative model; it is **not empirical Odoo evidence** and must not be cited as a measured speedup. See the [current-state audit](./docs/technical-spec/CURRENT_STATE_AUDIT.md).
 
 | Evaluation Criteria | Odoo 17 Native ORM (`ir.rule`) | Standalone Go PDP (In-Memory) | Superiority Factor |
 |---|---|---|:---:|
-| **Mean Evaluation Latency** | **23.77 ms** | **0.000540 ms (540.2 ns)** | **~44,000x Faster** |
+| **Illustrative Mean Latency** | **Simulated 23.77 ms** | **Hardcoded 0.000540 ms** | **Not experimentally validated** |
 | **RAM Allocation on Hot-Path** | ~24 KB / query (ORM Objects) | **0 B / op (Zero-Alloc)** | **Zero GC Pressure** |
 | **Heap Allocations per Check** | ~120 allocs / check | **0 allocs / op** | **Zero Memory Leaks** |
-| **Anti-TOCTOU Defense** | Vulnerable (Waits for DB commit) | **Absolute (O(1) RAM sync.Map)** | **< 50ns Revocation** |
-| **AI Delegation Chain Support** | Not supported (User ID only) | **Full (Tuple Delta + HMAC)** | **Multi-Hop Proof** |
-| **Runtime Obligation Handling** | Triggers Database Rollback Trap | **Non-Rollback PEP State Machine** | **Clean Workflows** |
+| **Anti-TOCTOU Defense** | Vulnerable (Waits for DB commit) | **O(1) tenant-scoped local revocation** | Cluster propagation/restart durability pending |
+| **AI Delegation Chain Support** | Not supported (User ID only) | **Versioned full-tuple direct delegation HMAC with key-ring rotation** | Odoo duplicate, altered-command replay, rollback and two-session retry cases pass |
+| **Runtime Obligation Handling** | Triggers Database Rollback Trap | **Typed PDP obligation output** | Real Odoo test verifies `to approve` plus one Activity without rollback |
 
 ---
 
@@ -91,9 +92,9 @@ flowchart TD
 
 ---
 
-## Verified 7/7 E2E Delegation Vectors
+## Verified 7/7 In-Process Delegation Vectors
 
-The system passes 100% of the 7 edge test vectors defined in [`tests/e2e_delegation_test.go`](./tests/e2e_delegation_test.go):
+The Go test fixture passes all seven logic vectors defined in [`tests/e2e_delegation_test.go`](./tests/e2e_delegation_test.go). Those seven tests remain in-process evidence. A separate Docker gate verifies seven real Odoo transaction cases plus a two-session concurrency/retry case across ORM, network transport and PostgreSQL; neither suite proves multi-replica revocation.
 
 | Vector ID | Test Scenario Description | Expected Decision | Result |
 |---|---|:---:|:---:|
@@ -109,16 +110,17 @@ The system passes 100% of the 7 edge test vectors defined in [`tests/e2e_delegat
 
 ## Quick Start
 
-### 1. Run Frozen Docker Testbed (Single Command 2026-2029)
-Runs PostgreSQL 15, Standalone Go PDP, Odoo 17 ERP, and executes all 7 verification vectors automatically:
+### 1. Docker Testbed Status
+
+The Compose file uses only repository-local Odoo addon and generated-client inputs for this path. On 2026-09-12 its fresh-database gate passed 7/7 transaction cases and the two-session concurrency/retry assertion. It remains a development testbed—not a frozen release environment—because base images use mutable tags and the mTLS/remote-CI gates are still open. See the [evidence record](./docs/technical-spec/evidence/ODOO_E2E_2026_09_12.md).
 
 ```bash
 # Clone the repository
 git clone https://github.com/Rochthii/standalone-policy-engine.git
 cd standalone-policy-engine
 
-# Start the pinned testbed environment
-docker compose -f docker-compose.testbed.yml up --abort-on-container-exit
+# Run the real Odoo/PostgreSQL/gRPC transaction gate
+make test-odoo-e2e
 ```
 
 ### 2. Run Locally from Source
@@ -132,8 +134,8 @@ go test -v ./tests -run=TestE2E_P2P_Delegation_7Vectors
 # 3. Run Sub-Microsecond Evaluator Benchmark
 go test -bench=BenchmarkEvaluatorLatency -benchmem ./tests -run=^$
 
-# 4. Run Baseline Odoo ORM Comparison Benchmark
-python tests/baseline_odoo_orm_benchmark.py
+# 4. Verify the Odoo/PDP proof compatibility vector
+python custom_addons/pdp_authorizer/tests/test_pdp_protocol.py
 ```
 
 ---
@@ -188,13 +190,13 @@ standalone-policy-engine/
 │   ├── control-plane/       # REST Control Plane API (:8080)
 │   └── pectl/               # Enterprise Policy CLI
 ├── custom_addons/
-│   └── pdp_authorizer/      # Odoo 17 PEP Addon (PID-safe client, Non-Rollback PEP)
+│   └── pdp_authorizer/      # Odoo 17 PEP, proof signer and transactional nonce ledger
 ├── internal/
 │   ├── engine/              # Multi-level Trie, Role DAG, Zero-Alloc AST Evaluator, COW
 │   ├── security/            # DelegationManager (HMAC Canonical, O(1) RevocationMap, JWT)
 │   ├── parser/              # Cedar DSL Lexer, Pratt Parser (Depth <= 15), Compiler
 │   ├── server/              # gRPC Server (Layer 1 Interceptors), HTTP Handlers, Replay Buffer
-│   ├── audit/               # Async Ring Buffer Logger, pgx.CopyFrom batch insert, Spill-to-Disk
+│   ├── audit/               # Bounded async logger, redaction, pgx.CopyFrom; encryption/spill pending
 │   └── storage/             # PostgreSQL pgx driver, Postgres LISTEN/NOTIFY sync, BadgerDB
 ├── proto/v1/                # Protobuf Contract (CheckAccess, ExplainDecision, RevokeDelegation)
 ├── docs/                    # Master Index & 12 Technical Specifications

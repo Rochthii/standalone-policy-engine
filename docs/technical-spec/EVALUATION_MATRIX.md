@@ -1,5 +1,7 @@
 # EVALUATION_MATRIX.md — Verification Matrix & Performance Benchmarks
 
+> **Audit notice (2026-09-11):** Bảng này kết hợp mục tiêu thiết kế, kết quả test in-process và một số số liệu chưa có bằng chứng E2E tương ứng. Trạng thái xác minh chính thức nằm trong [`CURRENT_STATE_AUDIT.md`](./CURRENT_STATE_AUDIT.md). Không coi obligation, Odoo PEP, cluster-wide revocation hoặc gRPC mTLS latency là verified cho tới khi checklist production tương ứng PASS.
+
 ## 1. Edge Test Scenarios (7 Scenarios)
 
 | # | Scenario Name | Input Conditions ($\mathcal{I} = \langle \mathcal{S}, \mathcal{A}, \mathcal{R}, \mathcal{C} \rangle$) | Matching Policy ID | Evaluator Decision ($\mathcal{D}$) | Runtime Obligations ($\mathcal{O}$) | PEP Handling in Odoo (State vs. Rollback) |

@@ -10,6 +10,41 @@ Phân loại thay đổi:
 
 ---
 
+## [Unreleased] - 2026-09-12: Security Boundary, Standard Protobuf, Odoo E2E & Replay Verification
+
+Đợt remediation này cập nhật trạng thái theo `CURRENT_STATE_AUDIT.md` và bổ sung bằng chứng chạy thực tế. Các mục lịch sử bên dưới vẫn giữ nguyên ngữ cảnh tại thời điểm phát hành; không dùng chúng làm bằng chứng production hiện tại.
+
+### Added
+- Chuẩn hóa contract `proto/v1/policy.proto`, sinh client/server Go và Python bằng Buf/protoc.
+- Hoàn thiện addon Odoo 17 trong repository: nonce ledger, non-rollback PEP state machine, PID-safe gRPC client và seed policy.
+- Thêm runner Docker E2E thực tế cho Odoo cùng runner kiểm thử hai session concurrent để xác minh retry serialization.
+- Bổ sung evidence report, production checklist, task board, `.dockerignore` và CI job `odoo-e2e`.
+
+### Changed
+- Security boundary dùng key-ring đầy đủ tuple `v1.<kid>.<hmac>`, canonical HMAC, TTL, tenant isolation và RBAC; mTLS được giữ là gate production riêng.
+- Odoo xác nhận idempotency bằng tuple `(delegation_id, nonce, command_hash)` và không rollback các giao dịch cần human approval.
+- Cập nhật tài liệu kiến trúc, protocol, replay/idempotency, thesis mapping và trạng thái production theo bằng chứng mới.
+
+### Fixed / Security
+- Đã kiểm chứng fail-closed cho proof sai tuple, command bị sửa, replay trùng nonce, outage, tamper, revoke và SoD denial.
+- Đã kiểm chứng race hai session: PostgreSQL serialization retry kết thúc với đúng một nonce, một authorization attempt và một PO mutation.
+- Sửa manifest dependency/constraint của addon để Odoo cài đặt và kiểm thử được trong testbed.
+
+### Verification
+- `make test-odoo-e2e`: 7/7 Odoo `TransactionCase` pass, concurrency runner pass, 0 failure/error.
+- `go test ./...`, `go vet ./...`, protocol Python tests, compose config và `git diff --check` pass.
+- Benchmark 3 mẫu giữ 0 B/op, 0 allocs/op trên các hot-path chính; latency evaluator đo được khoảng 390–493 ns/op.
+
+### Remaining gates
+- Chưa claim production-ready: mTLS end-to-end, remote CI evidence, multi-replica revocation, audit encryption/spill replay, image digest pinning và sustained load/race evidence vẫn mở.
+- Race detector hiện bị block trong môi trường này vì thiếu `gcc`; cần chạy lại trên runner có CGO toolchain.
+
+### Git commit breakdown
+- `c3573ab` — core engine, parser, security, storage, audit và tests.
+- `35f996a` — protobuf contract và client Go/Python chuẩn hóa.
+- `8ac372b` — Odoo addon, Docker testbed, E2E và concurrency runner.
+- `146357b` — docs, audit/checklist, roadmap, CI, changelog và tooling.
+
 ## [1.15.0] - 2026-09-03: Delegation-Aware AI Authorization, In-Memory RevocationMap O(1), Odoo 17 PEP Non-Rollback State Machine & 7 E2E Vectors [Tag: v1.0.0-core-verified]
 
 Hoàn thành toàn diện 5 bước tích hợp giữa Standalone In-Memory Go PDP và Odoo 17 ERP qua gRPC; hiện thực hóa đầy đủ 4 Câu hỏi Nghiên cứu (RQ1–RQ4) của Đồ án Tốt nghiệp PTIT và vượt qua 100% bộ 7 Test Vectors:

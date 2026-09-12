@@ -1,0 +1,141 @@
+# Current-State Audit & Evidence Register
+
+> **Audit date:** 2026-09-11
+>
+> **Audited commit:** `e16fa57` (`main`, tag `v1.0.0-core-verified`)
+>
+> **Remediation update:** The 2026-09-11 working tree closes the verified items recorded in [`IMPLEMENTATION_TASK_BOARD.md`](./IMPLEMENTATION_TASK_BOARD.md). On 2026-09-12 the delegation proof gained an explicit `kid` key ring and the repository gained a migrated Odoo PEP with a transactional nonce ledger. The cross-language proof vector, seven fresh-database Odoo transaction tests and a two-session serialization-retry case pass. A release commit has not yet been created; mTLS and other named release gates remain open.
+>
+> **Authority:** This document describes the implementation that exists in this repository. Where an older architecture, roadmap, benchmark, or thesis document conflicts with this audit, this document takes precedence until the conflict is resolved and re-verified.
+>
+> **Overall status:** **NOT PRODUCTION READY**
+
+## 1. Executive verdict
+
+The repository contains a credible and fast in-memory policy evaluation core. The narrow evaluator benchmark is reproducible and currently achieves sub-microsecond decisions with zero reported heap allocations for the measured inputs.
+
+The working tree now enforces the Data Plane identity boundary, key-identified full-tuple delegation proof, tenant-scoped policy access, linearizable COW writers, atomic ruleset compilation, typed obligations, bounded PostgreSQL audit delivery, generated standard Protobuf clients, and a repository-owned Odoo PEP whose base real transaction suite passes. The system is still not production-ready because concurrent replay evidence, runtime mTLS, durable multi-replica revocation, encrypted spill/replay, edge restore, deployment hardening, race evidence and production-path load evidence remain open.
+
+The correct positioning is:
+
+- **Strong core-engine prototype** for continued research and hardening.
+- **Incomplete distributed PDP product** that must not protect real ERP transactions yet.
+- **Partially verified experiment**: the Go core benchmarks are valid for their scope; the claimed Odoo speedup is not an empirical Odoo measurement.
+
+## 2. Status scorecard
+
+| Area | Score | Current status |
+|---|---:|---|
+| In-memory evaluator | 8/10 | Strong narrow-path implementation and benchmark evidence |
+| Parser and compiler | 7/10 | Functional depth cap and optimization; input/fuzz hardening remains |
+| Decision correctness | 8/10 | Deny-default, forbid-overrides, atomic compilation and typed obligations are verified |
+| Security boundary | 8/10 | JWT, tenant binding, RBAC, key-ring proof and real Odoo duplicate/altered/rollback/two-session nonce outcomes are verified; runtime mTLS remains open |
+| Distributed consistency | 6/10 | COW/event/reconcile correctness is improved; revocation is still process-local |
+| Audit and compliance | 5/10 | Redacted bounded PostgreSQL delivery is wired; encryption, spill/replay and tamper evidence remain |
+| Tests | 8/10 | Negative, PostgreSQL, protobuf, seven-case Odoo and two-session retry coverage pass; race/mTLS/load gates remain |
+| Deployment | 4/10 | Repository-local images build and the E2E profile passes, but mutable images and runtime hardening remain |
+| Odoo integration | 8/10 | Fresh install, seven real ORM/gRPC/PostgreSQL cases and two-session retry pass; runtime mTLS remains |
+| Production readiness | 5/10 | Several P0s closed, but remaining security/durability/Odoo gates still block release |
+
+## 3. Verification performed
+
+| Check | Result |
+|---|---|
+| Focused unit/security/server/engine/storage suites + `go test -run=^$ ./...` | PASS |
+| `go vet ./...` | PASS |
+| `gofmt -l` on tracked Go files | PASS; no files reported |
+| `git diff --check` | PASS |
+| Race detector locally | NOT VERIFIED; local Windows toolchain has no GCC for CGO |
+| Docker Compose configuration parse | PASS with obsolete `version` warning |
+| Docker PostgreSQL + Control Plane + PDP protobuf E2E | PASS; Odoo is not included |
+| Generated Python client -> live Go gRPC server | PASS with pinned `protobuf==6.32.1`, `grpcio==1.75.1` |
+| Odoo/Python -> Go delegation proof golden vector | PASS |
+| Odoo 17 fresh install + ORM -> generated gRPC client -> live PDP -> PostgreSQL | PASS; 7 tests, 0 failures/errors, plus two-session retry PASS; development transport is insecure |
+
+Observed coverage:
+
+| Package | Statement coverage |
+|---|---:|
+| `internal/security` | 81.4% |
+| `internal/audit` | 78.6% |
+| `internal/parser` | 68.3% |
+| `internal/config` | 65.7% |
+| `internal/engine` | 63.5% |
+| `internal/server` | 33.8% |
+| `internal/storage` | 20.6% |
+| `pkg/pdp` | 8.7% |
+| `internal/metrics` | 0.0% |
+| `internal/pectl/commands` | 0.0% |
+
+Observed Go core benchmarks on a 13th Gen Intel Core i7-13700H, Windows/amd64, Go 1.26.4:
+
+| Benchmark | Three observed runs | Allocation |
+|---|---:|---:|
+| `BenchmarkEvaluatorLatency` | 390.3–492.8 ns/op | 0 B/op, 0 allocs/op |
+| `BenchmarkConcurrentLoad` | 26.74–27.51 ns/op | 0 B/op, 0 allocs/op |
+| `BenchmarkUltraExtreme_DeepDAG_HeavyABAC` | 839.8–845.1 ns/op | 0 B/op, 0 allocs/op |
+| `BenchmarkUltraExtreme_10kPolicies_ConcurrentContention` | 34.30–67.11 ns/op | 0 B/op, 0 allocs/op |
+
+`ns/op` from a parallel benchmark is aggregate throughput-normalized time. It must not be reported as the wall-clock latency of one network request.
+
+## 4. Claim-to-evidence register
+
+| Claim | Status | Evidence and required correction |
+|---|---|---|
+| Deny-by-default | VERIFIED | Implemented by the decision engine |
+| Forbid-overrides | VERIFIED | Matching forbid short-circuits permit results |
+| AST depth <= 15 | VERIFIED | Enforced during compilation |
+| Core evaluator is sub-microsecond | VERIFIED FOR MEASURED CASES | Reproduced locally; scope is in-memory `Engine`, not gRPC E2E |
+| Zero allocations on every production hot path | PARTIAL | Measured cases pass; `contains`, normalization, buffer overflow, metrics, audit, JWT and gRPC are outside this guarantee |
+| Zero linear policy scans | CONTRADICTED | Global and same-leaf candidate policies are iterated linearly |
+| Strict multi-tenant JWT isolation | VERIFIED | Missing credentials/claims and cross-tenant requests fail; signed principal attributes are authoritative |
+| Delegation proof prevents tuple tampering and replayed execution | VERIFIED | `v1.<kid>.<hmac>` plus the Odoo ledger pass key rotation, Go/Python compatibility, tamper, duplicate, altered-command, rollback and two-session serialization-retry cases |
+| Instant cluster-wide revocation | NOT IMPLEMENTED | Revocation is process-local `sync.Map` state and is lost on restart |
+| Runtime `REQUIRE_HUMAN_APPROVAL` obligation | VERIFIED | Compiler-valid typed obligations are synthesized by the deciding policy and serialized structurally |
+| Bounded async PostgreSQL audit delivery | VERIFIED; CRYPTO/SPILL OPEN | Production main uses queue + `pgx.CopyFrom`, redaction, timeouts and drop/failure metrics |
+| Edge snapshot supports offline startup | NOT IMPLEMENTED | Snapshots are written, but production startup never loads them |
+| Odoo 17 PEP addon is included and verified | VERIFIED FOR DEVELOPMENT-TRANSPORT BOUNDARY | Fresh install, seven transaction cases and two-session retry pass through real ORM/gRPC/PostgreSQL. Runtime mTLS remains open |
+| Frozen 2026–2029 testbed | NOT REPRODUCIBLY PINNED | Several image tags are mutable and are not pinned by digest |
+| 7/7 delegation vectors | VERIFIED AS IN-PROCESS TESTS | They do not prove Odoo/container/network integration |
+| Odoo is approximately 44,000x slower | INVALID AS EMPIRICAL CLAIM | The baseline script sleeps for a configured delay and hardcodes the PDP result |
+| gRPC contract is standard generated Protobuf | VERIFIED | Buf-pinned Go/Python generation, Docker wire E2E and Python-to-Go live call pass |
+
+## 5. Open findings
+
+### P0 — Remaining release blockers
+
+| ID | Finding | Impact | Primary locations |
+|---|---|---|---|
+| REV-001 | Revocation is tenant-scoped and TTL-bounded but still local and volatile | Multi-replica/restart TOCTOU guarantee is false | `internal/security/delegation.go` |
+| AUD-001B | PostgreSQL delivery is wired, but failed batches can be dropped and encryption/spill/replay are absent | Audit completeness/confidentiality is not release-grade | `internal/audit/batch.go`, `internal/storage/postgres.go` |
+| INT-001 | Base Odoo runtime passes only with development insecure transport | Production-boundary claims remain blocked until the same suite passes with mTLS | `custom_addons/pdp_authorizer`, `docker-compose.testbed.yml` |
+
+### P1 — Required before release candidate
+
+| ID | Finding | Impact |
+|---|---|---|
+| PERF-001 | Global/same-leaf policy lists are scanned and FNV hashes are not collision-checked | Worst-case latency and correctness are not bounded as claimed |
+| PERF-002 | GC tracking, metrics and audit add synchronization to the serving path | Core benchmark does not represent production path |
+| OPS-001 | Config keys are unused or inconsistent (`GRPC_PORT`, GC, audit socket, secrets) | Environment-specific failures |
+| OPS-002 | Images use mutable tags; testbed depends on an external directory | Build is not frozen or self-contained |
+| OPS-004 | Readiness checks ports rather than authorization-state health/revision lag | Unready pods may receive traffic |
+| EDGE-001 | Badger snapshots have no production restore path | Offline edge promise is not met |
+| TEST-001 | The mandatory Odoo/PostgreSQL/gRPC gate passes locally and is defined in CI, but no successful remote committed run has been inspected | The local result is valid evidence; release branch protection is not yet proven |
+| DOC-001 | Current documents state verified facts that the repository contradicts | Academic and engineering credibility risk |
+
+## 6. Documentation interpretation rules
+
+- **Implemented** means a production path calls the feature.
+- **Tested** means an automated test exercises that production path.
+- **E2E tested** means the request crosses real process/network/storage boundaries and cannot silently skip in the release job.
+- **Measured** means the reported value was produced by the described system, not injected through sleep, constants or estimated baselines.
+- **Production-ready** requires every P0 finding closed and every release gate in `PRODUCTION_READINESS_CHECKLIST.md` passing.
+- NIST, OWASP and SOX may be described as design mappings, not certification or compliance evidence.
+
+## 7. Audit limitations
+
+- The original audit did not mutate production code; the remediation update does include implementation changes and isolated PostgreSQL/Docker test systems.
+- The PostgreSQL/Control Plane/PDP Docker E2E passes with standard protobuf. The repository-owned Odoo replacement also passes seven real fresh-database transaction cases and two simultaneous sessions with Odoo's standard serialization retry; this run used insecure development transport.
+- The Odoo run proves single-PDP PEP transaction/replay behavior, not mTLS, multi-replica revocation or sustained load.
+- Race tests could not be reproduced locally without a C compiler. CI contains a race job, but a successful remote run was not independently inspected.
+- Dependency vulnerability scanning, penetration testing and sustained network load testing remain outstanding.

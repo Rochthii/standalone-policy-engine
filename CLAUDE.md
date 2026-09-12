@@ -1,5 +1,7 @@
 # Standalone Policy Engine (PDP) — Master Context Guide
 
+> **Implementation status notice (audit 2026-09-11):** The architecture and targets below describe the intended system. The in-memory core is verified for measured cases, but the full PDP/Odoo system is not production-ready. Before making implementation, security, benchmark, E2E, or completion claims, read [`docs/technical-spec/CURRENT_STATE_AUDIT.md`](docs/technical-spec/CURRENT_STATE_AUDIT.md) and apply [`docs/technical-spec/PRODUCTION_READINESS_CHECKLIST.md`](docs/technical-spec/PRODUCTION_READINESS_CHECKLIST.md). Those two documents take precedence for current-state evidence; the invariants in this guide remain mandatory design requirements.
+
 > **AI Directive**: This file is the **single source of truth** for project context, invariants, and architecture. Read **ONLY** this file for general tasks. Do **NOT** scan whole folders or pre-load skill files unless specifically implementing deep changes in those subsystems.
 
 > **Author**: Chăm Rốch Thi  
@@ -65,8 +67,8 @@ Async Ring Buffer Logger ──► Postgres PDP Audit (pgx.CopyFrom) + AES-GCM E
 | **DSL Compiler** | `internal/parser/` | Lexer & Pratt parser for Cedar-like DSL (`permit`/`forbid`). Max AST depth <= 15, constant folding. |
 | **Security & Delegation** | `internal/security/` | JWT tenant isolation, AES-GCM envelope encryption, `delegation.go` (HMAC & RevocationMap O(1)). |
 | **Storage & Sync** | `internal/storage/`, `internal/engine/sync.go` | PostgreSQL (`pgx`), BadgerDB edge cache, Postgres `LISTEN/NOTIFY` Fast Gap Catch-Up. |
-| **Audit Logger** | `internal/audit/logger.go` | Lock-free ring buffer channel -> `pgx.CopyFrom` batch insert, Spill-to-Disk on failure (1GB cap). |
-| **Protobuf Contract** | `proto/v1/policy.proto` | IDL defining `CheckAccess`, `ExplainDecision`, `RevokeDelegation` with custom `"json"` codec. |
+| **Audit Logger** | `internal/audit/` | Bounded async queue -> PostgreSQL `pgx.CopyFrom`, pre-queue redaction, timeout/drop metrics. Encryption and spill/replay remain open. |
+| **Protobuf Contract** | `proto/v1/policy.proto` | Canonical IDL defining `CheckAccess`, `ExplainDecision`, `RevokeDelegation`; Buf generates standard Go/Python protobuf clients. |
 | **Seed Policies** | `configs/policies.cedar` | 6 standard P2P ruleset with SoD `contains` operator (`delegation_chain contains creator_id`). |
 | **Odoo 17 PEP Addon** | `custom_addons/pdp_authorizer/` | PID-Safe gRPC client, model `pdp.delegation.grant`, non-rollback PEP `purchase.order`. |
 | **Frozen Testbed** | `docker-compose.testbed.yml` | Pinned base images (`golang:alpine`, `odoo:17.0`, `postgres:15-alpine`) for 2026–2029. |
@@ -76,9 +78,11 @@ Async Ring Buffer Logger ──► Postgres PDP Audit (pgx.CopyFrom) + AES-GCM E
 
 ## Specialized Skills Index (Read On-Demand Only)
 
+> **Catalog status:** The current nine local skills are being remediated. Before relying on any of them for implementation claims, consult [`docs/technical-spec/SKILL_CATALOG_AUDIT.md`](docs/technical-spec/SKILL_CATALOG_AUDIT.md), then the current-state audit and release checklist.
+
 Read these skill guides **ONLY** when actively modifying their specific subsystems (< 40 lines each):
 - **`agent-authorization`** (`.agents/skills/agent-authorization/SKILL.md`): Canonical String HMAC, In-Memory RevocationMap O(1), Non-Rollback PEP.
-- **`grpc-dataplane`** (`.agents/skills/grpc-dataplane/SKILL.md`): gRPC server, JSON codec, RevokeDelegation, Layer 1 interceptor, PID-Safe client.
+- **`grpc-dataplane`** (`.agents/skills/grpc-dataplane/SKILL.md`): gRPC server, standard protobuf codec, RevokeDelegation, Layer 1 interceptor, PID-Safe client.
 - **`erp-testing`** (`.agents/skills/erp-testing/SKILL.md`): 7 Delegation vectors, Odoo baseline benchmark (44,000x), 540ns budget.
 - **`docker-standards`** (`.agents/skills/docker-standards/SKILL.md`): Pinned Docker testbed (2026–2029), UTF-8 BOM prevention, testbed runner.
 - **`dsl-compiler`** (`.agents/skills/dsl-compiler/SKILL.md`): Pratt parser, AST depth limit, `contains` SoD operator, constant folding.

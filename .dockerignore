@@ -1,0 +1,9 @@
+.git
+.tmp-go-cache
+tmp
+bin
+spill-logs
+badger_data
+**/__pycache__
+**/*.pyc
+

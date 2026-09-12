@@ -1,181 +1,141 @@
-# PROTOCOL_CONTRACT.md — Interface & Data Contracts
+# Protocol and Data Contract
 
-## 1. Protobuf Service Specification
+> **Updated:** 2026-09-12
+>
+> **Normative source:** [`proto/v1/policy.proto`](../../proto/v1/policy.proto). Generated files are outputs, never hand-edited.
+
+## 1. Generation and wire protocol
+
+The service uses standard Protocol Buffers over gRPC. The former handwritten Go structs, custom JSON content subtype and unused `proto/policy.proto` v0 contract have been removed.
+
+```bash
+# Generate Go and Python clients with pinned Buf/plugin versions.
+make generate-proto
+
+# Lint, format-check, regenerate and reject checked-in drift.
+make proto-check
+```
+
+Generated clients:
+
+- Go: `proto/v1/policy.pb.go`, `proto/v1/policy_grpc.pb.go`
+- Python: `clients/python/v1/policy_pb2.py`, `clients/python/v1/policy_pb2_grpc.py`
+- Python runtimes: `protobuf==6.32.1`, `grpcio==1.75.1`
+
+## 2. RPC boundary
+
+| RPC | Authentication | Authorization / isolation | Main status codes |
+|---|---|---|---|
+| `CheckAccess` | Exactly one Bearer JWT | JWT tenant must equal request tenant; JWT subject and principal attributes are authoritative | `Unauthenticated`, `PermissionDenied`, `InvalidArgument`, `DeadlineExceeded`, `ResourceExhausted` |
+| `ExplainDecision` | Exactly one Bearer JWT | Same tenant/identity boundary as `CheckAccess` | Same authentication/limit codes |
+| `RevokeDelegation` | Exactly one Bearer JWT | JWT tenant match, `revoked_by` match and `delegation:revoke` permission | `Unauthenticated`, `PermissionDenied`, `InvalidArgument` |
+
+Runtime limits are fail-fast configuration:
+
+| Environment key | Default | Meaning |
+|---|---:|---|
+| `GRPC_EVALUATION_TIMEOUT` | `100ms` | Maximum server-side `CheckAccess` evaluation time; a shorter client deadline still wins |
+| `GRPC_MAX_RECEIVE_BYTES` | `1048576` | Maximum inbound protobuf message size |
+| `GRPC_MAX_SEND_BYTES` | `1048576` | Maximum outbound protobuf message size |
+
+## 3. CheckAccess messages
 
 ```protobuf
-syntax = "proto3";
-
-package policy.v1;
-
-option go_package = "github.com/Rochthii/standalone-policy-engine/proto/v1;policyv1";
-
-service PolicyDecisionPoint {
-  // Synchronous, low-latency access evaluation (< 0.35ms E2E)
-  rpc CheckAccess (CheckAccessRequest) returns (CheckAccessResponse);
-  
-  // Audited access decision with full evaluation trace
-  rpc ExplainDecision (CheckAccessRequest) returns (ExplainDecisionResponse);
-  
-  // Instant delegation revocation (TOCTOU mitigation < 1 µs)
-  rpc RevokeDelegation (RevokeRequest) returns (RevokeResponse);
-}
-
-enum Decision {
-  DECISION_UNSPECIFIED = 0;
-  ALLOW = 1;
-  DENY = 2;
-}
-
 message CheckAccessRequest {
-  string tenant_id = 1;               // e.g. "my_company"
-  string subject   = 2;               // e.g. "agent:procurement_copilot" or "user:alice"
-  string action    = 3;               // e.g. "action:APPROVE_PURCHASE_ORDER"
-  string resource  = 4;               // e.g. "purchase_order:PO00042"
-  map<string, string> context = 5;    // Dynamic evaluation attributes
+  string tenant_id = 1;
+  string subject = 2;
+  string action = 3;
+  string resource = 4;
+  map<string, string> context = 5;
+}
+
+message Obligation {
+  string type = 1;
+  string message = 2;
+  map<string, string> payload = 3;
 }
 
 message CheckAccessResponse {
-  Decision decision = 1;              // ALLOW or DENY
-  string matched_policy_id = 2;       // ID of the decisive permit/forbid rule
-  repeated string obligations = 3;    // e.g. ["REQUIRE_HUMAN_APPROVAL"]
-  map<string, string> advice = 4;     // Supplemental metadata for PEP
-  int64 evaluation_nanos = 5;         // In-memory evaluation duration (e.g. 27)
-}
-
-message RevokeRequest {
-  string tenant_id = 1;               // e.g. "my_company"
-  string grant_id  = 2;               // Delegation grant ID (e.g. "42")
-  string revoked_by = 3;              // e.g. "user:manager_bob"
-  string reason    = 4;               // e.g. "User initiated revocation from Odoo UI"
-}
-
-message RevokeResponse {
-  bool success     = 1;
-  int64 revoked_at = 2;               // Unix timestamp of revocation in RAM
-  string message   = 3;
-}
-
-
-message ExplainDecisionResponse {
+  enum Decision {
+    DENY = 0;
+    ALLOW = 1;
+  }
   Decision decision = 1;
   string matched_policy_id = 2;
-  repeated string explanations = 3;
-  repeated string obligations = 4;
-  map<string, string> advice = 5;
+  repeated Obligation obligations = 3;
+  map<string, string> advice = 4;
 }
 ```
 
----
+`subject` remains on the wire for compatibility, but the server overwrites it with JWT `sub`. Callers cannot use it to select another principal.
 
-## 2. Scope Resolution Specification (Prefixed Scope Convention)
+## 4. Trusted attribute resolution
 
-Engine resolution implementation ([`internal/engine/evaluator.go:101-155`](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/engine/evaluator.go#L101-L155)):
+| DSL namespace | Resolution |
+|---|---|
+| `principal.id` | JWT `sub` |
+| `principal.*` | Signed JWT principal attributes copied to `principal.<name>`; request values are overwritten |
+| `resource.id` | `request.resource` |
+| `resource.*` | Exact namespaced request key such as `resource.creator_id`; no raw-key fallback |
+| `action.id` | `request.action` |
+| `context.*` | Dynamic request context, resolved as the raw field name then `context.<name>` |
 
-| DSL Scope | Target Field in DSL | Primary Key in Request `context` | Fallback Key in Request `context` | Resolution Logic in Go Engine |
-|---|---|---|---|---|
-| `principal.*` | `principal.id` | N/A (Derived from `req.Subject`) | N/A | Direct string binding from `req.Subject` |
-| `principal.*` | `principal.role` | `principal.role` | `role` | Checks `ctx.Context["principal.role"]`, then `ctx.Context["role"]` |
-| `principal.*` | `principal.department` | `principal.department` | `department` | Checks `ctx.Context["principal.department"]`, then `ctx.Context["department"]` |
-| `resource.*` | `resource.id` | N/A (Derived from `req.Resource`) | N/A | Direct string binding from `req.Resource` |
-| `resource.*` | `resource.creator_id` | `resource.creator_id` | `creator_id` | Checks `ctx.Context["resource.creator_id"]`, then `ctx.Context["creator_id"]` |
-| `resource.*` | `resource.status` | `resource.status` | `status` | Checks `ctx.Context["resource.status"]`, then `ctx.Context["status"]` |
-| `action.*` | `action.id` | N/A (Derived from `req.Action`) | N/A | Direct string binding from `req.Action` |
-| `context.*` | `context.amount` | `amount` | `context.amount` | Checks `ctx.Context["amount"]`, then `ctx.Context["context.amount"]` |
-| `context.*` | `context.delegation_chain` | `delegation_chain` | `context.delegation_chain` | Checks `ctx.Context["delegation_chain"]`, then `ctx.Context["context.delegation_chain"]` |
-| `context.*` | `context.delegation_proof` | `delegation_proof` | `context.delegation_proof` | Evaluated at gRPC Security Interceptor (Layer 1) |
+Missing attributes fail closed during condition evaluation.
 
----
+## 5. Delegation proof tuple
 
-## 3. Data Serialization Conventions (Invariants)
+A delegated call is any request containing `delegation_grant_id`. Such a call must include a versioned HMAC proof over the complete length-prefixed tuple:
 
-1. **Raw Integer Monetary Values**:
-   - MUST serialize currency values as raw integer strings: `"1500"`, `"50000"`.
-   - FORBIDDEN: UI formatting strings containing commas or dots (`"50.000.000"` or `"50,000.00"`).
-   - *Rationale*: `strconv.ParseInt` fails silently on punctuation, causing `amount > 2000` to evaluate to `false` and bypassing `forbid` rules.
-2. **Comma-Separated Delegation Chain**:
-   - MUST format delegation paths as a flat comma-separated string without extraneous whitespace:
-     ```python
-     f"user:{order.delegated_by_id.login},agent:{order.ai_agent_id}"
-     # Output: "user:manager_bob,agent:procurement_copilot"
-     ```
-   - *Rationale*: Matches `evaluator.go:387` (`BinOpContains`) array membership scanning.
+`tenant_id`, `grant_id`, `delegator`, `agent`, `action`, `resource`, `amount`, `delegation_chain`, `resource.creator_id`, `tool_context`, `execution_mode`, `delegation_nonce`, `delegation_issued_at`, `delegation_valid_until`.
 
----
+The proof envelope is `v1.<kid>.<hex-hmac>`. The key ID is included in the canonical HMAC bytes and selects an explicitly configured verification key. New proofs use `PDP_DELEGATION_ACTIVE_KID`; `PDP_DELEGATION_KEYS_JSON` retains active and grace-period keys during rotation. Production must use the explicit key ring. `PDP_SHARED_SECRET` remains a development/test compatibility fallback only.
 
-## 4. Production Payload Contracts
+The maximum validity window is 24 hours. The chain must be the direct `delegator,agent` pair. `CheckAccess` is idempotent and does not consume the nonce; exact business-action replay safety belongs to the Odoo transaction ledger described in [`DELEGATION_REPLAY_IDEMPOTENCY.md`](./DELEGATION_REPLAY_IDEMPOTENCY.md).
 
-### Case 1: AI Agent Within Autonomous Limit ($1,500 <= $2,000) -> ALLOW
+## 6. Serialization invariants
 
-**Odoo PEP Request:**
-```json
-{
-  "tenant_id": "my_company",
-  "subject": "agent:procurement_copilot",
-  "action": "action:APPROVE_PURCHASE_ORDER",
-  "resource": "purchase_order:PO00042",
-  "context": {
-    "amount": "1500",
-    "currency": "USD",
-    "resource.creator_id": "user:alice",
-    "is_ai_generated": "true",
-    "delegation_chain": "user:manager_bob,agent:procurement_copilot",
-    "delegation_proof": "a9f3b17c8d9e204859a0f448b30174e2d354e1951048b29e0721da12847c94b3",
-    "tool_context": "tool:auto_confirm_po",
-    "execution_mode": "autonomous_run"
-  }
-}
+- Monetary values are base-10 integer strings such as `"1500"`; localized punctuation is invalid.
+- Delegation timestamps are Unix seconds encoded as decimal strings.
+- Delegation chains are comma-separated identities without whitespace.
+- Proof, nonce, authorization, token, secret and configured PII context keys are redacted before entering the audit queue.
+- Policy actions may include or omit the `action:` prefix; the engine normalizes it internally.
+
+## 7. Structured obligation example
+
+Policy:
+
+```cedar
+forbid(
+  principal == agent:procurement_copilot,
+  action == action:APPROVE_PURCHASE_ORDER,
+  resource == any
+)
+when { context.amount > 2000 }
+obligation REQUIRE_HUMAN_APPROVAL "Autonomous agent spending requires human approval";
 ```
 
-**Go PDP Response:**
-```json
-{
-  "decision": "ALLOW",
-  "matched_policy_id": "POL-AI-AUTONOMOUS-PERMIT-01",
-  "obligations": [],
-  "advice": {
-    "risk_level": "LOW"
-  },
-  "evaluation_nanos": 27
-}
-```
+Response:
 
----
-
-### Case 2: AI Agent Exceeds Threshold ($50,000 > $2,000) -> DENY + REQUIRE_HUMAN_APPROVAL
-
-**Odoo PEP Request:**
-```json
-{
-  "tenant_id": "my_company",
-  "subject": "agent:procurement_copilot",
-  "action": "action:APPROVE_PURCHASE_ORDER",
-  "resource": "purchase_order:PO00099",
-  "context": {
-    "amount": "50000",
-    "currency": "USD",
-    "resource.creator_id": "user:alice",
-    "is_ai_generated": "true",
-    "delegation_chain": "user:manager_bob,agent:procurement_copilot",
-    "delegation_proof": "7c1e9b4d8a1f203849c0e558a20184d3c243f1841037a18d0610ea11736b83a2",
-    "tool_context": "tool:auto_confirm_po",
-    "execution_mode": "autonomous_run"
-  }
-}
-```
-
-**Go PDP Response:**
 ```json
 {
   "decision": "DENY",
   "matched_policy_id": "POL-AI-AUTONOMOUS-FORBID-02",
   "obligations": [
-    "REQUIRE_HUMAN_APPROVAL"
-  ],
-  "advice": {
-    "risk_level": "HIGH",
-    "required_approver_role": "role:finance_director",
-    "reason": "Amount exceeds AI autonomous ceiling ($2,000). Routed to supervisor approval."
-  },
-  "evaluation_nanos": 31
+    {
+      "type": "REQUIRE_HUMAN_APPROVAL",
+      "message": "Autonomous agent spending requires human approval"
+    }
+  ]
 }
 ```
+
+The PEP must treat unknown obligation types as non-executable and fail closed. The current compiler accepts only `REQUIRE_HUMAN_APPROVAL`, `AUDIT_SENSITIVE_TOOL_CALL`, and `MASK_ATTRIBUTES`.
+
+## 8. Evidence
+
+- Standard Go protobuf client crossed Docker TCP to the production PDP server and passed ALLOW, DENY and policy catch-up cases.
+- Generated Python client imported with the pinned runtimes, serialized structured obligations, and called a live Go gRPC server successfully.
+- An oversized protobuf request is rejected with `ResourceExhausted` by an automated wire-level test.
+- The repository-owned Odoo 17 addon used the generated Python client across the live Docker gRPC boundary and passed seven real ORM/PostgreSQL transaction cases plus a two-session serialization-retry assertion.
+
+The Odoo evidence covers insecure test transport, duplicate/altered-command replay, rollback, non-rollback and two-session nonce concurrency. Runtime mTLS remains open and must not be inferred from this result.

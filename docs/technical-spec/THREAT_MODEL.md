@@ -1,5 +1,7 @@
 # THREAT_MODEL.md — STRIDE & OWASP LLM06 Threat Analysis
 
+> **Implementation gap notice (2026-09-11):** Tài liệu này mô tả mô hình đích. Audit hiện trạng xác định một số control quan trọng chưa được cưỡng chế trong production path, gồm JWT bắt buộc, binding đầy đủ delegation proof, revocation đa replica và audit mã hóa bền vững. Xem [`CURRENT_STATE_AUDIT.md`](./CURRENT_STATE_AUDIT.md) trước khi dùng bảng dưới đây làm security assurance.
+
 ## 1. Threat Classification Matrix (STRIDE + OWASP LLM06)
 
 | Threat Category | Threat Description | Attack Target | Impact Severity | Primary Defense Mechanism |

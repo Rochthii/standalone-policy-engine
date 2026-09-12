@@ -43,5 +43,6 @@ badger_data/
 tmp/
 temp/
 scratch/
+.tmp-go-cache/
 __pycache__/
 *.pyc

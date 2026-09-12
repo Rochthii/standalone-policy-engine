@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main, master ]
 
+permissions:
+  contents: read
+
 jobs:
   # ── Job 1: Build ───────────────────────────────────────────────────────
   build:
@@ -23,6 +26,9 @@ jobs:
 
       - name: Build all packages
         run: go build ./...
+
+      - name: Compile all test packages without executing tests
+        run: go test -run='^$' ./...
 
   # ── Job 2: Vet & Format check ──────────────────────────────────────────
   vet:
@@ -50,6 +56,57 @@ jobs:
             exit 1
           fi
 
+  proto-contract:
+    name: Protobuf Contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Lint and format-check canonical IDL
+        run: |
+          go run github.com/bufbuild/buf/cmd/buf@v1.72.0 lint
+          go run github.com/bufbuild/buf/cmd/buf@v1.72.0 format --diff --exit-code
+
+      - name: Regenerate Go and Python clients and reject drift
+        run: |
+          go run github.com/bufbuild/buf/cmd/buf@v1.72.0 generate
+          git diff --exit-code -- proto/v1/policy.pb.go proto/v1/policy_grpc.pb.go clients/python
+
+  odoo-pep-static:
+    name: Odoo PEP Protocol & Static Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: clients/python/requirements.txt
+
+      - name: Install generated-client runtimes
+        run: python -m pip install -r clients/python/requirements.txt
+
+      - name: Verify generated Python Protobuf import
+        env:
+          PYTHONPATH: clients/python
+        run: python -c "from v1 import policy_pb2, policy_pb2_grpc; assert policy_pb2.CheckAccessRequest(tenant_id='ci').tenant_id == 'ci'"
+
+      - name: Verify Odoo PEP protocol helpers and source syntax
+        run: |
+          python custom_addons/pdp_authorizer/tests/test_pdp_protocol.py
+          python -m compileall -q custom_addons/pdp_authorizer
+          python -c "import pathlib, xml.etree.ElementTree as ET; [ET.parse(path) for path in pathlib.Path('custom_addons/pdp_authorizer/views').glob('*.xml')]"
+
   # ── Job 3: Unit Tests (in-memory, không cần DB) ───────────────────────
   unit-test:
     name: Unit Tests
@@ -65,9 +122,45 @@ jobs:
           cache-dependency-path: go.sum
 
       - name: Run unit tests (race detector)
+        env:
+          # Never let the unit job opt into the destructive legacy DB harness.
+          TEST_DATABASE_URL: ""
         run: go test -v -race -count=1 ./internal/... ./pkg/...
 
-  # ── Job 4: E2E 7 Delegation Vectors & ERP Scenarios ───────────────────
+  # ── Job 4: Isolated PostgreSQL integration ────────────────────────────
+  postgres-integration:
+    name: PostgreSQL Integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Run storage migrations and tenant-boundary tests
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+        run: go test -v -count=1 ./internal/storage -run='^TestStorage_MigrationsIntegration$'
+
+  # ── Job 5: E2E 7 Delegation Vectors & ERP Scenarios ───────────────────
   e2e-delegation:
     name: 7 E2E Delegation Vectors & ERP ABAC
     runs-on: ubuntu-latest
@@ -85,7 +178,34 @@ jobs:
         run: |
           go test -v -count=1 ./tests -run="TestE2E_P2P_Delegation_7Vectors|TestAIAgent|TestERP|TestDelegation"
 
-  # ── Job 5: Benchmark (in-memory decision engine) ───────────────────────
+  odoo-e2e:
+    name: Real Odoo PostgreSQL gRPC E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run fresh-database Odoo transaction suite
+        run: make test-odoo-e2e
+
+      - name: Capture container evidence
+        if: always()
+        run: docker compose -f docker-compose.testbed.yml --profile e2e logs --no-color > odoo-e2e.log
+
+      - name: Upload Odoo E2E evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: odoo-e2e-${{ github.sha }}
+          path: odoo-e2e.log
+          retention-days: 90
+
+      - name: Remove isolated test containers and volumes
+        if: always()
+        run: docker compose -f docker-compose.testbed.yml --profile e2e down --volumes --remove-orphans
+
+  # ── Job 6: Benchmark (in-memory decision engine) ───────────────────────
   benchmark:
     name: Benchmark Hot-Path
     runs-on: ubuntu-latest

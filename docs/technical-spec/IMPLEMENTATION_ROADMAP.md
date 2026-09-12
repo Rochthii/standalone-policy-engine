@@ -1,7 +1,9 @@
 # LỘ TRÌNH TRIỂN KHAI MÃ NGUỒN (IMPLEMENTATION ROADMAP)
 ## Standalone In-Memory Go PDP & Odoo 17 PEP Integration
 
-> 📅 **Trạng thái**: **100% HOÀN THÀNH TOÀN BỘ CÁC BƯỚC (COMPLETED & VERIFIED)**
+> **Cảnh báo hiện trạng (2026-09-11):** Đây là roadmap/biên bản tuyên bố lịch sử, không phải nguồn xác nhận production readiness. Audit mã nguồn phát hiện các hạng mục được đánh dấu hoàn thành nhưng chưa có hoặc chưa được wiring trong repository. Xem [`CURRENT_STATE_AUDIT.md`](./CURRENT_STATE_AUDIT.md) và [`PRODUCTION_READINESS_CHECKLIST.md`](./PRODUCTION_READINESS_CHECKLIST.md).
+>
+> 📅 **Trạng thái đã audit**: **CORE ENGINE VERIFIED; FULL SYSTEM BLOCKED BY P0 FINDINGS**
 > 🎯 **Mục tiêu**: Tích hợp Standalone In-Memory Go PDP với Odoo 17 ERP qua gRPC để kiểm soát ủy quyền Tác tử AI (Delegation-Aware Authorization) và triệt tiêu TOCTOU.
 > 🚀 **Git Commits**: `e3bc687` (Go Backend & Interceptors), `f47e5e5` (7 E2E Test Vectors).
 
