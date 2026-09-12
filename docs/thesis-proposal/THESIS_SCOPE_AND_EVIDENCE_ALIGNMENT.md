@@ -12,7 +12,7 @@ The thesis contribution is evaluated through three separable artifacts:
 | Artifact | Location | Current role |
 |---|---|---|
 | PDP foundation | This repository | Go policy engine, data-plane security boundary, policy synchronization and audit pipeline |
-| Odoo PEP implementation | `custom_addons/pdp_authorizer` | Repository-owned migrated addon; seven transaction cases plus two-session retry verified, mTLS open |
+| Odoo PEP implementation | `custom_addons/pdp_authorizer` | Repository-owned migrated addon; seven mTLS transaction cases plus two-session retry verified |
 | Historical Odoo baseline | `E:\Projects\ERP_Mastery_Hub\02_Project_2_Odoo_Go_PDP_Approval` | Design input only; not a release artifact |
 | Thesis evidence | `docs/technical-spec/CURRENT_STATE_AUDIT.md` and reproducible test outputs | Only source for statements that an implementation or result is verified |
 
@@ -20,10 +20,10 @@ The thesis contribution is evaluated through three separable artifacts:
 
 | Thesis area | Status | Evidence / required work |
 |---|---|---|
-| RQ1: unified subject, context and 1-hop delegation | Verified for the current Odoo boundary | PDP accepts an authenticated principal, resource context and full-tuple proof; the mapper plus duplicate/altered/concurrent nonce behavior pass real Odoo/gRPC/PostgreSQL tests. mTLS remains open. |
+| RQ1: unified subject, context and 1-hop delegation | Verified for the current single-PDP Odoo boundary | PDP accepts an authenticated principal, resource context and full-tuple proof; the mapper plus duplicate/altered/concurrent nonce behavior pass real Odoo/mTLS-gRPC/PostgreSQL tests. |
 | RQ2: in-memory runtime | Verified only for measured evaluator cases | The 2026-09-12 three-sample run reports 390.3–492.8 ns/op with 0 B/op and 0 allocs/op for the measured evaluator case. This is not gRPC, mTLS, JWT or Odoo end-to-end latency. |
 | RQ3: deterministic guardrails and obligations | Base Odoo path verified | Typed DSL obligations and structured API serialization are verified; a real Odoo transaction persists `to approve` and one Activity without rollback. |
-| RQ4: ERP empirical evaluation | Partially complete | Seven real Odoo transaction cases plus a two-session retry case pass. Comparative measurement, mTLS and production-path load evidence remain open. |
+| RQ4: ERP empirical evaluation | Partially complete | Seven real Odoo transaction cases plus a two-session retry case pass over mTLS. Comparative measurement and production-path load evidence remain open. |
 
 ## 3. Project 2 integration assessment
 
@@ -45,7 +45,7 @@ The following wording is required until new experiments are completed:
 | Do not claim | Use instead |
 |---|---|
 | “27.12 ns”, “36.8M RPS”, “286.3 ns prompt-injection block”, or “0.31 ms Odoo E2E” | “The current local evaluator benchmark is sub-microsecond for its measured in-memory cases; final performance numbers will be reported from a versioned reproducibility run.” |
-| “Odoo integration is complete” or “all Odoo security is proven” | “The repository-owned Odoo PEP passes seven real transaction cases plus two-session retry; mTLS, multi-replica revocation and release evidence remain open.” |
+| “Odoo integration is complete” or “all Odoo security is proven” | “The repository-owned Odoo PEP passes seven real mTLS transaction cases plus two-session retry; multi-replica revocation and release evidence remain open.” |
 | “WORM/AES-GCM audit trail is implemented” | “The PDP has redacted bounded PostgreSQL audit delivery. Encryption, spill/replay, tamper evidence and retention guarantees remain future work.” |
 | “instant cluster-wide revocation” | “Tenant-scoped local revocation is implemented; durable multi-replica propagation is a release gate.” |
 | “zero linear scans” | “The engine uses indexes and COW snapshots, but candidate policy iteration remains a measured limitation.” |

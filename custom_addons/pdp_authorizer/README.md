@@ -49,8 +49,9 @@ stored on delegation-grant records or written to logs.
 
 The pure Python protocol tests and the matching Go golden vector verify the
 canonical proof bytes. Python syntax, XML parsing and Compose rendering pass.
-On 2026-09-12 the isolated Compose runner (`make test-odoo-e2e`) installed this
-addon in a fresh Odoo 17 database, passed all seven real ORM/gRPC/PostgreSQL
-transaction cases with 0 failures/errors, then passed a two-session
-serialization-retry assertion with one nonce and one executed attempt. The mTLS
-runtime variant remains a separate open gate.
+On 2026-09-12 the isolated Compose runner (`make test-odoo-e2e`) generated
+short-lived test certificates, rejected a client without a certificate, then
+installed this addon in a fresh Odoo 17 database. All seven real
+ORM/mTLS-gRPC/PostgreSQL transaction cases passed with 0 failures/errors,
+followed by a passing two-session serialization-retry assertion with one nonce
+and one executed attempt.

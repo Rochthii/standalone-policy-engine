@@ -1,7 +1,7 @@
 # Standalone In-Memory Policy Decision Point (PDP)
 ### Delegation-Aware Authorization & Guardrails for ERP AI Agents (Odoo 17)
 
-> **Current implementation status (audit update 2026-09-12):** The in-memory core is verified for the measured benchmark cases, and the repository-owned Odoo PEP passes seven real ORM/gRPC/PostgreSQL transaction cases plus a two-session concurrency/retry case. The full distributed PDP/Odoo system is still **not production-ready**: mTLS runtime verification, durable multi-replica revocation, audit cryptography and deployment gates remain open. See [`CURRENT_STATE_AUDIT.md`](./docs/technical-spec/CURRENT_STATE_AUDIT.md) and [`PRODUCTION_READINESS_CHECKLIST.md`](./docs/technical-spec/PRODUCTION_READINESS_CHECKLIST.md).
+> **Current implementation status (audit update 2026-09-12):** The in-memory core is verified for the measured benchmark cases, and the repository-owned Odoo PEP passes seven real ORM/mTLS-gRPC/PostgreSQL transaction cases plus a two-session concurrency/retry case. The full distributed PDP/Odoo system is still **not production-ready**: durable multi-replica revocation, audit cryptography, remote CI and deployment gates remain open. See [`CURRENT_STATE_AUDIT.md`](./docs/technical-spec/CURRENT_STATE_AUDIT.md) and [`PRODUCTION_READINESS_CHECKLIST.md`](./docs/technical-spec/PRODUCTION_READINESS_CHECKLIST.md).
 
 **Author:** Chăm Rốch Thi  
 **Affiliation:** Posts and Telecommunications Institute of Technology (PTIT)  
@@ -112,7 +112,7 @@ The Go test fixture passes all seven logic vectors defined in [`tests/e2e_delega
 
 ### 1. Docker Testbed Status
 
-The Compose file uses only repository-local Odoo addon and generated-client inputs for this path. On 2026-09-12 its fresh-database gate passed 7/7 transaction cases and the two-session concurrency/retry assertion. It remains a development testbed—not a frozen release environment—because base images use mutable tags and the mTLS/remote-CI gates are still open. See the [evidence record](./docs/technical-spec/evidence/ODOO_E2E_2026_09_12.md).
+The Compose file uses only repository-local Odoo addon and generated-client inputs for this path. On 2026-09-12 its fresh-database gate passed 7/7 transaction cases and the two-session concurrency/retry assertion over mTLS; a missing-client-certificate probe was rejected before RPC handling. It remains a development testbed—not a frozen release environment—because base images use mutable tags and remote CI evidence is still open. See the [evidence record](./docs/technical-spec/evidence/ODOO_E2E_2026_09_12.md).
 
 ```bash
 # Clone the repository

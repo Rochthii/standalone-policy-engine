@@ -132,7 +132,7 @@ func main() {
 		}
 		log.Printf("[PDP-Server] Đang lắng nghe trên Unix Domain Socket (UDS Sidecar IPC): %s", socketPath)
 	} else {
-		grpcPort := 50051
+		grpcPort := cfg.Server.GRPCPort
 		addr := fmt.Sprintf(":%d", grpcPort)
 		log.Printf("[PDP-Server] Đang chạy chế độ local: lắng nghe trên TCP %s...", addr)
 		var err error

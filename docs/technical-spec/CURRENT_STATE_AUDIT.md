@@ -4,7 +4,7 @@
 >
 > **Audited commit:** `e16fa57` (`main`, tag `v1.0.0-core-verified`)
 >
-> **Remediation update:** The 2026-09-11 working tree closes the verified items recorded in [`IMPLEMENTATION_TASK_BOARD.md`](./IMPLEMENTATION_TASK_BOARD.md). On 2026-09-12 the delegation proof gained an explicit `kid` key ring and the repository gained a migrated Odoo PEP with a transactional nonce ledger. The cross-language proof vector, seven fresh-database Odoo transaction tests and a two-session serialization-retry case pass. A release commit has not yet been created; mTLS and other named release gates remain open.
+> **Remediation update:** The 2026-09-12 remediation closes the verified items recorded in [`IMPLEMENTATION_TASK_BOARD.md`](./IMPLEMENTATION_TASK_BOARD.md). The delegation proof has an explicit `kid` key ring and the repository-owned Odoo PEP has a transactional nonce ledger. The cross-language proof vector, seven fresh-database Odoo transaction tests, two-session serialization retry and real mTLS boundary probes pass. Other named release gates remain open.
 >
 > **Authority:** This document describes the implementation that exists in this repository. Where an older architecture, roadmap, benchmark, or thesis document conflicts with this audit, this document takes precedence until the conflict is resolved and re-verified.
 >
@@ -14,7 +14,7 @@
 
 The repository contains a credible and fast in-memory policy evaluation core. The narrow evaluator benchmark is reproducible and currently achieves sub-microsecond decisions with zero reported heap allocations for the measured inputs.
 
-The working tree now enforces the Data Plane identity boundary, key-identified full-tuple delegation proof, tenant-scoped policy access, linearizable COW writers, atomic ruleset compilation, typed obligations, bounded PostgreSQL audit delivery, generated standard Protobuf clients, and a repository-owned Odoo PEP whose base real transaction suite passes. The system is still not production-ready because concurrent replay evidence, runtime mTLS, durable multi-replica revocation, encrypted spill/replay, edge restore, deployment hardening, race evidence and production-path load evidence remain open.
+The working tree now enforces the Data Plane identity boundary, key-identified full-tuple delegation proof, tenant-scoped policy access, linearizable COW writers, atomic ruleset compilation, typed obligations, bounded PostgreSQL audit delivery, generated standard Protobuf clients, and a repository-owned Odoo PEP whose real transaction suite passes over mTLS. The system is still not production-ready because durable multi-replica revocation, encrypted spill/replay, edge restore, deployment hardening, race evidence and production-path load evidence remain open.
 
 The correct positioning is:
 
@@ -29,12 +29,12 @@ The correct positioning is:
 | In-memory evaluator | 8/10 | Strong narrow-path implementation and benchmark evidence |
 | Parser and compiler | 7/10 | Functional depth cap and optimization; input/fuzz hardening remains |
 | Decision correctness | 8/10 | Deny-default, forbid-overrides, atomic compilation and typed obligations are verified |
-| Security boundary | 8/10 | JWT, tenant binding, RBAC, key-ring proof and real Odoo duplicate/altered/rollback/two-session nonce outcomes are verified; runtime mTLS remains open |
+| Security boundary | 9/10 | JWT, tenant binding, RBAC, key-ring proof, mTLS and real Odoo duplicate/altered/rollback/two-session nonce outcomes are verified |
 | Distributed consistency | 6/10 | COW/event/reconcile correctness is improved; revocation is still process-local |
 | Audit and compliance | 5/10 | Redacted bounded PostgreSQL delivery is wired; encryption, spill/replay and tamper evidence remain |
-| Tests | 8/10 | Negative, PostgreSQL, protobuf, seven-case Odoo and two-session retry coverage pass; race/mTLS/load gates remain |
+| Tests | 8/10 | Negative, PostgreSQL, protobuf, mTLS, seven-case Odoo and two-session retry coverage pass; race/load gates remain |
 | Deployment | 4/10 | Repository-local images build and the E2E profile passes, but mutable images and runtime hardening remain |
-| Odoo integration | 8/10 | Fresh install, seven real ORM/gRPC/PostgreSQL cases and two-session retry pass; runtime mTLS remains |
+| Odoo integration | 9/10 | Fresh install, seven real ORM/mTLS-gRPC/PostgreSQL cases and two-session retry pass |
 | Production readiness | 5/10 | Several P0s closed, but remaining security/durability/Odoo gates still block release |
 
 ## 3. Verification performed
@@ -50,7 +50,7 @@ The correct positioning is:
 | Docker PostgreSQL + Control Plane + PDP protobuf E2E | PASS; Odoo is not included |
 | Generated Python client -> live Go gRPC server | PASS with pinned `protobuf==6.32.1`, `grpcio==1.75.1` |
 | Odoo/Python -> Go delegation proof golden vector | PASS |
-| Odoo 17 fresh install + ORM -> generated gRPC client -> live PDP -> PostgreSQL | PASS; 7 tests, 0 failures/errors, plus two-session retry PASS; development transport is insecure |
+| Odoo 17 fresh install + ORM -> generated gRPC client -> live PDP -> PostgreSQL | PASS over mTLS; missing client certificate rejected, valid client reaches JWT boundary, 7 tests with 0 failures/errors, plus two-session retry PASS |
 
 Observed coverage:
 
@@ -94,7 +94,7 @@ Observed Go core benchmarks on a 13th Gen Intel Core i7-13700H, Windows/amd64, G
 | Runtime `REQUIRE_HUMAN_APPROVAL` obligation | VERIFIED | Compiler-valid typed obligations are synthesized by the deciding policy and serialized structurally |
 | Bounded async PostgreSQL audit delivery | VERIFIED; CRYPTO/SPILL OPEN | Production main uses queue + `pgx.CopyFrom`, redaction, timeouts and drop/failure metrics |
 | Edge snapshot supports offline startup | NOT IMPLEMENTED | Snapshots are written, but production startup never loads them |
-| Odoo 17 PEP addon is included and verified | VERIFIED FOR DEVELOPMENT-TRANSPORT BOUNDARY | Fresh install, seven transaction cases and two-session retry pass through real ORM/gRPC/PostgreSQL. Runtime mTLS remains open |
+| Odoo 17 PEP addon is included and verified | VERIFIED FOR SINGLE-PDP MTLS BOUNDARY | Fresh install, seven transaction cases and two-session retry pass through real ORM/mTLS-gRPC/PostgreSQL; clients without a certificate are rejected |
 | Frozen 2026–2029 testbed | NOT REPRODUCIBLY PINNED | Several image tags are mutable and are not pinned by digest |
 | 7/7 delegation vectors | VERIFIED AS IN-PROCESS TESTS | They do not prove Odoo/container/network integration |
 | Odoo is approximately 44,000x slower | INVALID AS EMPIRICAL CLAIM | The baseline script sleeps for a configured delay and hardcodes the PDP result |
@@ -108,7 +108,6 @@ Observed Go core benchmarks on a 13th Gen Intel Core i7-13700H, Windows/amd64, G
 |---|---|---|---|
 | REV-001 | Revocation is tenant-scoped and TTL-bounded but still local and volatile | Multi-replica/restart TOCTOU guarantee is false | `internal/security/delegation.go` |
 | AUD-001B | PostgreSQL delivery is wired, but failed batches can be dropped and encryption/spill/replay are absent | Audit completeness/confidentiality is not release-grade | `internal/audit/batch.go`, `internal/storage/postgres.go` |
-| INT-001 | Base Odoo runtime passes only with development insecure transport | Production-boundary claims remain blocked until the same suite passes with mTLS | `custom_addons/pdp_authorizer`, `docker-compose.testbed.yml` |
 
 ### P1 — Required before release candidate
 
@@ -135,7 +134,7 @@ Observed Go core benchmarks on a 13th Gen Intel Core i7-13700H, Windows/amd64, G
 ## 7. Audit limitations
 
 - The original audit did not mutate production code; the remediation update does include implementation changes and isolated PostgreSQL/Docker test systems.
-- The PostgreSQL/Control Plane/PDP Docker E2E passes with standard protobuf. The repository-owned Odoo replacement also passes seven real fresh-database transaction cases and two simultaneous sessions with Odoo's standard serialization retry; this run used insecure development transport.
-- The Odoo run proves single-PDP PEP transaction/replay behavior, not mTLS, multi-replica revocation or sustained load.
+- The PostgreSQL/Control Plane/PDP Docker E2E passes with standard protobuf. The repository-owned Odoo replacement also passes seven real fresh-database transaction cases and two simultaneous sessions with Odoo's standard serialization retry over mTLS.
+- The Odoo run proves single-PDP PEP transaction/replay and mTLS behavior, not multi-replica revocation or sustained load.
 - Race tests could not be reproduced locally without a C compiler. CI contains a race job, but a successful remote run was not independently inspected.
 - Dependency vulnerability scanning, penetration testing and sustained network load testing remain outstanding.

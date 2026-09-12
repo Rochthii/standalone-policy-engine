@@ -1,7 +1,7 @@
 # Odoo 17 PEP Integration
 
 > **Updated:** 2026-09-12
-> **Status:** Addon is repository-owned; seven real Odoo transaction cases and the two-session concurrency/retry boundary pass. Runtime mTLS remains open.
+> **Status:** Addon is repository-owned; seven real Odoo transaction cases and the two-session concurrency/retry boundary pass over mTLS.
 
 The authoritative addon is
 [`custom_addons/pdp_authorizer`](../../custom_addons/pdp_authorizer). The external
@@ -112,9 +112,10 @@ with:
 make test-odoo-e2e
 ```
 
-On 2026-09-12 the suite installed the addon in a freshly recreated Odoo 17
-database, passed all seven transaction cases with 0 failures/errors and passed
-the two-session serialization-retry assertion with one nonce, attempt and
-mutation. The exact command, environment and result are recorded in
-[`evidence/ODOO_E2E_2026_09_12.md`](./evidence/ODOO_E2E_2026_09_12.md). A
-mTLS variant is still required.
+On 2026-09-12 the suite generated a short-lived test CA and client/server
+certificates, rejected a client without a certificate, installed the addon in a
+freshly recreated Odoo 17 database, passed all seven transaction cases with 0
+failures/errors and passed the two-session serialization-retry assertion with
+one nonce, attempt and mutation. The exact command, environment and result are
+recorded in
+[`evidence/ODOO_E2E_2026_09_12.md`](./evidence/ODOO_E2E_2026_09_12.md).

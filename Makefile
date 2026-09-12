@@ -37,6 +37,7 @@ test-pectl:
 	go test -v -cover ./internal/pectl/...
 
 test-odoo-e2e:
+	docker compose -f docker-compose.testbed.yml --profile e2e run --build --rm testbed-certgen
 	docker compose -f docker-compose.testbed.yml --profile e2e up --build --abort-on-container-exit --exit-code-from testbed-odoo-e2e testbed-odoo-e2e
 
 run-pdp:

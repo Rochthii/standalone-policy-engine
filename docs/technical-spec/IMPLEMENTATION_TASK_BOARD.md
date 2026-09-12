@@ -40,7 +40,7 @@
 | SEC-CONFIG-08 | Centralize production JWT/delegation secrets and issuer/audience validation. | `VERIFIED` | Production config matrix and issuer/audience JWT tests pass. |
 | SEC-RBAC-09 | Require explicit signed permissions for Control Plane routes. | `VERIFIED` | `policy:read/write/simulate/operate` middleware tests pass. |
 | SEC-TLS-10 | Require cert/key/client-CA configuration in production and pass it through centralized config. | `VERIFIED` | Production config tests and full repository compile pass. |
-| SEC-TLS-E2E-11 | Run the Odoo -> PDP boundary with real server/client certificates and client-CA verification in the frozen testbed. | `TODO` | Requires generated test CA, mounted certs, hostname verification and a passing Odoo E2E run over mTLS. |
+| SEC-TLS-E2E-11 | Run the Odoo -> PDP boundary with real server/client certificates and client-CA verification in the frozen testbed. | `VERIFIED` | Ephemeral test CA/server/client certificates are generated per run; missing-client-cert and wrong-hostname probes are rejected, a valid client reaches the JWT boundary, and all seven Odoo cases plus concurrency pass over mTLS. |
 ## Wave 2 — Policy and revocation consistency
 
 | ID | Atomic task | Status | Exit evidence |
@@ -60,7 +60,7 @@
 |---|---|---|---|
 | OBL-MODEL-01 | Define typed obligation representation and policy validation. | `VERIFIED` | Typed DSL parse plus unsupported/duplicate compiler rejection tests pass. |
 | OBL-ENGINE-02 | Synthesize obligations in engine decisions and serialize structured payloads. | `VERIFIED` | Engine guardrail tests no longer mutate results; structured gRPC/REST obligation build and focused tests pass. |
-| ODOO-PEP-01 | Migrate/version the Project 2 addon to the current standard Protobuf, JWT/mTLS, full-tuple proof and typed-obligation contract; preserve the non-rollback PEP. | `VERIFIED` | The repository addon installs in a fresh Odoo 17 database and the real transaction suite verifies standard Protobuf/JWT/full-tuple proof, typed obligations, nonce outcomes and non-rollback approval. Runtime mTLS remains a separate release gate. |
+| ODOO-PEP-01 | Migrate/version the Project 2 addon to the current standard Protobuf, JWT/mTLS, full-tuple proof and typed-obligation contract; preserve the non-rollback PEP. | `VERIFIED` | The repository addon installs in a fresh Odoo 17 database and the real transaction suite verifies standard Protobuf/JWT/full-tuple proof, typed obligations, nonce outcomes, non-rollback approval and mTLS transport. |
 | ODOO-E2E-02 | Run real Odoo transaction cases: allow, hard deny, approval obligation, PDP outage, revoked grant, tampered proof and replay/concurrency. | `VERIFIED` | `make test-odoo-e2e` ran Odoo ORM -> generated gRPC client -> live Go PDP -> PostgreSQL: 7 tests with 0 failures/errors plus a passing two-session concurrency/retry assertion. See `evidence/ODOO_E2E_2026_09_12.md`. |
 | AUD-REDACT-01 | Define and enforce proof/credential/PII redaction before output. | `VERIFIED` | Credential/proof/PII leak-negative tests pass; audit benchmark remains 0 allocs/op. |
 | AUD-PIPE-02 | Wire bounded async queue to durable sink with observable failure policy. | `VERIFIED` | Queue-full, blocked-sink, graceful flush and real PostgreSQL CopyFrom tests pass. |
@@ -89,4 +89,4 @@
 
 ## Next task
 
-Next: implement and run the verified Odoo boundary with real mTLS certificates (`SEC-TLS-E2E-11`). Replay/idempotency and the real Odoo concurrency gate are now verified; remote CI evidence and image digest pinning remain separate tasks.
+Next: inspect a successful remote CI run, then pin every testbed base image by digest (`OPS-IMAGE-02`). The local Odoo boundary, replay/concurrency and mTLS gates are verified.

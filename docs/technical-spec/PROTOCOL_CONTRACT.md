@@ -138,4 +138,4 @@ The PEP must treat unknown obligation types as non-executable and fail closed. T
 - An oversized protobuf request is rejected with `ResourceExhausted` by an automated wire-level test.
 - The repository-owned Odoo 17 addon used the generated Python client across the live Docker gRPC boundary and passed seven real ORM/PostgreSQL transaction cases plus a two-session serialization-retry assertion.
 
-The Odoo evidence covers insecure test transport, duplicate/altered-command replay, rollback, non-rollback and two-session nonce concurrency. Runtime mTLS remains open and must not be inferred from this result.
+The Odoo evidence covers hostname-verified mutual TLS, missing-client-certificate rejection, duplicate/altered-command replay, rollback, non-rollback and two-session nonce concurrency. It remains single-PDP evidence and does not prove multi-replica revocation or release readiness.

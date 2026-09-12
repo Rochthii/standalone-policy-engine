@@ -5,8 +5,10 @@ import socket
 import subprocess
 import time
 
+import grpc
 import psycopg2
 from psycopg2 import sql
+from v1 import policy_pb2, policy_pb2_grpc
 
 
 TEST_DATABASE = "odoo_e2e"
@@ -87,6 +89,83 @@ def wait_for_pdp():
     raise RuntimeError("PDP gRPC port was not ready before the E2E deadline")
 
 
+def read_binary(environment_key):
+    with open(os.environ[environment_key], "rb") as source:
+        return source.read()
+
+
+def verify_mtls_boundary():
+    target = os.environ["PDP_GRPC_TARGET"]
+    ca = read_binary("PDP_CLIENT_TLS_CA")
+    server_name = os.environ["PDP_TLS_SERVER_NAME"]
+    options = (("grpc.ssl_target_name_override", server_name),)
+    probe_request = policy_pb2.CheckAccessRequest(
+        tenant_id="00000000-0000-0000-0000-000000000017",
+        subject="user:mtls-probe",
+        action="purchase_order:confirm",
+        resource="purchase_order:mtls-probe",
+    )
+
+    no_client_credentials = grpc.ssl_channel_credentials(root_certificates=ca)
+    no_client_channel = grpc.secure_channel(
+        target, no_client_credentials, options=options
+    )
+    try:
+        policy_pb2_grpc.PolicyDecisionPointStub(no_client_channel).CheckAccess(
+            probe_request, timeout=3
+        )
+        raise RuntimeError("PDP accepted a TLS connection without a client certificate")
+    except grpc.RpcError as error:
+        if error.code() != grpc.StatusCode.UNAVAILABLE:
+            raise RuntimeError(
+                "missing client certificate returned unexpected status %s" % error.code()
+            ) from error
+    finally:
+        no_client_channel.close()
+
+    credentials = grpc.ssl_channel_credentials(
+        root_certificates=ca,
+        private_key=read_binary("PDP_CLIENT_TLS_KEY"),
+        certificate_chain=read_binary("PDP_CLIENT_TLS_CERT"),
+    )
+    wrong_name_channel = grpc.secure_channel(
+        target,
+        credentials,
+        options=(("grpc.ssl_target_name_override", "wrong.testbed.invalid"),),
+    )
+    try:
+        policy_pb2_grpc.PolicyDecisionPointStub(wrong_name_channel).CheckAccess(
+            probe_request, timeout=3
+        )
+        raise RuntimeError("PDP client accepted a certificate for the wrong server name")
+    except grpc.RpcError as error:
+        if error.code() != grpc.StatusCode.UNAVAILABLE:
+            raise RuntimeError(
+                "wrong server name returned unexpected status %s" % error.code()
+            ) from error
+    finally:
+        wrong_name_channel.close()
+
+    channel = grpc.secure_channel(target, credentials, options=options)
+    try:
+        policy_pb2_grpc.PolicyDecisionPointStub(channel).CheckAccess(
+            probe_request, timeout=3
+        )
+        raise RuntimeError("authenticated mTLS probe bypassed JWT authentication")
+    except grpc.RpcError as error:
+        if error.code() != grpc.StatusCode.UNAUTHENTICATED:
+            raise RuntimeError(
+                "valid client certificate did not reach JWT boundary: %s" % error.code()
+            ) from error
+    finally:
+        channel.close()
+
+    print(
+        "MTLS-BOUNDARY PASS: missing client cert and wrong hostname rejected; valid Odoo cert reached JWT boundary",
+        flush=True,
+    )
+
+
 def run_odoo_tests():
     arguments = [
         "odoo",
@@ -116,5 +195,6 @@ if __name__ == "__main__":
     recreate_odoo_database()
     seed_pdp()
     wait_for_pdp()
+    verify_mtls_boundary()
     run_odoo_tests()
     run_concurrency_test()

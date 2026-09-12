@@ -18,6 +18,7 @@ Phân loại thay đổi:
 - Chuẩn hóa contract `proto/v1/policy.proto`, sinh client/server Go và Python bằng Buf/protoc.
 - Hoàn thiện addon Odoo 17 trong repository: nonce ledger, non-rollback PEP state machine, PID-safe gRPC client và seed policy.
 - Thêm runner Docker E2E thực tế cho Odoo cùng runner kiểm thử hai session concurrent để xác minh retry serialization.
+- Thêm bộ sinh certificate test ngắn hạn và testbed PDP production-mode dùng mutual TLS bắt buộc.
 - Bổ sung evidence report, production checklist, task board, `.dockerignore` và CI job `odoo-e2e`.
 
 ### Changed
@@ -32,11 +33,12 @@ Phân loại thay đổi:
 
 ### Verification
 - `make test-odoo-e2e`: 7/7 Odoo `TransactionCase` pass, concurrency runner pass, 0 failure/error.
+- mTLS probe xác nhận client thiếu certificate bị từ chối; Odoo certificate hợp lệ đi qua hostname verification và tới JWT boundary.
 - `go test ./...`, `go vet ./...`, protocol Python tests, compose config và `git diff --check` pass.
 - Benchmark 3 mẫu giữ 0 B/op, 0 allocs/op trên các hot-path chính; latency evaluator đo được khoảng 390–493 ns/op.
 
 ### Remaining gates
-- Chưa claim production-ready: mTLS end-to-end, remote CI evidence, multi-replica revocation, audit encryption/spill replay, image digest pinning và sustained load/race evidence vẫn mở.
+- Chưa claim production-ready: remote CI evidence, multi-replica revocation, audit encryption/spill replay, image digest pinning và sustained load/race evidence vẫn mở.
 - Race detector hiện bị block trong môi trường này vì thiếu `gcc`; cần chạy lại trên runner có CGO toolchain.
 
 ### Git commit breakdown

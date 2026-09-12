@@ -49,6 +49,49 @@ services:
       testbed-db:
         condition: service_healthy
 
+  # Ephemeral certificate generator used only by `make test-odoo-e2e`.
+  testbed-certgen:
+    profiles: ["e2e"]
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile.pdp
+    image: standalone-pdp:v1.0.0
+    restart: "no"
+    entrypoint: ["/app/test-certgen"]
+    command: ["-output", "/certs"]
+    volumes:
+      - testbed_tls:/certs
+
+  # Production-mode PDP boundary with mandatory mutual TLS.
+  testbed-pdp-mtls:
+    profiles: ["e2e"]
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile.pdp
+    image: standalone-pdp:v1.0.0
+    container_name: testbed_pdp_mtls_server
+    restart: unless-stopped
+    ports:
+      - "${PDP_TESTBED_MTLS_GRPC_PORT:-15052}:50051"
+    environment:
+      APP_ENV: production
+      STORAGE_MODE: cloud
+      DATABASE_URL: postgres://pdp_admin:pdp_secret_password_2026@testbed-db:5432/policy_engine?sslmode=disable
+      JWT_SECRET: testbed-jwt-secret-at-least-32-characters
+      JWT_ISSUER: standalone-policy-engine-testbed
+      JWT_AUDIENCE: standalone-policy-engine-testbed-pdp
+      PDP_DELEGATION_ACTIVE_KID: testbed-2026
+      PDP_DELEGATION_KEYS_JSON: '{"testbed-2026":"testbed-delegation-secret-at-least-32-characters"}'
+      PDP_TLS_CERT: /run/pdp-tls/server.crt
+      PDP_TLS_KEY: /run/pdp-tls/server.key
+      PDP_TLS_CA: /run/pdp-tls/ca.crt
+      GRPC_PORT: "50051"
+    volumes:
+      - testbed_tls:/run/pdp-tls:ro
+    depends_on:
+      testbed-db:
+        condition: service_healthy
+
   # 3. Odoo 17.0 ERP Core
   testbed-odoo:
     build:
@@ -97,14 +140,18 @@ services:
       USER: pdp_admin
       PASSWORD: pdp_secret_password_2026
       PDP_DB_HOST: testbed-db
-      PDP_GRPC_TARGET: testbed-pdp:50051
-      PDP_CLIENT_ENV: test
+      PDP_GRPC_TARGET: testbed-pdp-mtls:50051
+      PDP_CLIENT_ENV: production
       PDP_TENANT_ID: 00000000-0000-0000-0000-000000000017
       PDP_JWT_SECRET: testbed-jwt-secret-at-least-32-characters
       PDP_JWT_ISSUER: standalone-policy-engine-testbed
-      PDP_JWT_AUDIENCE: standalone-policy-engine-pdp
+      PDP_JWT_AUDIENCE: standalone-policy-engine-testbed-pdp
       PDP_DELEGATION_ACTIVE_KID: testbed-2026
       PDP_DELEGATION_KEYS_JSON: '{"testbed-2026":"testbed-delegation-secret-at-least-32-characters"}'
+      PDP_CLIENT_TLS_CA: /run/pdp-tls/ca.crt
+      PDP_CLIENT_TLS_CERT: /run/pdp-tls/client.crt
+      PDP_CLIENT_TLS_KEY: /run/pdp-tls/client.key
+      PDP_TLS_SERVER_NAME: testbed-pdp-mtls
       PDP_E2E_POLICY_SQL: /opt/pdp-e2e/policies.sql
       PDP_E2E_CONCURRENCY_RUNNER: /opt/pdp-e2e/run-odoo-concurrency.py
       PYTHONPATH: /opt/pdp-clients
@@ -114,10 +161,11 @@ services:
       - ./deployments/docker/run-odoo-e2e.py:/opt/pdp-e2e/run-odoo-e2e.py:ro
       - ./deployments/docker/run-odoo-concurrency.py:/opt/pdp-e2e/run-odoo-concurrency.py:ro
       - ./deployments/docker/odoo-e2e-policies.sql:/opt/pdp-e2e/policies.sql:ro
+      - testbed_tls:/run/pdp-tls:ro
     depends_on:
       testbed-db:
         condition: service_healthy
-      testbed-pdp:
+      testbed-pdp-mtls:
         condition: service_started
 
   # 5. Automated in-process core vectors and benchmark runner
@@ -147,3 +195,4 @@ services:
 
 volumes:
   testbed_pg_data:
+  testbed_tls:

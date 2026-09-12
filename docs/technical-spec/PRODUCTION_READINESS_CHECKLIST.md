@@ -30,6 +30,7 @@ No gate may be marked `[x]` using comments, screenshots, manually edited result 
 - [x] JWT `sub`, `tenant_id`, `exp`, issuer and audience are mandatory and validated.
 - [x] Only the configured signing algorithm is accepted.
 - [x] Production startup fails if JWT/HMAC secrets or required mTLS material are absent/default.
+- [x] The real Odoo boundary passes with hostname-verified server TLS, a trusted client certificate and rejection of clients without a certificate.
 - [x] Trusted identity attributes cannot be overridden by request context.
 - [x] REST fallback decisions enforce the same trust boundary as gRPC or are removed.
 - [x] Negative tests cover missing token, missing claims, wrong issuer/audience and cross-tenant access.
