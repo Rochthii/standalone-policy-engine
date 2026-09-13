@@ -8,7 +8,7 @@ import (
 
 // TestEnvelopeEncryptDecrypt kiem thu vong doi ma hoa va giai ma day du.
 func TestEnvelopeEncryptDecrypt(t *testing.T) {
-	os.Setenv("LOG_KEK", "test-kek-key-for-sprint6-32bytess")
+	os.Setenv("LOG_KEK", "test-audit-kek-old-32-bytes-key!")
 	defer os.Unsetenv("LOG_KEK")
 
 	crypto, err := NewEnvelopeCrypto()
@@ -45,7 +45,7 @@ func TestEnvelopeEncryptDecrypt(t *testing.T) {
 
 // TestEnvelopeUniqueNoncePerEncryption kiem thu moi lan ma hoa tao ra ciphertext khac nhau.
 func TestEnvelopeUniqueNoncePerEncryption(t *testing.T) {
-	os.Setenv("LOG_KEK", "test-kek-key-for-sprint6-32bytess")
+	os.Setenv("LOG_KEK", "test-audit-kek-old-32-bytes-key!")
 	defer os.Unsetenv("LOG_KEK")
 
 	crypto, err := NewEnvelopeCrypto()
@@ -70,7 +70,7 @@ func TestEnvelopeUniqueNoncePerEncryption(t *testing.T) {
 
 // TestEnvelopeDecryptWithWrongDEK kiem thu giai ma that bai khi DEK sai.
 func TestEnvelopeDecryptWithWrongDEK(t *testing.T) {
-	os.Setenv("LOG_KEK", "test-kek-key-for-sprint6-32bytess")
+	os.Setenv("LOG_KEK", "test-audit-kek-old-32-bytes-key!")
 	defer os.Unsetenv("LOG_KEK")
 
 	crypto, err := NewEnvelopeCrypto()
@@ -93,7 +93,7 @@ func TestEnvelopeDecryptWithWrongDEK(t *testing.T) {
 
 // TestEnvelopeLargePayload kiem thu ma hoa payload lon (>1KB).
 func TestEnvelopeLargePayload(t *testing.T) {
-	os.Setenv("LOG_KEK", "test-kek-key-for-sprint6-32bytess")
+	os.Setenv("LOG_KEK", "test-audit-kek-old-32-bytes-key!")
 	defer os.Unsetenv("LOG_KEK")
 
 	crypto, err := NewEnvelopeCrypto()
@@ -116,6 +116,32 @@ func TestEnvelopeLargePayload(t *testing.T) {
 
 	if string(decrypted) != string(largePayload) {
 		t.Error("Payload lon sau giai ma khong khop voi ban goc")
+	}
+}
+
+func TestEnvelopeKeyRotationAndAADTamper(t *testing.T) {
+	keys := map[string]string{
+		"old": "test-audit-kek-old-32-bytes-key!",
+		"new": "test-audit-kek-new-32-bytes-key!",
+	}
+	oldCrypto, err := NewEnvelopeCryptoWithKeyring("old", keys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ciphertext, encryptedDEK, keyID, err := oldCrypto.EncryptWithAAD([]byte("audit payload"), []byte("tenant-a"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rotatedCrypto, err := NewEnvelopeCryptoWithKeyring("new", keys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plaintext, err := rotatedCrypto.DecryptWithAAD(ciphertext, encryptedDEK, keyID, []byte("tenant-a"))
+	if err != nil || string(plaintext) != "audit payload" {
+		t.Fatalf("old key must remain readable after rotation: plaintext=%q err=%v", plaintext, err)
+	}
+	if _, err := rotatedCrypto.DecryptWithAAD(ciphertext, encryptedDEK, keyID, []byte("tenant-b")); err == nil {
+		t.Fatal("modified authenticated metadata must fail decryption")
 	}
 }
 

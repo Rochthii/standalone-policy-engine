@@ -49,6 +49,16 @@ var (
 		Name: "audit_batch_write_failures_total",
 		Help: "Durable audit batch writes that failed or timed out.",
 	})
+
+	AuditLogsReplayedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "audit_logs_replayed_total",
+		Help: "Encrypted audit records restored from durable spill files.",
+	})
+
+	AuditSpillFailuresTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "audit_spill_failures_total",
+		Help: "Audit spill or replay operations that failed, including integrity failures.",
+	})
 )
 
 // ObserveEvaluationDuration ghi nhận độ trễ thời gian xử lý quyết định.
@@ -77,4 +87,12 @@ func AddAuditLogsDropped(tenantID string, count uint64) {
 
 func IncrementAuditBatchWriteFailures() {
 	AuditBatchWriteFailuresTotal.Inc()
+}
+
+func AddAuditLogsReplayed(count uint64) {
+	AuditLogsReplayedTotal.Add(float64(count))
+}
+
+func IncrementAuditSpillFailures() {
+	AuditSpillFailuresTotal.Inc()
 }

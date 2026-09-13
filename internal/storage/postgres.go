@@ -358,7 +358,7 @@ func (s *Storage) InsertAuditLogsBatch(ctx context.Context, logs []*audit.LogEnt
 		return nil
 	}
 
-	// Sử dụng CopyFrom của pgx để đạt hiệu năng ghi đĩa tối đa
+	// Copy into a transaction-local staging table, then merge idempotently by audit_id.
 	entries := make([][]interface{}, len(logs))
 	for i, l := range logs {
 		var subjectVal, actionVal, resourceVal interface{}
@@ -371,36 +371,77 @@ func (s *Storage) InsertAuditLogsBatch(ctx context.Context, logs []*audit.LogEnt
 			contextVal = l.Context
 		}
 
+		var matchedPolicyID interface{}
+		if l.MatchedPolicyID != "" {
+			matchedPolicyID = l.MatchedPolicyID
+		}
 		entries[i] = []interface{}{
+			l.AuditID,
+			l.Timestamp,
 			l.TenantID,
 			subjectVal,
 			actionVal,
 			resourceVal,
 			l.Decision,
-			l.MatchedPolicyID,
+			matchedPolicyID,
 			contextVal,
 			l.IsEncrypted,
+			int64(l.RevisionID),
+			l.PayloadVersion,
+			l.KeyID,
+			l.RequestID,
+			l.TraceID,
 			l.EncryptedDEK,
 			l.EncryptedPayload,
+			l.IntegrityTag,
+			time.Unix(0, l.Timestamp).UTC(),
 		}
 	}
 
-	_, err := s.pool.CopyFrom(
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `
+		CREATE TEMP TABLE audit_ingest ON COMMIT DROP AS
+		SELECT audit_id, event_timestamp_ns, tenant_id, request_subject, request_action, request_resource,
+			decision, matched_policy_id, evaluated_context, is_encrypted, revision_id,
+			payload_version, key_id, request_id, trace_id, encrypted_dek,
+			encrypted_payload, integrity_tag, evaluated_at
+		FROM decision_audit_logs WITH NO DATA
+	`); err != nil {
+		return err
+	}
+	columns := []string{
+		"audit_id", "event_timestamp_ns", "tenant_id", "request_subject", "request_action", "request_resource",
+		"decision", "matched_policy_id", "evaluated_context", "is_encrypted", "revision_id",
+		"payload_version", "key_id", "request_id", "trace_id", "encrypted_dek",
+		"encrypted_payload", "integrity_tag", "evaluated_at",
+	}
+	if _, err := tx.CopyFrom(
 		ctx,
-		pgx.Identifier{"decision_audit_logs"},
-		[]string{
-			"tenant_id",
-			"request_subject",
-			"request_action",
-			"request_resource",
-			"decision",
-			"matched_policy_id",
-			"evaluated_context",
-			"is_encrypted",
-			"encrypted_dek",
-			"encrypted_payload",
-		},
+		pgx.Identifier{"audit_ingest"},
+		columns,
 		pgx.CopyFromRows(entries),
-	)
-	return err
+	); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO decision_audit_logs (
+			audit_id, event_timestamp_ns, tenant_id, request_subject, request_action, request_resource,
+			decision, matched_policy_id, evaluated_context, is_encrypted, revision_id,
+			payload_version, key_id, request_id, trace_id, encrypted_dek,
+			encrypted_payload, integrity_tag, evaluated_at
+		)
+		SELECT audit_id, event_timestamp_ns, tenant_id, request_subject, request_action, request_resource,
+			decision, matched_policy_id, evaluated_context, is_encrypted, revision_id,
+			payload_version, key_id, request_id, trace_id, encrypted_dek,
+			encrypted_payload, integrity_tag, evaluated_at
+		FROM audit_ingest
+		ON CONFLICT (audit_id) DO NOTHING
+	`); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }

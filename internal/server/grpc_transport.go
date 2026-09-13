@@ -17,11 +17,19 @@ import (
 	"standalone-policy-engine/internal/security"
 	policyv1 "standalone-policy-engine/proto/v1"
 
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
 )
+
+type auditCorrelation struct {
+	requestID string
+	traceID   string
+}
+
+type auditCorrelationKey struct{}
 
 func StartGRPCServer(lis net.Listener, eng *engine.EngineWithGC, logger *audit.AuditLogger, securityConfig config.SecurityConfig, serverConfig config.ServerConfig) (*grpc.Server, error) {
 	grpcServer, _, err := StartGRPCServerWithRevocations(context.Background(), lis, eng, logger, securityConfig, serverConfig, nil)
@@ -83,21 +91,58 @@ func StartGRPCServerWithRevocations(ctx context.Context, lis net.Listener, eng *
 
 func traceInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	metadataValues, ok := metadata.FromIncomingContext(ctx)
-	traceID := "none"
+	correlation := auditCorrelation{requestID: uuid.NewString()}
 	if ok {
+		if value := metadataValues.Get("x-request-id"); len(value) > 0 && validCorrelationID(value[0]) {
+			correlation.requestID = value[0]
+		}
 		if value := metadataValues.Get("x-trace-id"); len(value) > 0 {
-			traceID = value[0]
+			correlation.traceID = value[0]
 		} else if value := metadataValues.Get("traceparent"); len(value) > 0 {
 			parts := strings.Split(value[0], "-")
 			if len(parts) >= 2 {
-				traceID = parts[1]
+				correlation.traceID = parts[1]
 			}
 		}
 	}
-	if traceID != "none" {
-		log.Printf("[Trace-Context] request=%s trace_id=%s", info.FullMethod, traceID)
+	receivedTrace := validCorrelationID(correlation.traceID)
+	if !receivedTrace {
+		correlation.traceID = strings.ReplaceAll(uuid.NewString(), "-", "")
 	}
+	if receivedTrace {
+		log.Printf("[Trace-Context] method=%s request_id=%s trace_id=%s", info.FullMethod, correlation.requestID, correlation.traceID)
+	}
+	ctx = context.WithValue(ctx, auditCorrelationKey{}, correlation)
 	return handler(ctx, req)
+}
+
+func withAuditCorrelation(ctx context.Context, source map[string]string) map[string]string {
+	correlation, ok := ctx.Value(auditCorrelationKey{}).(auditCorrelation)
+	if !ok {
+		return source
+	}
+	result := make(map[string]string, len(source)+2)
+	for key, value := range source {
+		result[key] = value
+	}
+	result["request_id"] = correlation.requestID
+	result["trace_id"] = correlation.traceID
+	return result
+}
+
+func validCorrelationID(value string) bool {
+	if value == "" || len(value) > 128 {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		char := value[i]
+		if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') || strings.ContainsRune("-_.:/", rune(char)) {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func loadMTLSServerCredentials(certFile, keyFile, caFile string) (credentials.TransportCredentials, error) {

@@ -10,6 +10,18 @@ Phân loại thay đổi:
 
 ---
 
+## [Unreleased] - 2026-09-13: Durable Encrypted Audit Pipeline
+
+### Added
+- Rotatable audit KEK ring with per-record AES-256-GCM DEKs, authenticated metadata and keyed integrity tags.
+- Crash-safe encrypted spill files, restart replay, quota enforcement and replay/spill metrics.
+- Stable audit IDs and PostgreSQL idempotent batch merge for crash-after-commit recovery.
+
+### Verification
+- Restart/key-rotation and tamper tests pass; a real PostgreSQL 15 integration verifies migration, no plaintext columns, envelope verification and duplicate replay suppression.
+- Full `go test -count=1 ./...`, `go vet ./...`, Compose config and `git diff --check` pass locally.
+- Deletion evidence and external append-only retention remain explicitly out of scope for this control.
+
 ## [Unreleased] - 2026-09-13: Durable Multi-Replica Revocation
 
 ### Added

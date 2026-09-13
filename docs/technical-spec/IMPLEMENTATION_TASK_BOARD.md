@@ -1,6 +1,6 @@
 # Implementation Task Board
 
-> **Updated:** 2026-09-12
+> **Updated:** 2026-09-13
 >
 > **Current release status:** **BLOCKED — NOT PRODUCTION READY**
 >
@@ -64,7 +64,7 @@
 | ODOO-E2E-02 | Run real Odoo transaction cases: allow, hard deny, approval obligation, PDP outage, revoked grant, tampered proof and replay/concurrency. | `VERIFIED` | `make test-odoo-e2e` ran Odoo ORM -> generated gRPC client -> live Go PDP -> PostgreSQL: 7 tests with 0 failures/errors plus a passing two-session concurrency/retry assertion. See `evidence/ODOO_E2E_2026_09_12.md`. |
 | AUD-REDACT-01 | Define and enforce proof/credential/PII redaction before output. | `VERIFIED` | Credential/proof/PII leak-negative tests pass; audit benchmark remains 0 allocs/op. |
 | AUD-PIPE-02 | Wire bounded async queue to durable sink with observable failure policy. | `VERIFIED` | Queue-full, blocked-sink, graceful flush and real PostgreSQL CopyFrom tests pass. |
-| AUD-CRYPT-03 | Implement key lifecycle, encryption, spill/replay and tamper evidence. | `TODO` | Restart/replay/key-rotation integration tests pass. |
+| AUD-CRYPT-03 | Implement key lifecycle, encryption, spill/replay and tamper evidence. | `VERIFIED` | Versioned KEK rotation, AAD/HMAC tamper rejection, atomic encrypted spill/restart replay and PostgreSQL idempotency tests pass. See `evidence/AUDIT_CRYPTO_DURABILITY_2026_09_13.md`. |
 
 ## Wave 4 — Contract and runtime
 
@@ -89,4 +89,4 @@
 
 ## Next task
 
-Next: implement audit key lifecycle, encryption, spill/replay and tamper evidence (`AUD-CRYPT-03`). Durable multi-replica revocation is verified locally; remote CI inspection remains tracked by `CI-003`/G9.
+Next: prove every configured environment key has a runtime consumer (`OPS-CONFIG-01`). Remote CI inspection remains tracked by `CI-003`/G9.

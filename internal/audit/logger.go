@@ -16,6 +16,8 @@ import (
 
 // LogEntry chứa thông tin chi tiết của một quyết định kiểm toán phân quyền.
 type LogEntry struct {
+	AuditID          string            `json:"audit_id"`
+	PayloadVersion   int               `json:"payload_version"`
 	Timestamp        int64             `json:"ts"`
 	RevisionID       uint64            `json:"rev"`
 	TenantID         string            `json:"tenant_id"`
@@ -27,8 +29,12 @@ type LogEntry struct {
 	Context          map[string]string `json:"context,omitempty"`
 	EvaluatedAt      time.Time         `json:"evaluated_at,omitempty"`
 	IsEncrypted      bool              `json:"is_encrypted,omitempty"`
+	KeyID            string            `json:"key_id,omitempty"`
+	RequestID        string            `json:"request_id,omitempty"`
+	TraceID          string            `json:"trace_id,omitempty"`
 	EncryptedDEK     string            `json:"encrypted_dek,omitempty"`
 	EncryptedPayload string            `json:"encrypted_payload,omitempty"`
+	IntegrityTag     string            `json:"integrity_tag,omitempty"`
 }
 
 // BatchWriter là interface tương thích ngược.
@@ -65,6 +71,10 @@ type AuditLogger struct {
 	written       atomic.Uint64
 	dropped       atomic.Uint64
 	writeFailures atomic.Uint64
+	spilled       atomic.Uint64
+	replayed      atomic.Uint64
+	spillFailures atomic.Uint64
+	spillStore    *SpillStore
 }
 
 // NewAuditLogger khởi tạo AuditLogger tương thích ngược (ghi ra os.Stdout).
@@ -74,6 +84,8 @@ func NewAuditLogger(writer BatchWriter, spillDir string, bufferSize int) *AuditL
 		BatchSize:     min(bufferSize, 128),
 		FlushInterval: 100 * time.Millisecond,
 		WriteTimeout:  2 * time.Second,
+		SpillDir:      spillDir,
+		SpillMaxBytes: 1 << 30,
 	})
 	if err != nil {
 		return NewStreamAuditLogger(os.Stdout)
@@ -90,10 +102,8 @@ func NewStreamAuditLogger(w io.Writer) *AuditLogger {
 }
 
 func newBaseAuditLogger(w io.Writer) *AuditLogger {
-	crypto, _ := security.NewEnvelopeCrypto()
 	return &AuditLogger{
 		writer: w,
-		crypto: crypto,
 		bytePool: sync.Pool{
 			New: func() interface{} {
 				b := make([]byte, 0, 1024)
@@ -116,12 +126,9 @@ func NewUnixgramAuditLogger(sockPath string) (*AuditLogger, error) {
 		return nil, err
 	}
 
-	crypto, _ := security.NewEnvelopeCrypto()
-
 	return &AuditLogger{
 		conn:   conn,
 		writer: conn,
-		crypto: crypto,
 		bytePool: sync.Pool{
 			New: func() interface{} {
 				b := make([]byte, 0, 1024)
@@ -136,7 +143,7 @@ func NewUnixgramAuditLogger(sockPath string) (*AuditLogger, error) {
 // và bắn ngay lập tức qua Unix Socket (hoặc Writer) mà không sinh rác GC.
 func (l *AuditLogger) Log(revisionID uint64, tenantID, subject, action, resource, decision, matchedPolicyID string, ctxMap map[string]string) {
 	if l.batchWriter != nil {
-		l.enqueue(&LogEntry{
+		entry := &LogEntry{
 			Timestamp:       time.Now().UnixNano(),
 			RevisionID:      revisionID,
 			TenantID:        tenantID,
@@ -146,7 +153,12 @@ func (l *AuditLogger) Log(revisionID uint64, tenantID, subject, action, resource
 			Decision:        decision,
 			MatchedPolicyID: matchedPolicyID,
 			Context:         redactedAuditContext(ctxMap),
-		})
+		}
+		if err := sealAuditEntry(l.crypto, entry); err != nil {
+			l.recordDropped(tenantID, 1)
+			return
+		}
+		l.enqueue(entry)
 		return
 	}
 	bufPtr := l.bytePool.Get().(*[]byte)

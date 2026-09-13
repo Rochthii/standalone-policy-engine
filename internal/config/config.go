@@ -54,6 +54,7 @@ type AuditConfig struct {
 	BatchSize     int
 	FlushInterval time.Duration
 	WriteTimeout  time.Duration
+	SpillMaxBytes int64
 }
 
 // Load nạp cấu hình từ môi trường và kiểm tra tính hợp lệ (Fail-Fast Validation).
@@ -123,10 +124,18 @@ func Load() (*Config, error) {
 	if auditFlushInterval <= 0 || auditWriteTimeout <= 0 {
 		return nil, errors.New("AUDIT_FLUSH_INTERVAL va AUDIT_WRITE_TIMEOUT phai lon hon 0")
 	}
+	auditSpillMaxBytes, err := getEnvInt64("AUDIT_SPILL_MAX_BYTES", 1<<30)
+	if err != nil || auditSpillMaxBytes <= 0 {
+		return nil, errors.New("AUDIT_SPILL_MAX_BYTES phai la so nguyen duong")
+	}
 
 	dbURL := getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/policy_engine?sslmode=disable")
 	delegationSecret := getEnv("PDP_SHARED_SECRET", developmentDelegationSecret)
 	delegationActiveKeyID, delegationKeys, delegationKeyringExplicit, err := loadDelegationKeyring(delegationSecret)
+	if err != nil {
+		return nil, err
+	}
+	auditActiveKeyID, auditKeys, auditKeyringExplicit, err := loadAuditKeyring()
 	if err != nil {
 		return nil, err
 	}
@@ -162,6 +171,7 @@ func Load() (*Config, error) {
 			BatchSize:     auditBatchSize,
 			FlushInterval: auditFlushInterval,
 			WriteTimeout:  auditWriteTimeout,
+			SpillMaxBytes: auditSpillMaxBytes,
 		},
 		Security: SecurityConfig{
 			JWTSecret:                 getEnv("JWT_SECRET", developmentJWTSecret),
@@ -174,7 +184,9 @@ func Load() (*Config, error) {
 			TLSCertFile:               getEnv("PDP_TLS_CERT", ""),
 			TLSKeyFile:                getEnv("PDP_TLS_KEY", ""),
 			TLSCAFile:                 getEnv("PDP_TLS_CA", ""),
-			LogKEK:                    getEnv("LOG_KEK", "01234567890123456789012345678901"),
+			AuditActiveKeyID:          auditActiveKeyID,
+			AuditKeys:                 auditKeys,
+			AuditKeyringExplicit:      auditKeyringExplicit,
 		},
 	}
 
@@ -201,6 +213,14 @@ func getEnvInt(key string, defaultVal int) (int, error) {
 		return 0, err
 	}
 	return val, nil
+}
+
+func getEnvInt64(key string, defaultVal int64) (int64, error) {
+	valStr := getEnv(key, "")
+	if valStr == "" {
+		return defaultVal, nil
+	}
+	return strconv.ParseInt(valStr, 10, 64)
 }
 
 func getEnvDuration(key string, defaultVal time.Duration) (time.Duration, error) {

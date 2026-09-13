@@ -44,7 +44,12 @@ services:
       JWT_AUDIENCE: standalone-policy-engine-pdp
       PDP_DELEGATION_ACTIVE_KID: testbed-2026
       PDP_DELEGATION_KEYS_JSON: '{"testbed-2026":"testbed-delegation-secret-at-least-32-characters"}'
+      LOG_KEK_ACTIVE_KID: testbed-audit-2026
+      LOG_KEKS_JSON: '{"testbed-audit-2026":"testbed-audit-kek-2026-32-bytes!"}'
+      AUDIT_SPILL_DIR: /var/lib/pdp/audit-spill
       APP_PORT: "50051"
+    volumes:
+      - testbed_pdp_audit_spill:/var/lib/pdp/audit-spill
     depends_on:
       testbed-db:
         condition: service_healthy
@@ -82,12 +87,16 @@ services:
       JWT_AUDIENCE: standalone-policy-engine-testbed-pdp
       PDP_DELEGATION_ACTIVE_KID: testbed-2026
       PDP_DELEGATION_KEYS_JSON: '{"testbed-2026":"testbed-delegation-secret-at-least-32-characters"}'
+      LOG_KEK_ACTIVE_KID: testbed-audit-2026
+      LOG_KEKS_JSON: '{"testbed-audit-2026":"testbed-audit-kek-2026-32-bytes!"}'
+      AUDIT_SPILL_DIR: /var/lib/pdp/audit-spill
       PDP_TLS_CERT: /run/pdp-tls/server.crt
       PDP_TLS_KEY: /run/pdp-tls/server.key
       PDP_TLS_CA: /run/pdp-tls/ca.crt
       GRPC_PORT: "50051"
     volumes:
       - testbed_tls:/run/pdp-tls:ro
+      - testbed_pdp_mtls_audit_spill:/var/lib/pdp/audit-spill
     depends_on:
       testbed-db:
         condition: service_healthy
@@ -196,3 +205,5 @@ services:
 volumes:
   testbed_pg_data:
   testbed_tls:
+  testbed_pdp_audit_spill:
+  testbed_pdp_mtls_audit_spill:

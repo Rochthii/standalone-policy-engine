@@ -10,6 +10,7 @@ import (
 	"standalone-policy-engine/internal/audit"
 	"standalone-policy-engine/internal/config"
 	"standalone-policy-engine/internal/engine"
+	"standalone-policy-engine/internal/security"
 	"standalone-policy-engine/internal/server"
 	"standalone-policy-engine/internal/storage"
 	"syscall"
@@ -46,11 +47,18 @@ func main() {
 	eng.StartGC(ctxServer)
 
 	// 3. Khởi tạo bounded asynchronous audit pipeline tới PostgreSQL.
+	auditCrypto, err := security.NewEnvelopeCryptoWithKeyring(cfg.Security.AuditActiveKeyID, cfg.Security.AuditKeys)
+	if err != nil {
+		log.Fatalf("[PDP-Server] Cấu hình audit encryption thất bại: %v", err)
+	}
 	auditLogger, err := audit.NewBatchAuditLogger(store, audit.BatchConfig{
 		QueueCapacity: cfg.Audit.QueueCapacity,
 		BatchSize:     cfg.Audit.BatchSize,
 		FlushInterval: cfg.Audit.FlushInterval,
 		WriteTimeout:  cfg.Audit.WriteTimeout,
+		SpillDir:      cfg.Audit.SpillDir,
+		SpillMaxBytes: cfg.Audit.SpillMaxBytes,
+		Crypto:        auditCrypto,
 	})
 	if err != nil {
 		log.Fatalf("[PDP-Server] Cấu hình Audit Logger thất bại: %v", err)
@@ -153,11 +161,11 @@ func main() {
 	<-sigChan
 
 	log.Println("[PDP-Server] Đang tắt an toàn dịch vụ...")
+	grpcServer.GracefulStop()
+	auditLogger.Stop()
 	stopServer()
 	revocationSyncer.Stop()
-	grpcServer.GracefulStop()
 	syncer.Stop()
-	auditLogger.Stop()
 	if socketPath != "" {
 		_ = os.Remove(socketPath)
 	}

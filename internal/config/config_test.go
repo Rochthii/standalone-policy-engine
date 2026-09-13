@@ -33,6 +33,9 @@ func TestConfig_LoadDefaults(t *testing.T) {
 	if cfg.Audit.FlushInterval != 100*time.Millisecond || cfg.Audit.WriteTimeout != 2*time.Second {
 		t.Fatalf("unexpected audit timing defaults: %+v", cfg.Audit)
 	}
+	if cfg.Audit.SpillMaxBytes != 1<<30 || cfg.Security.AuditActiveKeyID != "legacy" {
+		t.Fatalf("unexpected audit durability defaults: audit=%+v security=%+v", cfg.Audit, cfg.Security)
+	}
 	if cfg.Security.DelegationActiveKeyID != "legacy" || len(cfg.Security.DelegationKeys) != 1 {
 		t.Fatalf("unexpected development delegation key ring: %+v", cfg.Security)
 	}
@@ -72,6 +75,8 @@ func TestConfig_ProductionValidation(t *testing.T) {
 		"PDP_TLS_CERT":              "/run/secrets/pdp/tls.crt",
 		"PDP_TLS_KEY":               "/run/secrets/pdp/tls.key",
 		"PDP_TLS_CA":                "/run/secrets/pdp/ca.crt",
+		"LOG_KEK_ACTIVE_KID":        "audit-2026-09",
+		"LOG_KEKS_JSON":             `{"audit-2026-08":"test-audit-kek-old-32-bytes-key!","audit-2026-09":"test-audit-kek-new-32-bytes-key!"}`,
 	}
 
 	tests := []struct {
@@ -88,6 +93,7 @@ func TestConfig_ProductionValidation(t *testing.T) {
 		{name: "missing active delegation key", override: map[string]string{"PDP_DELEGATION_ACTIVE_KID": "missing"}, wantError: "PDP_DELEGATION_ACTIVE_KID"},
 		{name: "short delegation key", override: map[string]string{"PDP_DELEGATION_KEYS_JSON": `{"key-2026-09":"short"}`}, wantError: "delegation active key"},
 		{name: "missing TLS key", override: map[string]string{"PDP_TLS_KEY": " "}, wantError: "PDP_TLS"},
+		{name: "missing audit active key", override: map[string]string{"LOG_KEK_ACTIVE_KID": "missing"}, wantError: "LOG_KEK_ACTIVE_KID"},
 	}
 
 	for _, test := range tests {
@@ -129,6 +135,29 @@ func TestConfigRejectsPartialOrMalformedDelegationKeyring(t *testing.T) {
 			t.Setenv("PDP_DELEGATION_KEYS_JSON", test.keys)
 			if _, err := Load(); err == nil {
 				t.Fatal("expected invalid delegation key-ring configuration to fail")
+			}
+		})
+	}
+}
+
+func TestConfigRejectsPartialOrMalformedAuditKeyring(t *testing.T) {
+	tests := []struct {
+		name   string
+		active string
+		keys   string
+	}{
+		{name: "active only", active: "audit-a"},
+		{name: "keys only", keys: `{"audit-a":"test-audit-kek-old-32-bytes-key!"}`},
+		{name: "malformed JSON", active: "audit-a", keys: `{`},
+		{name: "active absent", active: "audit-b", keys: `{"audit-a":"test-audit-kek-old-32-bytes-key!"}`},
+		{name: "wrong key length", active: "audit-a", keys: `{"audit-a":"short"}`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("LOG_KEK_ACTIVE_KID", test.active)
+			t.Setenv("LOG_KEKS_JSON", test.keys)
+			if _, err := Load(); err == nil {
+				t.Fatal("expected invalid audit key-ring configuration to fail")
 			}
 		})
 	}

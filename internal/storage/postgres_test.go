@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"standalone-policy-engine/internal/audit"
+	"standalone-policy-engine/internal/security"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -142,11 +143,20 @@ func TestStorage_MigrationsIntegration(t *testing.T) {
 		t.Fatal("cyclic role graph must be rejected")
 	}
 
+	auditCrypto, err := security.NewEnvelopeCryptoWithKeyring("audit-test", map[string]string{
+		"audit-test": "test-audit-kek-new-32-bytes-key!",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	auditLogger, err := audit.NewBatchAuditLogger(store, audit.BatchConfig{
 		QueueCapacity: 8,
 		BatchSize:     2,
 		FlushInterval: time.Hour,
 		WriteTimeout:  time.Second,
+		SpillDir:      t.TempDir(),
+		SpillMaxBytes: 1 << 20,
+		Crypto:        auditCrypto,
 	})
 	if err != nil {
 		t.Fatalf("create durable audit logger: %v", err)
@@ -155,22 +165,49 @@ func TestStorage_MigrationsIntegration(t *testing.T) {
 	auditLogger.Log(revisionAfterDraft, tenantA, "user:alice", "READ", "invoice:42", "ALLOW", policyID, map[string]string{
 		"delegation_proof": "raw-proof-must-not-reach-postgres",
 		"department":       "Finance",
+		"request_id":       "req-storage-42",
+		"trace_id":         "trace-storage-42",
 	})
 	auditLogger.Stop()
 	if stats := auditLogger.Stats(); stats.Written != 1 || stats.Dropped != 0 || stats.WriteFailures != 0 {
 		t.Fatalf("durable audit stats mismatch: %+v", stats)
 	}
+	var persisted audit.LogEntry
+	var subject, action, resource *string
 	var persistedContext []byte
 	if err := store.pool.QueryRow(ctx, `
-		SELECT evaluated_context
+		SELECT audit_id::text, event_timestamp_ns, revision_id, payload_version,
+			tenant_id::text, decision, COALESCE(matched_policy_id::text, ''), key_id,
+			COALESCE(request_id, ''), COALESCE(trace_id, ''), encrypted_dek,
+			encrypted_payload, integrity_tag, is_encrypted,
+			request_subject, request_action, request_resource, evaluated_context
 		FROM decision_audit_logs
 		WHERE tenant_id = $1 AND matched_policy_id = $2
-	`, tenantA, policyID).Scan(&persistedContext); err != nil {
+	`, tenantA, policyID).Scan(
+		&persisted.AuditID, &persisted.Timestamp, &persisted.RevisionID, &persisted.PayloadVersion,
+		&persisted.TenantID, &persisted.Decision, &persisted.MatchedPolicyID, &persisted.KeyID,
+		&persisted.RequestID, &persisted.TraceID, &persisted.EncryptedDEK,
+		&persisted.EncryptedPayload, &persisted.IntegrityTag, &persisted.IsEncrypted,
+		&subject, &action, &resource, &persistedContext,
+	); err != nil {
 		t.Fatalf("read durable audit entry: %v", err)
 	}
-	if strings.Contains(string(persistedContext), "raw-proof-must-not-reach-postgres") ||
-		!strings.Contains(string(persistedContext), "[REDACTED]") {
-		t.Fatalf("persisted audit context was not redacted: %s", persistedContext)
+	if subject != nil || action != nil || resource != nil || persistedContext != nil {
+		t.Fatal("encrypted audit record leaked plaintext columns")
+	}
+	payload, err := audit.VerifyAndDecryptEntry(auditCrypto, &persisted)
+	if err != nil {
+		t.Fatalf("verify persisted audit envelope: %v", err)
+	}
+	if payload.Context["delegation_proof"] != "[REDACTED]" || payload.Context["department"] != "Finance" {
+		t.Fatalf("decrypted audit context mismatch: %#v", payload.Context)
+	}
+	if err := store.InsertAuditLogsBatch(ctx, []*audit.LogEntry{&persisted}); err != nil {
+		t.Fatalf("idempotent replay insert failed: %v", err)
+	}
+	var duplicateCount int
+	if err := store.pool.QueryRow(ctx, `SELECT COUNT(*) FROM decision_audit_logs WHERE audit_id = $1`, persisted.AuditID).Scan(&duplicateCount); err != nil || duplicateCount != 1 {
+		t.Fatalf("audit replay must be idempotent: count=%d err=%v", duplicateCount, err)
 	}
 }
 

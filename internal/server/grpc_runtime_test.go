@@ -75,3 +75,23 @@ func TestGRPCServerRejectsOversizedProtobufRequest(t *testing.T) {
 		t.Fatalf("expected ResourceExhausted for oversized protobuf request, got %v", err)
 	}
 }
+
+func TestTraceInterceptorCarriesTrustedAuditCorrelation(t *testing.T) {
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs(
+		"x-request-id", "request-123",
+		"traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+	))
+	response, err := traceInterceptor(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "/policy.v1.PolicyDecisionPoint/CheckAccess"}, func(ctx context.Context, _ interface{}) (interface{}, error) {
+		return withAuditCorrelation(ctx, map[string]string{
+			"request_id": "client-forged-request",
+			"trace_id":   "client-forged-trace",
+		}), nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	correlated := response.(map[string]string)
+	if correlated["request_id"] != "request-123" || correlated["trace_id"] != "0123456789abcdef0123456789abcdef" {
+		t.Fatalf("transport correlation did not override client values: %#v", correlated)
+	}
+}

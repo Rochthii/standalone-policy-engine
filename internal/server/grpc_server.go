@@ -136,7 +136,7 @@ func (s *GRPCServer) CheckAccess(ctx context.Context, req *policyv1.CheckAccessR
 			req.Resource,
 			decision,
 			matchedPolicyID,
-			req.Context,
+			withAuditCorrelation(ctx, req.Context),
 		)
 	}
 

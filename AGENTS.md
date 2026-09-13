@@ -67,7 +67,7 @@ Async Ring Buffer Logger ──► Postgres PDP Audit (pgx.CopyFrom) + AES-GCM E
 | **DSL Compiler** | `internal/parser/` | Lexer & Pratt parser for Cedar-like DSL (`permit`/`forbid`). Max AST depth <= 15, constant folding. |
 | **Security & Delegation** | `internal/security/` | JWT tenant isolation, delegation key ring, durable PostgreSQL-backed revocation synchronization and RevocationMap O(1). |
 | **Storage & Sync** | `internal/storage/`, `internal/engine/sync.go` | PostgreSQL (`pgx`), BadgerDB edge cache, Postgres `LISTEN/NOTIFY` Fast Gap Catch-Up. |
-| **Audit Logger** | `internal/audit/` | Bounded async queue -> PostgreSQL `pgx.CopyFrom`, pre-queue redaction, timeout/drop metrics. Encryption and spill/replay remain open. |
+| **Audit Logger** | `internal/audit/` | Redaction -> AES-GCM envelope encryption -> bounded queue -> idempotent PostgreSQL batch merge, with encrypted atomic spill/replay and integrity tags. |
 | **Protobuf Contract** | `proto/v1/policy.proto` | Canonical IDL defining `CheckAccess`, `ExplainDecision`, `RevokeDelegation`; Buf generates standard Go/Python protobuf clients. |
 | **Seed Policies** | `configs/policies.cedar` | 6 standard P2P ruleset with SoD `contains` operator (`delegation_chain contains creator_id`). |
 | **Odoo 17 PEP Addon** | `custom_addons/pdp_authorizer/` | Migration target in this repository. The legacy baseline currently lives in `E:\Projects\ERP_Mastery_Hub\02_Project_2_Odoo_Go_PDP_Approval` and is not contract-compatible or verified yet. |

@@ -22,10 +22,14 @@ services:
       - DATABASE_URL=postgres://pdp_user:pdp_pass@postgres:5432/pdp_db?sslmode=disable
       - LOG_LEVEL=info
       - AUDIT_SOCKET_PATH=/var/run/vector/vector.sock
-      - LOG_KEK=01234567890123456789012345678901 # 256-bit AES-GCM Key
+      - LOG_KEK_ACTIVE_KID=audit-2026-09
+      - LOG_KEKS_JSON={"audit-2026-08":"<old-32-byte-secret>","audit-2026-09":"<active-32-byte-secret>"}
+      - AUDIT_SPILL_DIR=/var/lib/pdp/audit-spill
+      - AUDIT_SPILL_MAX_BYTES=1073741824
     volumes:
       - vector-sock:/var/run/vector
       - badger-data:/var/lib/pdp/badger     # Used when STORAGE_MODE=edge
+      - audit-spill:/var/lib/pdp/audit-spill
     ports:
       - "50051:50051"                       # gRPC CheckAccess
       - "9090:9090"                         # Prometheus Metrics
@@ -90,7 +94,19 @@ volumes:
   pgdata:
   vector-sock:
   badger-data:
+  audit-spill:
 ```
+
+---
+
+## Audit key lifecycle and recovery
+
+- Inject `LOG_KEKS_JSON` from an orchestrator secret store; never bake KEKs into images, source control or ordinary ConfigMaps. Production startup rejects the legacy single-key fallback.
+- Keep key administration separate from database/audit readers. A reader needs an explicitly approved decrypt path and the applicable retained KEK; database access alone exposes only authenticated ciphertext and indexing metadata.
+- Rotate by adding the new 32-byte KEK beside retained keys, deploying it as `LOG_KEK_ACTIVE_KID`, and confirming new rows use the new `key_id`. Remove an old key only after no retained database row or spill file references it and the recovery backup has expired under policy.
+- Mount `AUDIT_SPILL_DIR` on durable storage with service-account-only permissions. Alert on `audit_spill_failures_total`, `audit_logs_dropped_total` and sustained spill growth; successful recovery increments `audit_logs_replayed_total`.
+- Recovery starts the PDP with the active key and every retained historical key. Replay verifies metadata/ciphertext integrity before idempotent insert and leaves corrupt files in place for investigation.
+- AES-GCM AAD plus the keyed integrity tag detects record modification. It does not prove deletion, ordering or legal WORM retention; send committed records to an independently administered append-only archive for those guarantees.
 
 ---
 

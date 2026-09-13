@@ -14,7 +14,7 @@
 
 The repository contains a credible and fast in-memory policy evaluation core. The narrow evaluator benchmark is reproducible and currently achieves sub-microsecond decisions with zero reported heap allocations for the measured inputs.
 
-The working tree now enforces the Data Plane identity boundary, key-identified full-tuple delegation proof, durable multi-replica revocation, tenant-scoped policy access, linearizable COW writers, atomic ruleset compilation, typed obligations, bounded PostgreSQL audit delivery, generated standard Protobuf clients, and a repository-owned Odoo PEP whose real transaction suite passes over mTLS. The system is still not production-ready because encrypted spill/replay, edge restore, deployment hardening, race evidence and production-path load evidence remain open.
+The working tree now enforces the Data Plane identity boundary, key-identified full-tuple delegation proof, durable multi-replica revocation, tenant-scoped policy access, linearizable COW writers, atomic ruleset compilation, typed obligations, rotatable encrypted audit delivery with spill/replay, generated standard Protobuf clients, and a repository-owned Odoo PEP whose real transaction suite passes over mTLS. The system is still not production-ready because retention/external append-only archival, edge restore, deployment hardening, race evidence and production-path load evidence remain open.
 
 The correct positioning is:
 
@@ -31,7 +31,7 @@ The correct positioning is:
 | Decision correctness | 8/10 | Deny-default, forbid-overrides, atomic compilation and typed obligations are verified |
 | Security boundary | 9/10 | JWT, tenant binding, RBAC, key-ring proof, mTLS and real Odoo duplicate/altered/rollback/two-session nonce outcomes are verified |
 | Distributed consistency | 8/10 | COW/event/reconcile correctness plus durable snapshot-first revocation propagation pass locally; remote CI evidence remains open |
-| Audit and compliance | 5/10 | Redacted bounded PostgreSQL delivery is wired; encryption, spill/replay and tamper evidence remain |
+| Audit and compliance | 7/10 | Redacted envelope encryption, authenticated metadata, PostgreSQL idempotency and restart spill/replay pass; retention and deletion evidence remain open |
 | Tests | 8/10 | Negative, PostgreSQL, protobuf, mTLS, seven-case Odoo and two-session retry coverage pass; race/load gates remain |
 | Deployment | 4/10 | Repository-local images build and the E2E profile passes, but mutable images and runtime hardening remain |
 | Odoo integration | 9/10 | Fresh install, seven real ORM/mTLS-gRPC/PostgreSQL cases and two-session retry pass |
@@ -105,9 +105,7 @@ Observed Go core benchmarks on a 13th Gen Intel Core i7-13700H, Windows/amd64, G
 
 ### P0 — Remaining release blockers
 
-| ID | Finding | Impact | Primary locations |
-|---|---|---|---|
-| AUD-001B | PostgreSQL delivery is wired, but failed batches can be dropped and encryption/spill/replay are absent | Audit completeness/confidentiality is not release-grade | `internal/audit/batch.go`, `internal/storage/postgres.go` |
+No previously identified P0 implementation finding remains open. Release is still blocked by incomplete P1/release gates and uninspected remote evidence.
 
 ### P1 — Required before release candidate
 
@@ -138,3 +136,4 @@ Observed Go core benchmarks on a 13th Gen Intel Core i7-13700H, Windows/amd64, G
 - The Odoo run proves single-PDP PEP transaction/replay and mTLS behavior. Multi-replica revocation is evidenced separately by the local three-replica PostgreSQL integration test, not by the Odoo suite or a remote deployment.
 - Race tests could not be reproduced locally without a C compiler. CI contains a race job, but a successful remote run was not independently inspected.
 - Dependency vulnerability scanning, penetration testing and sustained network load testing remain outstanding.
+- Audit envelope authentication detects modified metadata/ciphertext, but cannot prove record deletion or provide external WORM retention; that requires an independently controlled append-only archive.

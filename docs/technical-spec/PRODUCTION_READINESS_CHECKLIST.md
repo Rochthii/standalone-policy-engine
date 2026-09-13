@@ -79,9 +79,10 @@ No gate may be marked `[x]` using comments, screenshots, manually edited result 
 - [x] The production main uses the configured PostgreSQL audit writer.
 - [x] Queue capacity, overflow policy and backpressure behavior are explicit.
 - [x] Writer failures and drops have counters and tests.
-- [~] PostgreSQL durability is exercised in integration tests; encryption, spill/replay and retention remain open.
-- [ ] Audit entries are tamper-evident and carry request/trace/revision identifiers.
-- [ ] Key storage, rotation, recovery and separation of duties are documented.
+- [x] PostgreSQL durability, envelope encryption and idempotent spill/replay are exercised against PostgreSQL 15 and restart/key-rotation tests.
+- [x] Audit entries authenticate metadata and ciphertext and carry request/trace/revision identifiers.
+- [x] Key storage, rotation, recovery and separation of duties are documented in `RUNBOOK_OPS.md`.
+- [ ] Retention, external append-only archival and deletion-evidence policy are defined and rehearsed.
 
 ## 9. G7 — Protocol and compatibility
 
