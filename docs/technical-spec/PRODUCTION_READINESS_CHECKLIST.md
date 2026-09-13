@@ -51,7 +51,7 @@ No gate may be marked `[x]` using comments, screenshots, manually edited result 
 - [x] A stress test proves that concurrent updates cannot lose tenants or revisions; race-detector evidence remains in G9.
 - [x] Policy compilation is all-or-nothing; an invalid policy preserves the last-known-good ruleset.
 - [x] ACTIVE -> DRAFT, publish and delete atomically update revision and emit an event.
-- [~] Revision and NOTIFY errors abort transactions in code; injected PostgreSQL fault evidence remains open.
+- [x] PostgreSQL revision-trigger and notifier-SQL fault injection proves revision/notification failures abort publish, ACTIVE -> DRAFT and delete transactions without changing policy state or tenant revision.
 - [x] Older/duplicate events cannot downgrade an in-memory revision.
 - [~] Role inheritance is persisted, revisioned and bundle-loaded; restart/catch-up evidence remains open.
 - [x] A reconcile loop detects missed notifications without requiring a connection failure.

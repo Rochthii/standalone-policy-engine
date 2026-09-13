@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"testing"
@@ -13,6 +14,7 @@ type policyMutationFixture struct {
 	tenantID string
 	policyID string
 	revision uint64
+	policy   *DBPolicy
 }
 
 func TestStoragePolicyMutationsRollbackOnPostgresFaults(t *testing.T) {
@@ -95,7 +97,11 @@ func preparePolicyMutation(t *testing.T, store *Storage, ctx context.Context, na
 	if err != nil {
 		t.Fatal(err)
 	}
-	return policyMutationFixture{kind: kind, tenantID: tenantID, policyID: policyID, revision: revision}
+	policy, err := store.GetPolicy(ctx, tenantID, policyID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return policyMutationFixture{kind: kind, tenantID: tenantID, policyID: policyID, revision: revision, policy: policy}
 }
 
 func applyPolicyMutation(ctx context.Context, store *Storage, fixture policyMutationFixture) error {
@@ -118,14 +124,8 @@ func assertPolicyMutationRolledBack(t *testing.T, store *Storage, ctx context.Co
 	if err != nil {
 		t.Fatal(err)
 	}
-	if policy.PolicyText != "original policy" {
-		t.Fatalf("policy text changed after rollback: %q", policy.PolicyText)
-	}
-	if fixture.kind == "publish" {
-		if policy.Status != "DRAFT" || len(policy.ASTJSON) != 0 || policy.Version != 1 {
-			t.Fatalf("publish rollback failed: %#v", policy)
-		}
-	} else if policy.Status != "ACTIVE" || string(policy.ASTJSON) != `{"compiled":true}` || policy.Version != 2 {
+	if policy.PolicyText != fixture.policy.PolicyText || policy.Status != fixture.policy.Status ||
+		!bytes.Equal(policy.ASTJSON, fixture.policy.ASTJSON) || policy.Version != fixture.policy.Version {
 		t.Fatalf("%s rollback failed: %#v", fixture.kind, policy)
 	}
 	revision, err := store.GetTenantRevision(ctx, fixture.tenantID)

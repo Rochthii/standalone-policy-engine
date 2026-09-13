@@ -10,6 +10,12 @@ Phân loại thay đổi:
 
 ---
 
+## [Unreleased] - 2026-09-13: Policy Transaction Rollback Evidence
+
+### Verification
+- PostgreSQL 15 fault injection now proves that revision-update and notifier-SQL errors abort each publish, ACTIVE-to-DRAFT update, and delete transaction.
+- All six cases preserve the prior policy record and tenant revision; native `pg_notify` remains the production notifier.
+
 ## [Unreleased] - 2026-09-13: Runtime Configuration Contract
 
 ### Changed

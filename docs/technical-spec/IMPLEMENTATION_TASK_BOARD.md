@@ -47,7 +47,7 @@
 |---|---|---|---|
 | CONS-COW-01 | Make COW writers linearizable across load/update/unload. | `VERIFIED` | Concurrent multi-tenant and same-tenant writer stress tests pass; read path remains lock-free and benchmark stays at 0 allocs/op. |
 | CONS-COMPILE-02 | Compile a tenant ruleset all-or-nothing and preserve last-known-good state. | `VERIFIED` | Invalid batch and last-known-good preservation tests pass. |
-| CONS-REV-03 | Make ACTIVE→DRAFT, publish and delete revision/event changes atomic. | `CODE COMPLETE` | Real PostgreSQL happy-path passes; injected revision/NOTIFY rollback failure evidence remains. |
+| CONS-REV-03 | Make ACTIVE→DRAFT, publish and delete revision/event changes atomic. | `VERIFIED` | PostgreSQL revision-trigger and notifier-SQL fault injection proves all six publish/update/delete transactions preserve both policy state and tenant revision. See `evidence/POLICY_TRANSACTION_ROLLBACK_2026_09_13.md`. |
 | CONS-EVENT-04 | Fail transactions on revision/NOTIFY errors; handle duplicate/out-of-order/gap events. | `VERIFIED` | Stale, duplicate and late-sync event tests pass. |
 | CONS-ROLE-05 | Persist, revision and load role inheritance with policies. | `CODE COMPLETE` | Real PostgreSQL bundle/DAG tests pass; engine restart and missed-event catch-up evidence remains. |
 | CONS-RECON-06 | Add periodic reconciliation independent of listener reconnect. | `VERIFIED` | Cancellation and healthy-listener periodic reconciliation tests pass. |
@@ -89,4 +89,4 @@
 
 ## Next task
 
-Next: inject PostgreSQL revision/NOTIFY failures and prove atomic rollback (`CONS-REV-03`). Remote CI inspection remains tracked by `CI-003`/G9.
+Next: prove role-inheritance restart and missed-event catch-up (`CONS-ROLE-05`). Remote CI inspection remains tracked by `CI-003`/G9.
