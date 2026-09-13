@@ -93,7 +93,7 @@ Observed Go core benchmarks on a 13th Gen Intel Core i7-13700H, Windows/amd64, G
 | Delegation proof prevents tuple tampering and replayed execution | VERIFIED | `v1.<kid>.<hmac>` plus the Odoo ledger pass key rotation, Go/Python compatibility, tamper, duplicate, altered-command, rollback and two-session serialization-retry cases |
 | Durable cluster revocation | VERIFIED FOR LOCAL 3-REPLICA POSTGRESQL TEST | Snapshot-first LISTEN/reconnect preserves revocations across restart; delegated checks fail closed while sync is unavailable; worst observed propagation was 38.8256ms against a 5s SLO |
 | Runtime `REQUIRE_HUMAN_APPROVAL` obligation | VERIFIED | Compiler-valid typed obligations are synthesized by the deciding policy and serialized structurally |
-| Bounded async PostgreSQL audit delivery | VERIFIED; CRYPTO/SPILL OPEN | Production main uses queue + `pgx.CopyFrom`, redaction, timeouts and drop/failure metrics |
+| Bounded encrypted PostgreSQL audit delivery | VERIFIED FOR LOCAL POSTGRESQL TEST | Production main uses redaction, envelope encryption, idempotent batch merge and restart spill/replay; deletion evidence/retention remain open |
 | Edge snapshot supports offline startup | NOT IMPLEMENTED | Snapshots are written, but production startup never loads them |
 | Odoo 17 PEP addon is included and verified | VERIFIED FOR SINGLE-PDP MTLS BOUNDARY | Fresh install, seven transaction cases and two-session retry pass through real ORM/mTLS-gRPC/PostgreSQL; clients without a certificate are rejected |
 | Frozen 2026–2029 testbed | NOT REPRODUCIBLY PINNED | Several image tags are mutable and are not pinned by digest |
@@ -113,7 +113,6 @@ No previously identified P0 implementation finding remains open. Release is stil
 |---|---|---|
 | PERF-001 | Global/same-leaf policy lists are scanned and FNV hashes are not collision-checked | Worst-case latency and correctness are not bounded as claimed |
 | PERF-002 | GC tracking, metrics and audit add synchronization to the serving path | Core benchmark does not represent production path |
-| OPS-001 | Config keys are unused or inconsistent (`GRPC_PORT`, GC, audit socket, secrets) | Environment-specific failures |
 | OPS-002 | Images use mutable tags; testbed depends on an external directory | Build is not frozen or self-contained |
 | OPS-004 | Readiness checks ports rather than authorization-state health/revision lag | Unready pods may receive traffic |
 | EDGE-001 | Badger snapshots have no production restore path | Offline edge promise is not met |

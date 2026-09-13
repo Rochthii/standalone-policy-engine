@@ -10,6 +10,15 @@ Phân loại thay đổi:
 
 ---
 
+## [Unreleased] - 2026-09-13: Runtime Configuration Contract
+
+### Changed
+- Removed unused Redis, audit-socket and legacy port environment inputs from runtime/manifests.
+- Moved OpenZiti identity and service inputs into centralized application configuration.
+
+### Verification
+- The runtime configuration matrix asserts every PDP/Control Plane environment binding, and Compose configuration parses successfully.
+
 ## [Unreleased] - 2026-09-13: Durable Encrypted Audit Pipeline
 
 ### Added

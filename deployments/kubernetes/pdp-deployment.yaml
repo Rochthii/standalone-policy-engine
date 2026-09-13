@@ -29,8 +29,6 @@ spec:
             secretKeyRef:
               name: db-secrets
               key: database-url
-        - name: REDIS_URL
-          value: "redis-cluster.cache.svc.cluster.local:6379"
         resources:
           limits:
             cpu: "2"

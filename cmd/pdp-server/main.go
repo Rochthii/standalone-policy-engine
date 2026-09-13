@@ -96,14 +96,8 @@ func main() {
 	socketPath := cfg.Server.SocketPath
 
 	if useZiti {
-		identityPath := os.Getenv("ZITI_IDENTITY_PATH")
-		if identityPath == "" {
-			identityPath = "docker/identities/pdp-dev.json"
-		}
-		serviceName := os.Getenv("ZITI_SERVICE_NAME")
-		if serviceName == "" {
-			serviceName = "policy-decision-service"
-		}
+		identityPath := cfg.Server.ZitiIdentityPath
+		serviceName := cfg.Server.ZitiServiceName
 
 		log.Printf("[PDP-Server] Đang kết nối mạng ảo OpenZiti overlay bằng Identity: %s...", identityPath)
 		if _, err := os.Stat(identityPath); os.IsNotExist(err) {

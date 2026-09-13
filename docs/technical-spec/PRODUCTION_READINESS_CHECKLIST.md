@@ -1,6 +1,6 @@
 # Production Readiness Checklist
 
-> **Status:** **BLOCKED — P0 findings are open**
+> **Status:** **BLOCKED — release gates remain open**
 >
 > **Source of findings:** [`CURRENT_STATE_AUDIT.md`](./CURRENT_STATE_AUDIT.md)
 >
@@ -96,7 +96,7 @@ No gate may be marked `[x]` using comments, screenshots, manually edited result 
 
 - [ ] All testbed images are pinned by digest.
 - [x] Compose references repository-local Odoo addon/generated-client assets; the Odoo image builds and installs the addon in a fresh isolated database.
-- [ ] Environment variable names match application code and are tested.
+- [x] Environment variable names match application code and the complete runtime binding matrix is tested.
 - [x] `APP_ENV=production` enables strict secret, TLS and endpoint validation.
 - [ ] Containers run as non-root with a read-only filesystem and least capabilities where practical.
 - [ ] Readiness includes DB/sync/revision health; liveness does not hide degraded authorization state.

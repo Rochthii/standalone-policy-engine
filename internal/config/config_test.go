@@ -63,6 +63,78 @@ func TestConfigRejectsNonPositiveReconcileInterval(t *testing.T) {
 	}
 }
 
+func TestConfigRuntimeEnvironmentBindings(t *testing.T) {
+	values := map[string]string{
+		"APP_ENV":                   "test",
+		"HTTP_PORT":                 "18080",
+		"GRPC_PORT":                 "15051",
+		"GRPC_EVALUATION_TIMEOUT":   "250ms",
+		"GRPC_MAX_RECEIVE_BYTES":    "4096",
+		"GRPC_MAX_SEND_BYTES":       "8192",
+		"LISTEN_SOCKET_PATH":        "/tmp/pdp.sock",
+		"USE_ZITI":                  "true",
+		"ZITI_IDENTITY_PATH":        "/run/ziti/pdp.json",
+		"ZITI_SERVICE_NAME":         "pdp-private-service",
+		"DATABASE_URL":              "postgres://test:secret@db.internal:5432/pdp?sslmode=require",
+		"STORAGE_MODE":              "edge",
+		"BADGER_DATA_DIR":           "/var/lib/pdp/badger",
+		"DISABLE_GC":                "true",
+		"GC_INTERVAL":               "2m",
+		"GC_IDLE_TIMEOUT":           "3m",
+		"SYNC_RECONCILE_INTERVAL":   "4s",
+		"AUDIT_SPILL_DIR":           "/var/lib/pdp/audit-spill",
+		"AUDIT_QUEUE_CAPACITY":      "64",
+		"AUDIT_BATCH_SIZE":          "8",
+		"AUDIT_FLUSH_INTERVAL":      "150ms",
+		"AUDIT_WRITE_TIMEOUT":       "3s",
+		"AUDIT_SPILL_MAX_BYTES":     "2048",
+		"JWT_SECRET":                "test-jwt-secret-at-least-32-characters",
+		"JWT_ISSUER":                "https://issuer.example.test",
+		"JWT_AUDIENCE":              "pdp-test",
+		"PDP_SHARED_SECRET":         "test-delegation-secret-at-least-32-characters",
+		"PDP_DELEGATION_ACTIVE_KID": "delegation-a",
+		"PDP_DELEGATION_KEYS_JSON":  `{"delegation-a":"test-delegation-secret-at-least-32-characters"}`,
+		"LOG_KEK_ACTIVE_KID":        "audit-a",
+		"LOG_KEKS_JSON":             `{"audit-a":"test-audit-kek-new-32-bytes-key!"}`,
+		"PDP_TLS_CERT":              "/run/tls/server.crt",
+		"PDP_TLS_KEY":               "/run/tls/server.key",
+		"PDP_TLS_CA":                "/run/tls/ca.crt",
+	}
+	for key, value := range values {
+		t.Setenv(key, value)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AppEnv != "test" || cfg.Database.URL != values["DATABASE_URL"] ||
+		cfg.Server.HTTPPort != 18080 || cfg.Server.GRPCPort != 15051 ||
+		cfg.Server.EvaluationTimeout != 250*time.Millisecond ||
+		cfg.Server.GRPCMaxReceiveBytes != 4096 || cfg.Server.GRPCMaxSendBytes != 8192 ||
+		cfg.Server.SocketPath != "/tmp/pdp.sock" || !cfg.Server.UseZiti ||
+		cfg.Server.ZitiIdentityPath != "/run/ziti/pdp.json" || cfg.Server.ZitiServiceName != "pdp-private-service" {
+		t.Fatalf("server/database environment binding mismatch: %+v", cfg)
+	}
+	if cfg.Engine.StorageMode != "edge" || cfg.Engine.BadgerDir != "/var/lib/pdp/badger" ||
+		!cfg.Engine.DisableGC || cfg.Engine.GCInterval != 2*time.Minute ||
+		cfg.Engine.GCIdle != 3*time.Minute || cfg.Engine.ReconcileInterval != 4*time.Second {
+		t.Fatalf("engine environment binding mismatch: %+v", cfg.Engine)
+	}
+	if cfg.Audit.SpillDir != "/var/lib/pdp/audit-spill" || cfg.Audit.QueueCapacity != 64 ||
+		cfg.Audit.BatchSize != 8 || cfg.Audit.FlushInterval != 150*time.Millisecond ||
+		cfg.Audit.WriteTimeout != 3*time.Second || cfg.Audit.SpillMaxBytes != 2048 {
+		t.Fatalf("audit environment binding mismatch: %+v", cfg.Audit)
+	}
+	if cfg.Security.JWTSecret != values["JWT_SECRET"] || cfg.Security.JWTIssuer != values["JWT_ISSUER"] ||
+		cfg.Security.JWTAudience != values["JWT_AUDIENCE"] || cfg.Security.DelegationSecret != values["PDP_SHARED_SECRET"] ||
+		cfg.Security.DelegationActiveKeyID != "delegation-a" || !cfg.Security.DelegationKeyringExplicit ||
+		cfg.Security.AuditActiveKeyID != "audit-a" || !cfg.Security.AuditKeyringExplicit ||
+		cfg.Security.TLSCertFile != values["PDP_TLS_CERT"] || cfg.Security.TLSKeyFile != values["PDP_TLS_KEY"] || cfg.Security.TLSCAFile != values["PDP_TLS_CA"] {
+		t.Fatalf("security environment binding mismatch: %+v", cfg.Security)
+	}
+}
+
 func TestConfig_ProductionValidation(t *testing.T) {
 	valid := map[string]string{
 		"APP_ENV":                   "production",

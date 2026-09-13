@@ -47,7 +47,6 @@ services:
       LOG_KEK_ACTIVE_KID: testbed-audit-2026
       LOG_KEKS_JSON: '{"testbed-audit-2026":"testbed-audit-kek-2026-32-bytes!"}'
       AUDIT_SPILL_DIR: /var/lib/pdp/audit-spill
-      APP_PORT: "50051"
     volumes:
       - testbed_pdp_audit_spill:/var/lib/pdp/audit-spill
     depends_on:

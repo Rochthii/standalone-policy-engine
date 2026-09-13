@@ -16,12 +16,9 @@ services:
       dockerfile: Dockerfile
     container_name: pdp-data-plane
     environment:
-      - PORT=50051
-      - METRICS_PORT=9090
+      - GRPC_PORT=50051
       - STORAGE_MODE=cloud                  # cloud (stateless) | edge (badgerdb)
       - DATABASE_URL=postgres://pdp_user:pdp_pass@postgres:5432/pdp_db?sslmode=disable
-      - LOG_LEVEL=info
-      - AUDIT_SOCKET_PATH=/var/run/vector/vector.sock
       - LOG_KEK_ACTIVE_KID=audit-2026-09
       - LOG_KEKS_JSON={"audit-2026-08":"<old-32-byte-secret>","audit-2026-09":"<active-32-byte-secret>"}
       - AUDIT_SPILL_DIR=/var/lib/pdp/audit-spill
@@ -32,7 +29,6 @@ services:
       - audit-spill:/var/lib/pdp/audit-spill
     ports:
       - "50051:50051"                       # gRPC CheckAccess
-      - "9090:9090"                         # Prometheus Metrics
     depends_on:
       postgres:
         condition: service_healthy
@@ -48,7 +44,7 @@ services:
       dockerfile: cmd/control-plane/Dockerfile
     container_name: pdp-control-plane
     environment:
-      - PORT=8080
+      - HTTP_PORT=8080
       - DATABASE_URL=postgres://pdp_user:pdp_pass@postgres:5432/pdp_db?sslmode=disable
     ports:
       - "8080:8080"

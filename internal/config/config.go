@@ -14,7 +14,6 @@ type Config struct {
 	AppEnv   string
 	Server   ServerConfig
 	Database DatabaseConfig
-	Redis    RedisConfig
 	Engine   EngineConfig
 	Audit    AuditConfig
 	Security SecurityConfig
@@ -25,16 +24,14 @@ type ServerConfig struct {
 	GRPCPort            int
 	SocketPath          string
 	UseZiti             bool
+	ZitiIdentityPath    string
+	ZitiServiceName     string
 	EvaluationTimeout   time.Duration
 	GRPCMaxReceiveBytes int
 	GRPCMaxSendBytes    int
 }
 
 type DatabaseConfig struct {
-	URL string
-}
-
-type RedisConfig struct {
 	URL string
 }
 
@@ -48,7 +45,6 @@ type EngineConfig struct {
 }
 
 type AuditConfig struct {
-	SocketPath    string
 	SpillDir      string
 	QueueCapacity int
 	BatchSize     int
@@ -146,15 +142,14 @@ func Load() (*Config, error) {
 			GRPCPort:            grpcPort,
 			SocketPath:          getEnv("LISTEN_SOCKET_PATH", ""),
 			UseZiti:             strings.EqualFold(getEnv("USE_ZITI", "false"), "true"),
+			ZitiIdentityPath:    getEnv("ZITI_IDENTITY_PATH", "docker/identities/pdp-dev.json"),
+			ZitiServiceName:     getEnv("ZITI_SERVICE_NAME", "policy-decision-service"),
 			EvaluationTimeout:   evaluationTimeout,
 			GRPCMaxReceiveBytes: grpcMaxReceiveBytes,
 			GRPCMaxSendBytes:    grpcMaxSendBytes,
 		},
 		Database: DatabaseConfig{
 			URL: dbURL,
-		},
-		Redis: RedisConfig{
-			URL: getEnv("REDIS_URL", "localhost:6379"),
 		},
 		Engine: EngineConfig{
 			StorageMode:       strings.ToLower(getEnv("STORAGE_MODE", "cloud")),
@@ -165,7 +160,6 @@ func Load() (*Config, error) {
 			ReconcileInterval: reconcileInterval,
 		},
 		Audit: AuditConfig{
-			SocketPath:    getEnv("AUDIT_SOCKET_PATH", "/var/run/vector/audit.sock"),
 			SpillDir:      getEnv("AUDIT_SPILL_DIR", "./spill-logs"),
 			QueueCapacity: auditQueueCapacity,
 			BatchSize:     auditBatchSize,
