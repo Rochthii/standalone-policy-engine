@@ -52,11 +52,11 @@ The following wording is required until new experiments are completed:
 
 ## 5. Completion sequence for the thesis
 
-1. Define replay/idempotency semantics and a delegation key-ring lifecycle; implement proof replay protection.
-2. Implement durable revocation propagation and audit encryption/spill/replay.
-3. Preserve the verified allow, deny, approval, replay, concurrency, outage, revoke and tamper gate in CI.
-4. Verify the same boundary with mTLS; the clean database/image build already passes.
-5. Publish versioned functional, security and performance results; then update the thesis with only reproducible measured values.
+1. Freeze the already verified identity, delegation, Odoo, PostgreSQL, audit and Docker baseline.
+2. Complete RQ2 evidence: dense candidate/collision cases and full production-path latency measurements.
+3. Complete RQ4 evidence: equal-workload Odoo P2P comparison with reproducible functional, security and performance results.
+4. Add deployment/race/restore hardening only where it strengthens the SE/ERP thesis claim; keep edge restore as stretch scope unless the scope changes.
+5. In 2029, pin the final environment, rerun the evidence suite, and update the thesis only from those measured results.
 
 ## 6. Authority order
 

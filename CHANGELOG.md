@@ -18,6 +18,12 @@ Phân loại thay đổi:
 ### Verification
 - Compose configuration and the full repository-local Odoo mTLS E2E gate pass from the pinned bases: seven transaction tests, negative TLS probes and two-session nonce concurrency.
 
+## [Unreleased] - 2026-09-13: Thesis-First Task Priority
+
+### Changed
+- Remaining work is prioritized by the 2029 Software Engineering thesis: RQ2 worst-case performance, RQ2 full-path measurement, then RQ4 Odoo comparison.
+- Deployment health and race evidence remain engineering quality work; edge restore is explicitly stretch scope unless offline ERP becomes part of the thesis.
+
 ## [Unreleased] - 2026-09-13: Durable Role-Inheritance Reload
 
 ### Verification

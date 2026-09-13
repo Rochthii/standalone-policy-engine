@@ -16,6 +16,18 @@
 | `VERIFIED` | Required automated evidence for this task passed. |
 | `BLOCKED` | A named artifact, decision or safe test environment is missing. |
 
+## Thesis-first priority (2026–2029)
+
+The Waves preserve technical dependency order. The execution priority below is the thesis/ERP priority for the remaining work:
+
+1. `PERF-WORST-01` — validate RQ2 with dense candidates and collision cases.
+2. `PERF-FULL-02` — measure the real PDP path, not only the in-memory evaluator.
+3. `PERF-ODOO-03` — produce the comparative Odoo ERP evidence required by RQ4.
+4. `OPS-HEALTH-03` — improve deployment quality for the SE/ERP system demonstration.
+5. `CI-003` — obtain remote race evidence when a C-capable runner is available.
+6. `REL-GATE-04` — close the release checklist only after the thesis evidence is frozen.
+7. `EDGE-RESTORE-05` — optional stretch scope unless offline/edge ERP becomes part of the thesis.
+
 ## Wave 0 — Evidence baseline
 
 | ID | Atomic task | Status | Evidence / blocker |
@@ -89,4 +101,4 @@
 
 ## Next task
 
-Next: make readiness report policy/sync/dependency health (`OPS-HEALTH-03`). Remote CI inspection remains tracked by `CI-003`/G9.
+Next: validate dense candidate sets and hash-collision correctness for RQ2 (`PERF-WORST-01`). Remote CI inspection remains tracked by `CI-003`/G9.
