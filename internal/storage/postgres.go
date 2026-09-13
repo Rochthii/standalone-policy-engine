@@ -35,8 +35,11 @@ type DBPolicy struct {
 
 // Storage quản lý các kết nối và truy vấn đến PostgreSQL database.
 type Storage struct {
-	pool *pgxpool.Pool
+	pool           *pgxpool.Pool
+	policyNotifier policyNotifier
 }
+
+type policyNotifier func(context.Context, pgx.Tx, string) error
 
 var ErrPolicyNotFound = errors.New("policy not found")
 
@@ -60,7 +63,7 @@ func NewStorage(connStr string) (*Storage, error) {
 		return nil, fmt.Errorf("khởi tạo connection pool thất bại: %v", err)
 	}
 
-	s := &Storage{pool: pool}
+	s := &Storage{pool: pool, policyNotifier: postgresPolicyNotifier}
 
 	// Tự động khởi tạo schema cơ sở dữ liệu qua golang-migrate
 	if err := s.runMigrations(connStr); err != nil {
@@ -165,7 +168,7 @@ func (s *Storage) UpdatePolicy(ctx context.Context, tenantID, policyID, policyTe
 		return err
 	}
 	if previousStatus == "ACTIVE" {
-		if _, err := incrementTenantRevisionAndNotify(ctx, tx, tenantID, policyID, "UPDATE"); err != nil {
+		if _, err := s.incrementTenantRevisionAndNotify(ctx, tx, tenantID, policyID, "UPDATE"); err != nil {
 			return err
 		}
 	}
@@ -200,7 +203,7 @@ func (s *Storage) PublishPolicy(ctx context.Context, tenantID, policyID string, 
 		return 0, err
 	}
 
-	if _, err := incrementTenantRevisionAndNotify(ctx, tx, tenantID, policyID, "UPDATE"); err != nil {
+	if _, err := s.incrementTenantRevisionAndNotify(ctx, tx, tenantID, policyID, "UPDATE"); err != nil {
 		return 0, err
 	}
 
@@ -246,14 +249,14 @@ func (s *Storage) DeletePolicy(ctx context.Context, tenantID, policyID string) e
 		return err
 	}
 
-	if _, err := incrementTenantRevisionAndNotify(ctx, tx, tenantID, policyID, "DELETE"); err != nil {
+	if _, err := s.incrementTenantRevisionAndNotify(ctx, tx, tenantID, policyID, "DELETE"); err != nil {
 		return err
 	}
 
 	return tx.Commit(ctx)
 }
 
-func incrementTenantRevisionAndNotify(
+func (s *Storage) incrementTenantRevisionAndNotify(
 	ctx context.Context,
 	tx pgx.Tx,
 	tenantID, policyID, action string,
@@ -278,10 +281,19 @@ func incrementTenantRevisionAndNotify(
 	if err != nil {
 		return 0, fmt.Errorf("encode policy event: %w", err)
 	}
-	if _, err := tx.Exec(ctx, `SELECT pg_notify('policy_events', $1);`, string(payload)); err != nil {
+	notify := s.policyNotifier
+	if notify == nil {
+		notify = postgresPolicyNotifier
+	}
+	if err := notify(ctx, tx, string(payload)); err != nil {
 		return 0, fmt.Errorf("notify policy event: %w", err)
 	}
 	return revision, nil
+}
+
+func postgresPolicyNotifier(ctx context.Context, tx pgx.Tx, payload string) error {
+	_, err := tx.Exec(ctx, `SELECT pg_notify('policy_events', $1);`, payload)
+	return err
 }
 
 // GetTenantRevision lấy số hiệu phiên bản revision hiện tại của một Tenant từ PostgreSQL.

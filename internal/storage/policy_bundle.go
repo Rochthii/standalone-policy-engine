@@ -95,7 +95,7 @@ func (s *Storage) ReplaceRoleInheritances(ctx context.Context, tenantID string, 
 			return err
 		}
 	}
-	if _, err := incrementTenantRevisionAndNotify(ctx, tx, tenantID, "role-inheritance", "ROLE_UPDATE"); err != nil {
+	if _, err := s.incrementTenantRevisionAndNotify(ctx, tx, tenantID, "role-inheritance", "ROLE_UPDATE"); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
