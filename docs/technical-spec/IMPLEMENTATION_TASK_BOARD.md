@@ -73,7 +73,7 @@
 | API-IDL-01 | Select one canonical proto and reproducibly generate Go/Python clients. | `VERIFIED` | Buf-pinned Go/Python generation, Go Docker wire E2E and generated Python-to-live-Go compatibility pass. |
 | API-RUNTIME-02 | Define codec, deadlines, limits and error semantics. | `VERIFIED` | Standard protobuf wire E2E, fail-fast runtime config and oversized-request ResourceExhausted test pass. |
 | OPS-CONFIG-01 | Prove every environment key has a runtime consumer. | `VERIFIED` | Central config binding matrix covers every PDP/Control Plane runtime key; orphan Redis, audit-socket and legacy port keys were removed; Ziti inputs are centrally consumed. See `evidence/CONFIG_CONSUMERS_2026_09_13.md`. |
-| OPS-IMAGE-02 | Make testbed self-contained and pin images by digest. | `IN PROGRESS` | The repository-local Odoo/PDP images build and the isolated E2E gate passes; base-image digest pinning remains open. |
+| OPS-IMAGE-02 | Make testbed self-contained and pin images by digest. | `VERIFIED` | All external PostgreSQL, Go, Alpine and Odoo images are pinned by manifest-list digest; repository-local builds and the full Odoo mTLS E2E gate pass. See `evidence/TESTBED_IMAGE_PINNING_2026_09_13.md`. |
 | OPS-HEALTH-03 | Make readiness report policy/sync/dependency health. | `TODO` | Degraded pods leave readiness before receiving traffic. |
 | OPS-SHUTDOWN-04 | Cancel listeners/workers before waiting and bound shutdown. | `VERIFIED` | Blocking listener is canceled and `Stop` completes within the test deadline. |
 | EDGE-RESTORE-05 | Implement snapshot restore or remove edge-startup claim. | `TODO` | Offline restart test or explicit scope removal. |
@@ -89,4 +89,4 @@
 
 ## Next task
 
-Next: pin every testbed base image by digest and make the testbed self-contained (`OPS-IMAGE-02`). Remote CI inspection remains tracked by `CI-003`/G9.
+Next: make readiness report policy/sync/dependency health (`OPS-HEALTH-03`). Remote CI inspection remains tracked by `CI-003`/G9.

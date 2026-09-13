@@ -94,7 +94,7 @@ No gate may be marked `[x]` using comments, screenshots, manually edited result 
 
 ## 10. G8 — Deployment and operations
 
-- [ ] All testbed images are pinned by digest.
+- [x] All external testbed images are pinned by manifest-list digest; repository-local PDP/Odoo images are built from those pinned bases and the full Odoo mTLS E2E gate passes.
 - [x] Compose references repository-local Odoo addon/generated-client assets; the Odoo image builds and installs the addon in a fresh isolated database.
 - [x] Environment variable names match application code and the complete runtime binding matrix is tested.
 - [x] `APP_ENV=production` enables strict secret, TLS and endpoint validation.

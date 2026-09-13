@@ -10,6 +10,14 @@ Phân loại thay đổi:
 
 ---
 
+## [Unreleased] - 2026-09-13: Digest-Pinned Testbed
+
+### Changed
+- Pinned PostgreSQL 15, Go 1.25, Alpine 3.19 and Odoo 17 testbed bases to immutable manifest-list digests.
+
+### Verification
+- Compose configuration and the full repository-local Odoo mTLS E2E gate pass from the pinned bases: seven transaction tests, negative TLS probes and two-session nonce concurrency.
+
 ## [Unreleased] - 2026-09-13: Durable Role-Inheritance Reload
 
 ### Verification

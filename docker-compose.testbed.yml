@@ -1,14 +1,13 @@
 # ============================================================================
 # STANDALONE POLICY ENGINE & ODOO 17 DEVELOPMENT TESTBED
-# The Odoo E2E profile is self-contained and verified, but base image tags still
-# require digest pinning before this can be called a frozen 2026-2029 testbed.
+# The Odoo E2E profile is self-contained and all external images are pinned by digest.
 # Real Odoo transaction gate: make test-odoo-e2e
 # ============================================================================
 
 services:
   # 1. PostgreSQL 15 Database
   testbed-db:
-    image: postgres:15-alpine
+    image: postgres:15-alpine@sha256:fe0737ba566a2c5b2a28f34433c0a423261900ec17b9bf7ad115e1aae7e57f1b
     container_name: testbed_postgres
     restart: unless-stopped
     ports:
@@ -179,7 +178,7 @@ services:
   # 5. Automated in-process core vectors and benchmark runner
   testbed-runner:
     profiles: ["core-benchmark"]
-    image: golang:alpine
+    image: golang:1.25-alpine@sha256:1ae0735f00daffa3aaf1363a5184c0d2dc55c78e3db4ec70241cdac97bf84b59
     container_name: testbed_test_runner
 
     working_dir: /app
