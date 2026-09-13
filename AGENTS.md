@@ -23,7 +23,7 @@ Client / AI Agent (Odoo 17 PEP)
 PDP Server (Data Plane)
      │
      ├──► [Layer 1 Security Interceptor (< 2 µs)]
-     │    ├── Anti-TOCTOU: In-Memory RevocationMap O(1) sync.Map (< 50ns)
+     │    ├── Anti-TOCTOU: PostgreSQL-backed, replica-synchronized in-memory RevocationMap O(1)
      │    ├── Proof Verification: HMAC-SHA256 Canonical String + TTL Check
      │    ├── Tenant Isolation: claims["tenant_id"] == req.TenantId
      │    └── [Fail: Tampered / Expired / Revoked] ──► [Fast DENY / 403] ──► Early Return
@@ -65,7 +65,7 @@ Async Ring Buffer Logger ──► Postgres PDP Audit (pgx.CopyFrom) + AES-GCM E
 | **AST Evaluator** | `internal/engine/evaluator.go` | Zero-alloc evaluator with `sync.Pool`, sentinels (`boolTrue`/`boolFalse`), `contains` SoD. |
 | **Engine State** | `internal/engine/engine.go` | Copy-On-Write (COW) lock-free read path via `atomic.LoadPointer` / `StorePointer`. |
 | **DSL Compiler** | `internal/parser/` | Lexer & Pratt parser for Cedar-like DSL (`permit`/`forbid`). Max AST depth <= 15, constant folding. |
-| **Security & Delegation** | `internal/security/` | JWT tenant isolation, AES-GCM envelope encryption, `delegation.go` (HMAC & RevocationMap O(1)). |
+| **Security & Delegation** | `internal/security/` | JWT tenant isolation, delegation key ring, durable PostgreSQL-backed revocation synchronization and RevocationMap O(1). |
 | **Storage & Sync** | `internal/storage/`, `internal/engine/sync.go` | PostgreSQL (`pgx`), BadgerDB edge cache, Postgres `LISTEN/NOTIFY` Fast Gap Catch-Up. |
 | **Audit Logger** | `internal/audit/` | Bounded async queue -> PostgreSQL `pgx.CopyFrom`, pre-queue redaction, timeout/drop metrics. Encryption and spill/replay remain open. |
 | **Protobuf Contract** | `proto/v1/policy.proto` | Canonical IDL defining `CheckAccess`, `ExplainDecision`, `RevokeDelegation`; Buf generates standard Go/Python protobuf clients. |

@@ -59,11 +59,11 @@ No gate may be marked `[x]` using comments, screenshots, manually edited result 
 ## 6. G4 — Revocation consistency
 
 - [x] Revocations are namespaced by tenant and grant.
-- [ ] Revocations survive pod restart for at least the grant validity window.
-- [ ] Every serving replica observes a revoke before the documented deadline.
+- [x] Revocations survive pod restart for at least the grant validity window.
+- [x] Every serving replica observes a revoke before the documented 5-second deadline or fails delegated checks closed while synchronization is unavailable.
 - [x] TTL cleanup bounds process-local memory growth.
-- [ ] Tests cover at least three replicas, concurrent checks, restart and delayed delivery.
-- [ ] Propagation p50/p95/p99 and maximum delay are published separately from local lookup time.
+- [x] Tests cover three replicas, concurrent checks, restart and deliberately delayed delivery over real PostgreSQL.
+- [x] Propagation p50/p95/p99 and maximum delay are published separately from local lookup time in `evidence/REVOCATION_DURABILITY_2026_09_13.md`.
 
 ## 7. G5 — Decision obligations and PEP behavior
 

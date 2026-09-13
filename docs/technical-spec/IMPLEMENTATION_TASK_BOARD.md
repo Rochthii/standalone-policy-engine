@@ -52,7 +52,7 @@
 | CONS-ROLE-05 | Persist, revision and load role inheritance with policies. | `CODE COMPLETE` | Real PostgreSQL bundle/DAG tests pass; engine restart and missed-event catch-up evidence remains. |
 | CONS-RECON-06 | Add periodic reconciliation independent of listener reconnect. | `VERIFIED` | Cancellation and healthy-listener periodic reconciliation tests pass. |
 | REV-SCOPE-01 | Namespace revocation by tenant + grant and bound TTL cleanup. | `VERIFIED` | Cross-tenant collision, expiry cleanup, concurrent access and server tests pass. |
-| REV-DURABLE-02 | Persist revocation and propagate it to every replica. | `BLOCKED` | Deployment topology and propagation SLO must be selected. |
+| REV-DURABLE-02 | Persist revocation and propagate it to every replica. | `VERIFIED` | PostgreSQL snapshot-first LISTEN sync, fail-closed degraded state, three replicas, concurrent checks, delayed delivery and restart pass under the 5s SLO. See `evidence/REVOCATION_DURABILITY_2026_09_13.md`. |
 
 ## Wave 3 — Obligations, Odoo and audit
 
@@ -89,4 +89,4 @@
 
 ## Next task
 
-Next: inspect a successful remote CI run, then pin every testbed base image by digest (`OPS-IMAGE-02`). The local Odoo boundary, replay/concurrency and mTLS gates are verified.
+Next: implement audit key lifecycle, encryption, spill/replay and tamper evidence (`AUD-CRYPT-03`). Durable multi-replica revocation is verified locally; remote CI inspection remains tracked by `CI-003`/G9.

@@ -1,7 +1,7 @@
 # Standalone In-Memory Policy Decision Point (PDP)
 ### Delegation-Aware Authorization & Guardrails for ERP AI Agents (Odoo 17)
 
-> **Current implementation status (audit update 2026-09-12):** The in-memory core is verified for the measured benchmark cases, and the repository-owned Odoo PEP passes seven real ORM/mTLS-gRPC/PostgreSQL transaction cases plus a two-session concurrency/retry case. The full distributed PDP/Odoo system is still **not production-ready**: durable multi-replica revocation, audit cryptography, remote CI and deployment gates remain open. See [`CURRENT_STATE_AUDIT.md`](./docs/technical-spec/CURRENT_STATE_AUDIT.md) and [`PRODUCTION_READINESS_CHECKLIST.md`](./docs/technical-spec/PRODUCTION_READINESS_CHECKLIST.md).
+> **Current implementation status (audit update 2026-09-13):** The in-memory core is verified for the measured benchmark cases, the repository-owned Odoo PEP passes seven real ORM/mTLS-gRPC/PostgreSQL transaction cases plus a two-session concurrency/retry case, and durable revocation passes a local three-replica PostgreSQL restart/delayed-delivery test. The full distributed PDP/Odoo system is still **not production-ready**: audit cryptography, remote CI and deployment gates remain open. See [`CURRENT_STATE_AUDIT.md`](./docs/technical-spec/CURRENT_STATE_AUDIT.md) and [`PRODUCTION_READINESS_CHECKLIST.md`](./docs/technical-spec/PRODUCTION_READINESS_CHECKLIST.md).
 
 **Author:** Chăm Rốch Thi  
 **Affiliation:** Posts and Telecommunications Institute of Technology (PTIT)  
@@ -37,7 +37,7 @@ An in-memory Policy Decision Point (PDP) research prototype in Go implementing P
 | **Illustrative Mean Latency** | **Simulated 23.77 ms** | **Hardcoded 0.000540 ms** | **Not experimentally validated** |
 | **RAM Allocation on Hot-Path** | ~24 KB / query (ORM Objects) | **0 B / op (Zero-Alloc)** | **Zero GC Pressure** |
 | **Heap Allocations per Check** | ~120 allocs / check | **0 allocs / op** | **Zero Memory Leaks** |
-| **Anti-TOCTOU Defense** | Vulnerable (Waits for DB commit) | **O(1) tenant-scoped local revocation** | Cluster propagation/restart durability pending |
+| **Anti-TOCTOU Defense** | Vulnerable (Waits for DB commit) | **O(1) tenant-scoped in-memory lookup backed by PostgreSQL** | Three-replica restart/delayed-delivery evidence; 5s SLO |
 | **AI Delegation Chain Support** | Not supported (User ID only) | **Versioned full-tuple direct delegation HMAC with key-ring rotation** | Odoo duplicate, altered-command replay, rollback and two-session retry cases pass |
 | **Runtime Obligation Handling** | Triggers Database Rollback Trap | **Typed PDP obligation output** | Real Odoo test verifies `to approve` plus one Activity without rollback |
 
@@ -94,7 +94,7 @@ flowchart TD
 
 ## Verified 7/7 In-Process Delegation Vectors
 
-The Go test fixture passes all seven logic vectors defined in [`tests/e2e_delegation_test.go`](./tests/e2e_delegation_test.go). Those seven tests remain in-process evidence. A separate Docker gate verifies seven real Odoo transaction cases plus a two-session concurrency/retry case across ORM, network transport and PostgreSQL; neither suite proves multi-replica revocation.
+The Go test fixture passes all seven logic vectors defined in [`tests/e2e_delegation_test.go`](./tests/e2e_delegation_test.go). Those seven tests remain in-process evidence. A separate Docker gate verifies seven real Odoo transaction cases plus a two-session concurrency/retry case across ORM, network transport and PostgreSQL. Multi-replica revocation is evidenced separately by [`evidence/REVOCATION_DURABILITY_2026_09_13.md`](./evidence/REVOCATION_DURABILITY_2026_09_13.md).
 
 | Vector ID | Test Scenario Description | Expected Decision | Result |
 |---|---|:---:|:---:|

@@ -10,6 +10,18 @@ Phân loại thay đổi:
 
 ---
 
+## [Unreleased] - 2026-09-13: Durable Multi-Replica Revocation
+
+### Added
+- PostgreSQL-backed tenant/grant revocation records with snapshot-first `LISTEN/NOTIFY` synchronization.
+- Fail-closed delegated checks while revocation state is unavailable and bounded startup readiness.
+- Three-replica PostgreSQL integration covering concurrent checks, delayed delivery, offline replica and restart restoration.
+
+### Verification
+- Three repeated integration runs passed with 108 propagation samples; worst observed delay was 38.8256ms against the 5s SLO.
+- Full `go test ./...`, focused security/server/storage tests, `go vet ./...` and `git diff --check` pass locally.
+- Local race execution remains blocked by disabled CGO and is tracked by `CI-003`/G9.
+
 ## [Unreleased] - 2026-09-12: Security Boundary, Standard Protobuf, Odoo E2E & Replay Verification
 
 Đợt remediation này cập nhật trạng thái theo `CURRENT_STATE_AUDIT.md` và bổ sung bằng chứng chạy thực tế. Các mục lịch sử bên dưới vẫn giữ nguyên ngữ cảnh tại thời điểm phát hành; không dùng chúng làm bằng chứng production hiện tại.

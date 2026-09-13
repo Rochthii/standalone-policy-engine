@@ -142,7 +142,7 @@ func main() {
 		}
 	}
 
-	grpcServer, err := server.StartGRPCServer(listener, eng, auditLogger, cfg.Security, cfg.Server)
+	grpcServer, revocationSyncer, err := server.StartGRPCServerWithRevocations(ctxServer, listener, eng, auditLogger, cfg.Security, cfg.Server, store)
 	if err != nil {
 		log.Fatalf("[PDP-Server] Không thể chạy gRPC server: %v", err)
 	}
@@ -153,6 +153,8 @@ func main() {
 	<-sigChan
 
 	log.Println("[PDP-Server] Đang tắt an toàn dịch vụ...")
+	stopServer()
+	revocationSyncer.Stop()
 	grpcServer.GracefulStop()
 	syncer.Stop()
 	auditLogger.Stop()

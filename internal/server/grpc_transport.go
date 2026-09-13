@@ -14,6 +14,7 @@ import (
 	"standalone-policy-engine/internal/audit"
 	"standalone-policy-engine/internal/config"
 	"standalone-policy-engine/internal/engine"
+	"standalone-policy-engine/internal/security"
 	policyv1 "standalone-policy-engine/proto/v1"
 
 	"google.golang.org/grpc"
@@ -23,6 +24,11 @@ import (
 )
 
 func StartGRPCServer(lis net.Listener, eng *engine.EngineWithGC, logger *audit.AuditLogger, securityConfig config.SecurityConfig, serverConfig config.ServerConfig) (*grpc.Server, error) {
+	grpcServer, _, err := StartGRPCServerWithRevocations(context.Background(), lis, eng, logger, securityConfig, serverConfig, nil)
+	return grpcServer, err
+}
+
+func StartGRPCServerWithRevocations(ctx context.Context, lis net.Listener, eng *engine.EngineWithGC, logger *audit.AuditLogger, securityConfig config.SecurityConfig, serverConfig config.ServerConfig, revocationStore security.RevocationStore) (*grpc.Server, *security.RevocationSyncer, error) {
 	options := []grpc.ServerOption{
 		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
 			MinTime:             5 * time.Second,
@@ -47,7 +53,7 @@ func StartGRPCServer(lis net.Listener, eng *engine.EngineWithGC, logger *audit.A
 			securityConfig.TLSCAFile,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("cấu hình mTLS thất bại: %w", err)
+			return nil, nil, fmt.Errorf("cấu hình mTLS thất bại: %w", err)
 		}
 		options = append(options, grpc.Creds(credentials))
 		log.Printf("[PDP-Server] mTLS enabled with cert=%s ca=%s", securityConfig.TLSCertFile, securityConfig.TLSCAFile)
@@ -55,9 +61,16 @@ func StartGRPCServer(lis net.Listener, eng *engine.EngineWithGC, logger *audit.A
 		log.Println("[PDP-Server] WARNING: insecure transport is allowed only outside production")
 	}
 
-	service, err := NewGRPCServerWithSecurity(eng, logger, securityConfig, serverConfig)
+	service, err := newGRPCServerWithSecurity(eng, logger, securityConfig, serverConfig, revocationStore)
 	if err != nil {
-		return nil, fmt.Errorf("cấu hình delegation key ring thất bại: %w", err)
+		return nil, nil, fmt.Errorf("cấu hình delegation key ring thất bại: %w", err)
+	}
+	var revocationSyncer *security.RevocationSyncer
+	if revocationStore != nil {
+		revocationSyncer = security.NewRevocationSyncer(service.delegationMgr, revocationStore)
+		if err := revocationSyncer.Start(ctx); err != nil {
+			return nil, nil, fmt.Errorf("khởi tạo đồng bộ revocation thất bại: %w", err)
+		}
 	}
 	grpcServer := grpc.NewServer(options...)
 	policyv1.RegisterPolicyDecisionPointServer(
@@ -65,7 +78,7 @@ func StartGRPCServer(lis net.Listener, eng *engine.EngineWithGC, logger *audit.A
 		service,
 	)
 	go func() { _ = grpcServer.Serve(lis) }()
-	return grpcServer, nil
+	return grpcServer, revocationSyncer, nil
 }
 
 func traceInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {

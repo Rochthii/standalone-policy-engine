@@ -251,6 +251,23 @@ func TestGRPCServer_RequiredAuthentication(t *testing.T) {
 	}
 }
 
+func TestGRPCServer_FailsClosedWhenRevocationStateIsUnavailable(t *testing.T) {
+	configureGRPCTestJWT(t)
+	srv := NewGRPCServer(engine.NewEngineWithGC(engine.GCConfig{Enabled: false}), nil)
+	srv.delegationMgr.SetRevocationReady(false)
+	req := &policyv1.CheckAccessRequest{
+		TenantId: "tenant-a",
+		Subject:  "agent:test",
+		Action:   "READ",
+		Resource: "file:doc",
+		Context:  map[string]string{"delegation_grant_id": "grant-a"},
+	}
+	_, err := srv.CheckAccess(incomingJWTContext(t, "tenant-a", "agent:test"), req)
+	if status.Code(err) != codes.Unavailable {
+		t.Fatalf("unavailable revocation state must fail closed, got %v", err)
+	}
+}
+
 func TestGRPCServer_TrustedPrincipalAttributes(t *testing.T) {
 	configureGRPCTestJWT(t)
 	eng := engine.NewEngineWithGC(engine.GCConfig{Enabled: false})

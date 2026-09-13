@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"standalone-policy-engine/internal/security"
 	policyv1 "standalone-policy-engine/proto/v1"
@@ -37,7 +38,26 @@ func (s *GRPCServer) RevokeDelegation(ctx context.Context, req *policyv1.RevokeR
 		return nil, status.Error(codes.Internal, "delegation manager chưa được cấu hình")
 	}
 
-	revokedAt := s.delegationMgr.Revoke(req.TenantId, req.GrantId)
+	var revokedAt int64
+	if s.revocationStore == nil {
+		revokedAt = s.delegationMgr.Revoke(req.TenantId, req.GrantId)
+	} else {
+		now := time.Now().UTC()
+		record, err := s.revocationStore.PersistRevocation(ctx, security.RevocationRecord{
+			TenantID:  req.TenantId,
+			GrantID:   req.GrantId,
+			RevokedBy: subject,
+			RevokedAt: now,
+			ExpiresAt: now.Add(security.MaxDelegationTTL),
+		})
+		if err != nil {
+			return nil, status.Errorf(codes.Unavailable, "không thể lưu thu hồi bền vững: %v", err)
+		}
+		if !s.delegationMgr.ApplyRevocation(record) {
+			return nil, status.Error(codes.Internal, "bản ghi thu hồi bền vững không hợp lệ")
+		}
+		revokedAt = record.RevokedAt.Unix()
+	}
 	log.Printf("[Security] Delegation grant %s revoked by %s (tenant=%s)", req.GrantId, subject, req.TenantId)
 	return &policyv1.RevokeResponse{
 		Success:   true,

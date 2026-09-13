@@ -23,6 +23,7 @@ type GRPCServer struct {
 	auditLogger       *audit.AuditLogger
 	jwtValidator      *security.JWTValidator
 	delegationMgr     *security.DelegationManager
+	revocationStore   security.RevocationStore
 	evaluationTimeout time.Duration
 }
 
@@ -43,6 +44,16 @@ func NewGRPCServerWithSecurity(
 	logger *audit.AuditLogger,
 	securityConfig config.SecurityConfig,
 	serverConfig config.ServerConfig,
+) (*GRPCServer, error) {
+	return newGRPCServerWithSecurity(eng, logger, securityConfig, serverConfig, nil)
+}
+
+func newGRPCServerWithSecurity(
+	eng *engine.EngineWithGC,
+	logger *audit.AuditLogger,
+	securityConfig config.SecurityConfig,
+	serverConfig config.ServerConfig,
+	revocationStore security.RevocationStore,
 ) (*GRPCServer, error) {
 	activeKeyID := securityConfig.DelegationActiveKeyID
 	delegationKeys := securityConfig.DelegationKeys
@@ -66,6 +77,7 @@ func NewGRPCServerWithSecurity(
 			securityConfig.JWTAudience,
 		),
 		delegationMgr:     delegationManager,
+		revocationStore:   revocationStore,
 		evaluationTimeout: serverConfig.EvaluationTimeout,
 	}, nil
 }
@@ -87,6 +99,9 @@ func (s *GRPCServer) CheckAccess(ctx context.Context, req *policyv1.CheckAccessR
 	req.Context = trustedContext
 
 	if grantID := req.Context["delegation_grant_id"]; grantID != "" {
+		if s.delegationMgr != nil && !s.delegationMgr.RevocationReady() {
+			return nil, status.Error(codes.Unavailable, "revocation state chưa sẵn sàng")
+		}
 		if s.delegationMgr != nil && s.delegationMgr.IsRevoked(req.TenantId, grantID) {
 			log.Printf("[Security] TOCTOU Violation: Delegation grant %s is revoked", grantID)
 			return revokedDecision(), nil
