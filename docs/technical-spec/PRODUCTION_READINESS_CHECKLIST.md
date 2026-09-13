@@ -53,7 +53,7 @@ No gate may be marked `[x]` using comments, screenshots, manually edited result 
 - [x] ACTIVE -> DRAFT, publish and delete atomically update revision and emit an event.
 - [x] PostgreSQL revision-trigger and notifier-SQL fault injection proves revision/notification failures abort publish, ACTIVE -> DRAFT and delete transactions without changing policy state or tenant revision.
 - [x] Older/duplicate events cannot downgrade an in-memory revision.
-- [~] Role inheritance is persisted, revisioned and bundle-loaded; restart/catch-up evidence remains open.
+- [x] Role inheritance is persisted, revisioned and bundle-loaded; a fresh engine rebuilds the PostgreSQL-backed DAG and revision reconciliation replaces it after a deliberately missed event.
 - [x] A reconcile loop detects missed notifications without requiring a connection failure.
 
 ## 6. G4 — Revocation consistency

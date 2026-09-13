@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"standalone-policy-engine/internal/security"
+	"standalone-policy-engine/internal/testutil"
 )
 
 type delayedRevocationStore struct {
@@ -39,7 +40,7 @@ func TestRevocationPropagationThreeReplicasAndRestart(t *testing.T) {
 		t.Skip("TEST_DATABASE_URL is required for PostgreSQL revocation integration")
 	}
 	ctx := context.Background()
-	store, err := NewStorage(createIsolatedTestDatabase(t, ctx, adminURL))
+	store, err := NewStorage(testutil.CreateIsolatedPostgresDatabase(t, ctx, adminURL))
 	if err != nil {
 		t.Fatalf("create isolated revocation store: %v", err)
 	}

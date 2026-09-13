@@ -2,19 +2,14 @@ package storage
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
-	"net/url"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
 	"standalone-policy-engine/internal/audit"
 	"standalone-policy-engine/internal/security"
-
-	"github.com/jackc/pgx/v5"
+	"standalone-policy-engine/internal/testutil"
 )
 
 func TestStorage_MigrationsIntegration(t *testing.T) {
@@ -25,7 +20,7 @@ func TestStorage_MigrationsIntegration(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	testDBConnStr := createIsolatedTestDatabase(t, ctx, connStr)
+	testDBConnStr := testutil.CreateIsolatedPostgresDatabase(t, ctx, connStr)
 
 	// Khoi tao Storage - qua trinh nay se tu dong chay runMigrations
 	store, err := NewStorage(testDBConnStr)
@@ -209,44 +204,4 @@ func TestStorage_MigrationsIntegration(t *testing.T) {
 	if err := store.pool.QueryRow(ctx, `SELECT COUNT(*) FROM decision_audit_logs WHERE audit_id = $1`, persisted.AuditID).Scan(&duplicateCount); err != nil || duplicateCount != 1 {
 		t.Fatalf("audit replay must be idempotent: count=%d err=%v", duplicateCount, err)
 	}
-}
-
-func createIsolatedTestDatabase(t *testing.T, ctx context.Context, adminConnStr string) string {
-	t.Helper()
-
-	adminURL, err := url.Parse(adminConnStr)
-	if err != nil || (adminURL.Scheme != "postgres" && adminURL.Scheme != "postgresql") {
-		t.Fatalf("TEST_DATABASE_URL phai la PostgreSQL URL hop le: %v", err)
-	}
-	adminConn, err := pgx.Connect(ctx, adminConnStr)
-	if err != nil {
-		t.Fatalf("Khong the ket noi PostgreSQL test admin: %v", err)
-	}
-
-	randomBytes := make([]byte, 8)
-	if _, err := rand.Read(randomBytes); err != nil {
-		adminConn.Close(ctx)
-		t.Fatalf("Khong the tao ten database ngau nhien: %v", err)
-	}
-	testDBName := "policy_engine_test_" + hex.EncodeToString(randomBytes)
-	quotedDBName := pgx.Identifier{testDBName}.Sanitize()
-	if _, err := adminConn.Exec(ctx, "CREATE DATABASE "+quotedDBName); err != nil {
-		adminConn.Close(ctx)
-		t.Fatalf("Khong the tao database kiem thu rieng %s: %v", testDBName, err)
-	}
-
-	t.Cleanup(func() {
-		defer adminConn.Close(ctx)
-		if !strings.HasPrefix(testDBName, "policy_engine_test_") {
-			t.Errorf("Tu choi xoa database ngoai namespace test: %s", testDBName)
-			return
-		}
-		if _, err := adminConn.Exec(ctx, "DROP DATABASE "+quotedDBName+" WITH (FORCE)"); err != nil {
-			t.Errorf("Khong the don database kiem thu rieng %s: %v", testDBName, err)
-		}
-	})
-
-	testURL := *adminURL
-	testURL.Path = "/" + testDBName
-	return testURL.String()
 }

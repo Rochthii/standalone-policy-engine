@@ -6,6 +6,8 @@ import (
 	"os"
 	"testing"
 
+	"standalone-policy-engine/internal/testutil"
+
 	"github.com/jackc/pgx/v5"
 )
 
@@ -23,7 +25,7 @@ func TestStoragePolicyMutationsRollbackOnPostgresFaults(t *testing.T) {
 		t.Skip("PostgreSQL integration requires TEST_DATABASE_URL")
 	}
 	ctx := context.Background()
-	store, err := NewStorage(createIsolatedTestDatabase(t, ctx, adminURL))
+	store, err := NewStorage(testutil.CreateIsolatedPostgresDatabase(t, ctx, adminURL))
 	if err != nil {
 		t.Fatal(err)
 	}

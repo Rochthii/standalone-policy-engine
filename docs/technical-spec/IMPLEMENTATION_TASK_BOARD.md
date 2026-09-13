@@ -49,7 +49,7 @@
 | CONS-COMPILE-02 | Compile a tenant ruleset all-or-nothing and preserve last-known-good state. | `VERIFIED` | Invalid batch and last-known-good preservation tests pass. |
 | CONS-REV-03 | Make ACTIVE→DRAFT, publish and delete revision/event changes atomic. | `VERIFIED` | PostgreSQL revision-trigger and notifier-SQL fault injection proves all six publish/update/delete transactions preserve both policy state and tenant revision. See `evidence/POLICY_TRANSACTION_ROLLBACK_2026_09_13.md`. |
 | CONS-EVENT-04 | Fail transactions on revision/NOTIFY errors; handle duplicate/out-of-order/gap events. | `VERIFIED` | Stale, duplicate and late-sync event tests pass. |
-| CONS-ROLE-05 | Persist, revision and load role inheritance with policies. | `CODE COMPLETE` | Real PostgreSQL bundle/DAG tests pass; engine restart and missed-event catch-up evidence remains. |
+| CONS-ROLE-05 | Persist, revision and load role inheritance with policies. | `VERIFIED` | PostgreSQL persistence/bundle integration plus fresh-engine restart and revision-reconcile catch-up prove replacement role DAGs load correctly after a missed event. See `evidence/ROLE_INHERITANCE_RESILIENCE_2026_09_13.md`. |
 | CONS-RECON-06 | Add periodic reconciliation independent of listener reconnect. | `VERIFIED` | Cancellation and healthy-listener periodic reconciliation tests pass. |
 | REV-SCOPE-01 | Namespace revocation by tenant + grant and bound TTL cleanup. | `VERIFIED` | Cross-tenant collision, expiry cleanup, concurrent access and server tests pass. |
 | REV-DURABLE-02 | Persist revocation and propagate it to every replica. | `VERIFIED` | PostgreSQL snapshot-first LISTEN sync, fail-closed degraded state, three replicas, concurrent checks, delayed delivery and restart pass under the 5s SLO. See `evidence/REVOCATION_DURABILITY_2026_09_13.md`. |
@@ -89,4 +89,4 @@
 
 ## Next task
 
-Next: prove role-inheritance restart and missed-event catch-up (`CONS-ROLE-05`). Remote CI inspection remains tracked by `CI-003`/G9.
+Next: pin every testbed base image by digest and make the testbed self-contained (`OPS-IMAGE-02`). Remote CI inspection remains tracked by `CI-003`/G9.

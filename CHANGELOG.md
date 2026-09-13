@@ -10,6 +10,12 @@ Phân loại thay đổi:
 
 ---
 
+## [Unreleased] - 2026-09-13: Durable Role-Inheritance Reload
+
+### Verification
+- PostgreSQL integration proves role inheritance persistence, fresh-engine DAG reconstruction, and revision reconciliation after a deliberately missed event.
+- The shared isolated-database harness now protects all PostgreSQL integration packages without duplicating database lifecycle code.
+
 ## [Unreleased] - 2026-09-13: Policy Transaction Rollback Evidence
 
 ### Verification

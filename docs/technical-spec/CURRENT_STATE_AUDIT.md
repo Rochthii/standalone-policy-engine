@@ -4,7 +4,7 @@
 >
 > **Audited commit:** `e16fa57` (`main`, tag `v1.0.0-core-verified`)
 >
-> **Remediation update:** The 2026-09-13 remediation closes the verified items recorded in [`IMPLEMENTATION_TASK_BOARD.md`](./IMPLEMENTATION_TASK_BOARD.md). The delegation proof has an explicit `kid` key ring, the repository-owned Odoo PEP has a transactional nonce ledger, revocations are persisted and propagated through PostgreSQL with snapshot-first startup/reconnect, and policy publish/update/delete rollback is fault-injected against PostgreSQL. The cross-language proof vector, seven fresh-database Odoo transaction tests, two-session serialization retry, real mTLS boundary probes, three-replica revocation/restart tests, and six policy transaction rollback cases pass. Other named release gates remain open.
+> **Remediation update:** The 2026-09-13 remediation closes the verified items recorded in [`IMPLEMENTATION_TASK_BOARD.md`](./IMPLEMENTATION_TASK_BOARD.md). The delegation proof has an explicit `kid` key ring, the repository-owned Odoo PEP has a transactional nonce ledger, revocations are persisted and propagated through PostgreSQL with snapshot-first startup/reconnect, policy publish/update/delete rollback is fault-injected against PostgreSQL, and role inheritance is reloadable through the revision stream. The cross-language proof vector, seven fresh-database Odoo transaction tests, two-session serialization retry, real mTLS boundary probes, three-replica revocation/restart tests, six policy transaction rollback cases, and real PostgreSQL role-DAG restart/catch-up cases pass. Other named release gates remain open.
 >
 > **Authority:** This document describes the implementation that exists in this repository. Where an older architecture, roadmap, benchmark, or thesis document conflicts with this audit, this document takes precedence until the conflict is resolved and re-verified.
 >
@@ -53,6 +53,7 @@ The correct positioning is:
 | Odoo 17 fresh install + ORM -> generated gRPC client -> live PDP -> PostgreSQL | PASS over mTLS; missing client certificate rejected, valid client reaches JWT boundary, 7 tests with 0 failures/errors, plus two-session retry PASS |
 | Three revocation replicas + delayed delivery + restart over PostgreSQL | PASS; 3 runs/108 propagation samples, worst observed 38.8256ms under the 5s SLO |
 | Policy publish/update/delete revision and notifier rollback over PostgreSQL | PASS; six fault-injected transactions preserve policy state and tenant revision |
+| Role-DAG restart and missed-event catch-up over PostgreSQL | PASS; a fresh engine rebuilds the persisted graph and revision reconciliation replaces it after an event is deliberately omitted |
 
 Observed coverage:
 
@@ -94,6 +95,7 @@ Observed Go core benchmarks on a 13th Gen Intel Core i7-13700H, Windows/amd64, G
 | Delegation proof prevents tuple tampering and replayed execution | VERIFIED | `v1.<kid>.<hmac>` plus the Odoo ledger pass key rotation, Go/Python compatibility, tamper, duplicate, altered-command, rollback and two-session serialization-retry cases |
 | Durable cluster revocation | VERIFIED FOR LOCAL 3-REPLICA POSTGRESQL TEST | Snapshot-first LISTEN/reconnect preserves revocations across restart; delegated checks fail closed while sync is unavailable; worst observed propagation was 38.8256ms against a 5s SLO |
 | Atomic policy revision/notification mutation | VERIFIED FOR LOCAL POSTGRESQL TEST | Revision trigger and notifier-SQL fault injection abort publish, ACTIVE -> DRAFT and delete without persisting a policy or tenant-revision change |
+| Durable role inheritance reload | VERIFIED FOR LOCAL POSTGRESQL TEST | PostgreSQL-backed role graph is bundle-loaded by a fresh engine; reconciliation detects a later revision and atomically replaces the in-memory DAG |
 | Runtime `REQUIRE_HUMAN_APPROVAL` obligation | VERIFIED | Compiler-valid typed obligations are synthesized by the deciding policy and serialized structurally |
 | Bounded encrypted PostgreSQL audit delivery | VERIFIED FOR LOCAL POSTGRESQL TEST | Production main uses redaction, envelope encryption, idempotent batch merge and restart spill/replay; deletion evidence/retention remain open |
 | Edge snapshot supports offline startup | NOT IMPLEMENTED | Snapshots are written, but production startup never loads them |

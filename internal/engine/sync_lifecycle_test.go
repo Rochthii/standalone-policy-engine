@@ -2,11 +2,13 @@ package engine
 
 import (
 	"context"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"standalone-policy-engine/internal/storage"
+	"standalone-policy-engine/internal/testutil"
 )
 
 type blockingSyncStore struct {
@@ -71,5 +73,53 @@ func TestSyncerReconcilesWhileListenerIsHealthy(t *testing.T) {
 	}
 	if store.reconciles.Load() == 0 {
 		t.Fatal("periodic reconciliation did not run while LISTEN remained connected")
+	}
+}
+
+func TestSyncerRestartsAndReconcilesRoleInheritance(t *testing.T) {
+	adminURL := os.Getenv("TEST_DATABASE_URL")
+	if adminURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for PostgreSQL role sync integration")
+	}
+	ctx := context.Background()
+	store, err := storage.NewStorage(testutil.CreateIsolatedPostgresDatabase(t, ctx, adminURL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(store.Close)
+	tenantID, err := store.CreateTenant(ctx, "tenant-role-sync")
+	if err != nil {
+		t.Fatalf("create tenant: %v", err)
+	}
+	if err := store.ReplaceRoleInheritances(ctx, tenantID, [][2]string{{"user:alice", "role:manager"}, {"role:manager", "role:staff"}}); err != nil {
+		t.Fatalf("persist initial role inheritance: %v", err)
+	}
+	initialRevision, err := store.GetTenantRevision(ctx, tenantID)
+	if err != nil {
+		t.Fatalf("read initial role revision: %v", err)
+	}
+	restartedEngine := NewEngineWithGC(GCConfig{Enabled: false})
+	restartedSyncer := NewSyncer(restartedEngine, store, time.Hour)
+	if err := restartedSyncer.SyncTenant(ctx, tenantID); err != nil {
+		t.Fatalf("reload role bundle after restart: %v", err)
+	}
+	trie := restartedEngine.GetState().Tenants[tenantID]
+	if trie == nil || trie.Revision != initialRevision || !trie.RoleDAG.IsDescendant("user:alice", "role:staff") {
+		t.Fatalf("restart did not rebuild role DAG: %#v", trie)
+	}
+
+	if err := store.ReplaceRoleInheritances(ctx, tenantID, [][2]string{{"user:alice", "role:auditor"}}); err != nil {
+		t.Fatalf("persist missed role event: %v", err)
+	}
+	catchUpRevision, err := store.GetTenantRevision(ctx, tenantID)
+	if err != nil || catchUpRevision <= initialRevision {
+		t.Fatalf("read catch-up role revision: initial=%d current=%d err=%v", initialRevision, catchUpRevision, err)
+	}
+	if err := restartedSyncer.reconcileTenantRevision(ctx, tenantID); err != nil {
+		t.Fatalf("catch up missed role event: %v", err)
+	}
+	trie = restartedEngine.GetState().Tenants[tenantID]
+	if trie == nil || trie.Revision != catchUpRevision || !trie.RoleDAG.IsDescendant("user:alice", "role:auditor") || trie.RoleDAG.IsDescendant("user:alice", "role:staff") {
+		t.Fatalf("missed-event catch-up did not replace role DAG: %#v", trie)
 	}
 }
