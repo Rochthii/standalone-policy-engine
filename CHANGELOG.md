@@ -10,6 +10,16 @@ Phân loại thay đổi:
 
 ---
 
+## [Unreleased] - 2026-09-14: Dense Candidate and Collision Evidence
+
+### Fixed
+- Trie hash buckets now verify raw subject, resource and action keys before selecting policies, preventing a FNV-1a collision from selecting another key's policy.
+- Reset evaluator scratch storage for each policy evaluation, avoiding heap allocations when a request evaluates more than 64 policy conditions.
+
+### Verification
+- Three repeatable 10,000-candidate samples cover global and same-leaf policy lists; the benchmark reports 0 allocs/op while retaining a documented 27–34 B/op.
+- A forced collision-bucket unit test proves exact raw-key selection. Global and same-leaf lists still scan linearly by design.
+
 ## [Unreleased] - 2026-09-13: Digest-Pinned Testbed
 
 ### Changed

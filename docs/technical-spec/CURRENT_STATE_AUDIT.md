@@ -116,7 +116,7 @@ No previously identified P0 implementation finding remains open. Release is stil
 
 | ID | Finding | Impact |
 |---|---|---|
-| PERF-001 | Global/same-leaf policy lists are scanned and FNV hashes are not collision-checked | Worst-case latency and correctness are not bounded as claimed |
+| PERF-001 | Global/same-leaf policy lists are scanned linearly | Dense 10,000-policy cases are measured, but the zero-linear-scan invariant remains contradicted and arbitrary worst-case latency is not bounded |
 | PERF-002 | GC tracking, metrics and audit add synchronization to the serving path | Core benchmark does not represent production path |
 | OPS-004 | Readiness checks ports rather than authorization-state health/revision lag | Unready pods may receive traffic |
 | EDGE-001 | Badger snapshots have no production restore path | Offline edge promise is not met |

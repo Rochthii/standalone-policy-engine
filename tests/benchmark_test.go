@@ -143,6 +143,49 @@ func BenchmarkConcurrentLoad(b *testing.B) {
 	})
 }
 
+func BenchmarkDenseCandidates_Global10000(b *testing.B) {
+	benchmarkDenseCandidates(b, true)
+}
+
+func BenchmarkDenseCandidates_SameLeaf10000(b *testing.B) {
+	benchmarkDenseCandidates(b, false)
+}
+
+func benchmarkDenseCandidates(b *testing.B, global bool) {
+	const candidateCount = 10_000
+	eng := engine.NewEngine()
+	compiler := parser.NewCompiler()
+	policies := make([]*parser.PolicyNode, candidateCount)
+
+	for i := range policies {
+		var dsl string
+		if global {
+			dsl = `permit(principal == any, action == action:READ, resource == any)
+		when { context.request_class == "dense" };`
+		} else {
+			dsl = `permit(principal == user:"dense", action == action:READ, resource == file:"dense")
+		when { context.request_class == "dense" };`
+		}
+		policies[i] = compileHelper(b, compiler, fmt.Sprintf("P-DENSE-%d", i), dsl)
+	}
+
+	if err := eng.UpdateTenantPolicies("tenant-dense", policies, nil); err != nil {
+		b.Fatalf("UpdateTenantPolicies failed: %v", err)
+	}
+
+	ctx := context.Background()
+	reqCtx := map[string]string{"request_class": "dense"}
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		result := eng.CheckPermission(ctx, "tenant-dense", "user:dense", "action:READ", "file:dense", reqCtx)
+		if result.Decision != engine.DecisionAllow {
+			b.Fatalf("expected ALLOW, got %s", result.Reason)
+		}
+	}
+}
+
 // BenchmarkUltraExtreme_DeepDAG_HeavyABAC đo lường tình huống "ác mộng" nhất (Worst-Case Scenario):
 // 1. Cây phân cấp vai trò cực sâu: 10 cấp thừa kế (user -> level_1 -> ... -> level_10 -> super_admin)
 // 2. Bộ dữ liệu lớn: 5,000 chính sách trong Trie

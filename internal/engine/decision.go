@@ -143,6 +143,7 @@ func evaluatePermission(ctx context.Context, trie *TrieRoot, subject, action, re
 
 	// 4. Đánh giá từng chính sách khớp
 	for _, policy := range matchedPolicies {
+		evalCtx.scratchCount = 0
 		val, err := Evaluate(policy.Condition, evalCtx)
 
 		isConditionSatisfied := false

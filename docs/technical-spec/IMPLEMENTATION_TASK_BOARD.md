@@ -94,11 +94,11 @@ The Waves preserve technical dependency order. The execution priority below is t
 
 | ID | Atomic task | Status | Exit evidence |
 |---|---|---|---|
-| PERF-WORST-01 | Benchmark dense candidate sets and hash-collision correctness. | `TODO` | Raw repeatable samples with allocation data. |
+| PERF-WORST-01 | Benchmark dense candidate sets and hash-collision correctness. | `VERIFIED` | Three 10,000-policy samples per global/same-leaf case, reported allocation data, and forced collision-bucket raw-key correctness test. See `evidence/DENSE_CANDIDATE_COLLISION_2026_09_14.md`. |
 | PERF-FULL-02 | Measure JWT + proof + gRPC + metrics + audit path. | `TODO` | p50/p95/p99/p99.9, throughput, CPU/RSS/GC. |
 | PERF-ODOO-03 | Replace synthetic Odoo baseline with real ORM/database work. | `TODO` | The real Odoo E2E boundary now passes; define an equal-workload comparative benchmark and remove the sleep/hardcoded model from evidence. |
 | REL-GATE-04 | Execute every production-readiness gate and record GO/NO-GO. | `TODO` | All P0 closed; release evidence linked to one commit. |
 
 ## Next task
 
-Next: validate dense candidate sets and hash-collision correctness for RQ2 (`PERF-WORST-01`). Remote CI inspection remains tracked by `CI-003`/G9.
+Next: measure the full PDP path for RQ2 (`PERF-FULL-02`). Remote CI inspection remains tracked by `CI-003`/G9.

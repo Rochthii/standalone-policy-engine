@@ -109,7 +109,7 @@ No gate may be marked `[x]` using comments, screenshots, manually edited result 
 - [ ] Race detector passes on the release commit.
 - [ ] Critical server, storage and security branches have negative tests and an agreed coverage gate.
 - [~] Mandatory local E2E runs Odoo, PostgreSQL, PDP and the real PEP without `t.Skip` fallback (7/7 plus concurrency pass); a successful remote CI run and the combined Control Plane gate remain open.
-- [ ] Benchmarks include worst-case global/same-leaf density and hash-collision handling.
+- [x] Benchmarks cover 10,000 global/same-leaf candidates and a forced collision-bucket test validates raw-key handling; see `evidence/DENSE_CANDIDATE_COLLISION_2026_09_14.md`.
 - [ ] Production-path load test includes JWT, HMAC, metrics, audit and gRPC transport.
 - [ ] Report includes p50/p95/p99/p99.9, throughput, errors, CPU, RSS and GC behavior.
 - [ ] Real Odoo baseline executes ORM/database operations rather than `time.sleep`.

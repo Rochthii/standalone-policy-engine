@@ -277,3 +277,42 @@ func TestTrie_EmptyLookupNoPanic(t *testing.T) {
 		t.Error("LookupPolicies phải trả về slice rỗng (không phải nil) khi không tìm thấy")
 	}
 }
+
+func TestTrie_ForcedHashCollisionBucketMatchesRawKeys(t *testing.T) {
+	trie := NewTrieRoot("tenant-trie-collision")
+	const (
+		subject  = "user:alice"
+		resource = "file:report"
+		action   = "action:READ"
+	)
+
+	// Các bucket này mô phỏng hai raw key có cùng FNV hash tại từng cấp.
+	// Lookup phải chỉ trả policy có raw key khớp chính xác.
+	trie.Subjects[fnvHash(subject)] = []*SubjectNode{
+		{
+			Key: "user:mallory",
+		},
+		{
+			Key: subject,
+			Resources: map[uint64][]*ResourceNode{
+				fnvHash(resource): {
+					{Key: "file:secret"},
+					{
+						Key: resource,
+						Actions: map[uint64][]*ActionNode{
+							fnvHash(action): {
+								{Key: "action:WRITE", Policies: []*parser.PolicyNode{{ID: "P-WRITE"}}},
+								{Key: action, Policies: []*parser.PolicyNode{{ID: "P-ALICE"}}},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	results := trie.LookupPolicies([]string{subject}, []string{resource}, action)
+	if len(results) != 1 || results[0].ID != "P-ALICE" {
+		t.Fatalf("collision bucket returned wrong policy: %#v", results)
+	}
+}
