@@ -80,6 +80,8 @@ Observed Go core benchmarks on a 13th Gen Intel Core i7-13700H, Windows/amd64, G
 | `BenchmarkUltraExtreme_DeepDAG_HeavyABAC` | 839.8–845.1 ns/op | 0 B/op, 0 allocs/op |
 | `BenchmarkUltraExtreme_10kPolicies_ConcurrentContention` | 34.30–67.11 ns/op | 0 B/op, 0 allocs/op |
 
+Local full-path application evidence is recorded separately in `evidence/FULL_PATH_2026_09_14.md`: a persistent loopback TCP gRPC connection validates JWT, full-tuple HMAC proof, engine, metrics and encrypted audit queueing across three 10,000-request samples. It is not a mTLS, PostgreSQL-audit, Odoo, container-network or concurrent-load measurement.
+
 `ns/op` from a parallel benchmark is aggregate throughput-normalized time. It must not be reported as the wall-clock latency of one network request.
 
 ## 4. Claim-to-evidence register
@@ -90,6 +92,7 @@ Observed Go core benchmarks on a 13th Gen Intel Core i7-13700H, Windows/amd64, G
 | Forbid-overrides | VERIFIED | Matching forbid short-circuits permit results |
 | AST depth <= 15 | VERIFIED | Enforced during compilation |
 | Core evaluator is sub-microsecond | VERIFIED FOR MEASURED CASES | Reproduced locally; scope is in-memory `Engine`, not gRPC E2E |
+| Full application decision path is measured | VERIFIED FOR LOCAL LOOPBACK TCP CASE | Three 10,000-request samples include JWT, delegation proof, gRPC, metrics and encrypted audit queueing; no mTLS, PostgreSQL audit flush, Odoo or concurrent load |
 | Zero allocations on every production hot path | PARTIAL | Measured cases pass; `contains`, normalization, buffer overflow, metrics, audit, JWT and gRPC are outside this guarantee |
 | Zero linear policy scans | CONTRADICTED | Global and same-leaf candidate policies are iterated linearly |
 | Strict multi-tenant JWT isolation | VERIFIED | Missing credentials/claims and cross-tenant requests fail; signed principal attributes are authoritative |
@@ -117,7 +120,7 @@ No previously identified P0 implementation finding remains open. Release is stil
 | ID | Finding | Impact |
 |---|---|---|
 | PERF-001 | Global/same-leaf policy lists are scanned linearly | Dense 10,000-policy cases are measured, but the zero-linear-scan invariant remains contradicted and arbitrary worst-case latency is not bounded |
-| PERF-002 | GC tracking, metrics and audit add synchronization to the serving path | Core benchmark does not represent production path |
+| PERF-002 | Production boundaries remain outside the local application-path measurement | mTLS, durable PostgreSQL audit flush, revocation storage/synchronization, container networking, Odoo and concurrent load are not latency-bounded |
 | OPS-004 | Readiness checks ports rather than authorization-state health/revision lag | Unready pods may receive traffic |
 | EDGE-001 | Badger snapshots have no production restore path | Offline edge promise is not met |
 | TEST-001 | The mandatory Odoo/PostgreSQL/gRPC gate passes locally and is defined in CI, but no successful remote committed run has been inspected | The local result is valid evidence; release branch protection is not yet proven |

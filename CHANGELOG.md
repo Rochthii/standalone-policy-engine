@@ -10,6 +10,16 @@ Phân loại thay đổi:
 
 ---
 
+## [Unreleased] - 2026-09-14: Full PDP Application-Path Evidence
+
+### Added
+- A gated 10,000-request loopback TCP gRPC measurement covers JWT validation, HMAC delegation proof, policy evaluation, metrics, encrypted audit queueing, latency percentiles, throughput, process CPU, RSS and GC.
+- Windows latency sampling now uses `QueryPerformanceCounter`; the coarse wall clock was rejected after it produced zero-duration samples.
+
+### Verification
+- Three samples report p50 200.5–207.7 µs and p99 723.4–890.8 µs at 3,457–4,096 RPS with zero request errors.
+- The evidence explicitly excludes mTLS, durable PostgreSQL audit flush, revocation storage/synchronization, container networking, Odoo and concurrent load.
+
 ## [Unreleased] - 2026-09-14: Dense Candidate and Collision Evidence
 
 ### Fixed

@@ -110,8 +110,8 @@ No gate may be marked `[x]` using comments, screenshots, manually edited result 
 - [ ] Critical server, storage and security branches have negative tests and an agreed coverage gate.
 - [~] Mandatory local E2E runs Odoo, PostgreSQL, PDP and the real PEP without `t.Skip` fallback (7/7 plus concurrency pass); a successful remote CI run and the combined Control Plane gate remain open.
 - [x] Benchmarks cover 10,000 global/same-leaf candidates and a forced collision-bucket test validates raw-key handling; see `evidence/DENSE_CANDIDATE_COLLISION_2026_09_14.md`.
-- [ ] Production-path load test includes JWT, HMAC, metrics, audit and gRPC transport.
-- [ ] Report includes p50/p95/p99/p99.9, throughput, errors, CPU, RSS and GC behavior.
+- [x] Local TCP application-path measurement validates JWT, HMAC, metrics, encrypted audit queueing and gRPC transport; mTLS and PostgreSQL audit flush remain excluded by scope. See `evidence/FULL_PATH_2026_09_14.md`.
+- [x] The local application-path report records p50/p95/p99/p99.9, throughput, zero errors, CPU, RSS and GC behavior; see `evidence/FULL_PATH_2026_09_14.md`.
 - [ ] Real Odoo baseline executes ORM/database operations rather than `time.sleep`.
 
 ## 12. Recommended execution order
