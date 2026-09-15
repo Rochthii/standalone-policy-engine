@@ -1,6 +1,6 @@
 # BENCHMARK_REPRODUCIBILITY.md — Đặc Tả Tái Lập Thực Nghiệm & Test Vectors
 
-> **Audit notice (2026-09-11):** Các số liệu core evaluator phải được diễn giải đúng phạm vi in-memory. Baseline Odoo hiện dùng `time.sleep` và giá trị PDP hardcode nên không phải phép đo Odoo thực nghiệm; không được dùng để tuyên bố hệ số 44.000x. Xem [`CURRENT_STATE_AUDIT.md`](./CURRENT_STATE_AUDIT.md) và các gate G0/G9 trong [`PRODUCTION_READINESS_CHECKLIST.md`](./PRODUCTION_READINESS_CHECKLIST.md).
+> **Audit notice (updated 2026-09-15):** Các số liệu core evaluator phải được diễn giải đúng phạm vi in-memory. Mô hình Odoo `time.sleep`/PDP hardcoded đã bị loại bỏ; thay thế là phép đo Odoo ORM/PostgreSQL so với Odoo-to-PDP mTLS gRPC, có raw data trên commit `4bb4c48`. Đây chỉ là một workload cấp quyền ấm, không phải tuyên bố speedup chung cho ERP. Xem [`ODOO_ORM_COMPARISON_2026_09_15.md`](./evidence/ODOO_ORM_COMPARISON_2026_09_15.md), [`CURRENT_STATE_AUDIT.md`](./CURRENT_STATE_AUDIT.md) và gate G0/G9 trong [`PRODUCTION_READINESS_CHECKLIST.md`](./PRODUCTION_READINESS_CHECKLIST.md).
 
 Tài liệu này cung cấp hướng dẫn chi tiết từng bước (Step-by-Step Guide) và các bộ vector kiểm thử (Test Vectors) để Hội đồng Chấm Đồ án có thể **tự chạy lại và kiểm chứng 100% tính xác thực của các chỉ số hiệu năng** (27.12 ns/op, 36.8M RPS, 0 allocs/op, 286.3 ns chặn Prompt Injection) trên bất kỳ máy tính nào.
 

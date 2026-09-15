@@ -20,7 +20,7 @@ The correct positioning is:
 
 - **Strong core-engine prototype** for continued research and hardening.
 - **Incomplete distributed PDP product** that must not protect real ERP transactions yet.
-- **Partially verified experiment**: the Go core benchmarks are valid for their scope; the claimed Odoo speedup is not an empirical Odoo measurement.
+- **Partially verified experiment**: the Go core benchmarks are valid for their scope; the real Odoo comparison covers one narrow warm authorization workload only and cannot support a general ERP speedup claim.
 
 ## 2. Status scorecard
 
@@ -106,7 +106,7 @@ Local full-path application evidence is recorded separately in `evidence/FULL_PA
 | Odoo 17 PEP addon is included and verified | VERIFIED FOR SINGLE-PDP MTLS BOUNDARY | Fresh install, seven transaction cases and two-session retry pass through real ORM/mTLS-gRPC/PostgreSQL; clients without a certificate are rejected |
 | Frozen testbed base images | VERIFIED FOR LOCAL E2E TESTBED | PostgreSQL 15, Go 1.25, Alpine 3.19 and Odoo 17 are manifest-digest pinned; local PDP/Odoo builds and the full Odoo mTLS E2E gate pass. Future image/CVE updates require an intentional digest refresh. |
 | 7/7 delegation vectors | VERIFIED AS IN-PROCESS TESTS | They do not prove Odoo/container/network integration |
-| Odoo is approximately 44,000x slower | INVALID AS EMPIRICAL CLAIM | The baseline script sleeps for a configured delay and hardcodes the PDP result |
+| Odoo/PDP comparative authorization evidence | VERIFIED FOR ONE NARROW WARM WORKLOAD | The sleep/hardcoded model is retired. A real Odoo `ir.rule`/PostgreSQL check versus Odoo-to-PDP mTLS gRPC benchmark records 750 raw samples per path on commit `4bb4c48`; it shows a 1.346x mean difference but does not establish a general ERP speedup. See `evidence/ODOO_ORM_COMPARISON_2026_09_15.md`. |
 | gRPC contract is standard generated Protobuf | VERIFIED | Buf-pinned Go/Python generation, Docker wire E2E and Python-to-Go live call pass |
 
 ## 5. Open findings

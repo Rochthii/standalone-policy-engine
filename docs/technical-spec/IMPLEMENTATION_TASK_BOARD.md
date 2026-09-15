@@ -96,9 +96,9 @@ The Waves preserve technical dependency order. The execution priority below is t
 |---|---|---|---|
 | PERF-WORST-01 | Benchmark dense candidate sets and hash-collision correctness. | `VERIFIED` | Three 10,000-policy samples per global/same-leaf case, reported allocation data, and forced collision-bucket raw-key correctness test. See `evidence/DENSE_CANDIDATE_COLLISION_2026_09_14.md`. |
 | PERF-FULL-02 | Measure JWT + proof + gRPC + metrics + audit path. | `VERIFIED` | Three 10,000-request TCP gRPC samples record p50/p95/p99/p99.9, throughput, zero errors, process CPU, RSS and GC while validating JWT, HMAC proof, metrics and encrypted audit queueing. See `evidence/FULL_PATH_2026_09_14.md`. |
-| PERF-ODOO-03 | Replace synthetic Odoo baseline with real ORM/database work. | `TODO` | The real Odoo E2E boundary now passes; define an equal-workload comparative benchmark and remove the sleep/hardcoded model from evidence. |
+| PERF-ODOO-03 | Replace synthetic Odoo baseline with real ORM/database work. | `VERIFIED` | Real Odoo `ir.rule`/PostgreSQL authorization and Odoo-to-PDP mTLS gRPC comparison: three 250-request samples per path, all 1,500 raw latencies, workload limits, and commit `4bb4c48` recorded. The retired model is not used for claims. See `evidence/ODOO_ORM_COMPARISON_2026_09_15.md`. |
 | REL-GATE-04 | Execute every production-readiness gate and record GO/NO-GO. | `TODO` | All P0 closed; release evidence linked to one commit. |
 
 ## Next task
 
-Next: replace the synthetic Odoo baseline with an equal-workload ORM/database comparison for RQ4 (`PERF-ODOO-03`). Remote CI inspection remains tracked by `CI-003`/G9.
+Next: add policy/sync/dependency readiness reporting so degraded pods leave traffic before serving (`OPS-HEALTH-03`). Remote CI inspection remains tracked by `CI-003`/G9.

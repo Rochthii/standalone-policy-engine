@@ -16,17 +16,19 @@
 
 ---
 
-## 2. Comparative Benchmark Matrix (3 Architectural Baselines)
+## 2. Comparative Benchmark Matrix (current evidence)
 
-| Architectural Dimension | Odoo Native `ir.rule` | OPA Sidecar (Open Policy Agent) | Go PDP (Proposed Engine) | Architectural Advantage |
-|---|---|---|---|---|
-| **Protocol / Transport** | Python C-Extension / SQL Subqueries | HTTP/1.1 REST (JSON over TCP) | gRPC Persistent / Unix Domain Socket | Zero HTTP handshake overhead |
-| **Data Location** | Disk / PostgreSQL shared cache | In-Memory (JSON Document) | In-Memory Radix Trie + Role DAG Closure | FNV-1a uint64 hashing eliminates string comparison |
-| **Evaluation Algorithm** | SQL Query Generation (`WHERE ... IN (...)`) | Recursive AST Walking (Rego Interpreter) | Pure Compiled AST + Transitive Closure $O(1)$ | Lock-free Copy-On-Write read path |
-| **Evaluation Latency** | 10.0 ms – 50.0 ms | 1.5 ms – 5.0 ms | **27.12 ns (RAM) / 0.31 ms (gRPC E2E)** | **$\approx 370\times$ faster than OPA; $30,000\times$ faster than SQL** |
-| **Throughput (Single Core)** | ~120 ops/sec | ~2,500 ops/sec | **~1,840,000 ops/sec** | Saturated CPU execution |
-| **Throughput (20 Cores)** | ~1,500 ops/sec | ~25,000 ops/sec | **36,800,000 ops/sec** | Perfect linear scalability |
-| **Heap Allocations** | Millions of Python objects / GC pressure | 40 – 120 allocs/eval | **0 B/op (0 allocs/op)** | Zero GC jitter |
+> The former fixed 10–50 ms Odoo, OPA, and 30,000x comparison has no like-for-like evidence and is retired. The only Odoo comparison below is a measured, narrow authorization workload; no OPA measurement is currently claimed.
+
+| Measured workload (commit `4bb4c48`) | Odoo native `ir.rule` + PostgreSQL | Odoo client + PDP mTLS gRPC | Interpretation |
+|---|---:|---:|---|
+| Mean latency, 750 warm authorization checks | 1.395756 ms | 1.036841 ms | PDP path is 1.346x lower in this workload only |
+| p50 latency | 1.364612 ms | 0.941398 ms | PDP path is 1.450x lower |
+| p95 latency | 1.873552 ms | 1.807840 ms | Near parity (1.036x) |
+| p99 latency | 2.412293 ms | 2.884821 ms | Native path is lower; no tail-latency win is claimed |
+| Scope | One existing low-value purchase order; setup/warm-up/mutations excluded | Same authorization intent; JWT, full proof, mTLS gRPC included | Not a full ERP transaction, concurrent load, allocation, or production comparison |
+
+Raw samples and method limits: [`evidence/ODOO_ORM_COMPARISON_2026_09_15.md`](./evidence/ODOO_ORM_COMPARISON_2026_09_15.md).
 
 ---
 

@@ -19,7 +19,7 @@ No gate may be marked `[x]` using comments, screenshots, manually edited result 
 ## 2. G0 — Claim and documentation integrity
 
 - [ ] README identifies the repository as a prototype until all P0 gates pass.
-- [ ] “44,000x” is removed or replaced with a real Odoo measurement and raw data.
+- [x] The “44,000x” claim is retired and replaced with real Odoo ORM/PostgreSQL versus mTLS-PDP raw data; see `evidence/ODOO_ORM_COMPARISON_2026_09_15.md`.
 - [ ] Core latency, in-process latency, gRPC latency and ERP transaction latency are reported separately.
 - [ ] Every benchmark records commit, Go version, OS, CPU, command, sample count and raw output.
 - [ ] “E2E”, “WORM”, “encrypted”, “cluster-wide” and “production-ready” are used only after their corresponding gates pass.
@@ -112,7 +112,7 @@ No gate may be marked `[x]` using comments, screenshots, manually edited result 
 - [x] Benchmarks cover 10,000 global/same-leaf candidates and a forced collision-bucket test validates raw-key handling; see `evidence/DENSE_CANDIDATE_COLLISION_2026_09_14.md`.
 - [x] Local TCP application-path measurement validates JWT, HMAC, metrics, encrypted audit queueing and gRPC transport; mTLS and PostgreSQL audit flush remain excluded by scope. See `evidence/FULL_PATH_2026_09_14.md`.
 - [x] The local application-path report records p50/p95/p99/p99.9, throughput, zero errors, CPU, RSS and GC behavior; see `evidence/FULL_PATH_2026_09_14.md`.
-- [ ] Real Odoo baseline executes ORM/database operations rather than `time.sleep`.
+- [x] Real Odoo baseline executes a record-rule ORM/PostgreSQL authorization rather than `time.sleep`; see `evidence/ODOO_ORM_COMPARISON_2026_09_15.md`.
 
 ## 12. Recommended execution order
 

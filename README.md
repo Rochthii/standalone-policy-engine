@@ -28,18 +28,15 @@ An in-memory Policy Decision Point (PDP) research prototype in Go implementing P
 | **10,000 Policies Concurrent Contention** | **34.30–67.11 ns/op** | **0 B/op, 0 allocs/op** | Three 1-second samples; narrow in-memory path |
 | **Deep DAG + Heavy ABAC** | **839.8–845.1 ns/op** | **0 B/op, 0 allocs/op** | Three 1-second samples; narrow in-memory path |
 
-### Synthetic Timing Model: Odoo Native ORM vs Standalone Go PDP
+### Measured Odoo ORM/PostgreSQL vs PDP Authorization
 
-`tests/baseline_odoo_orm_benchmark.py` currently uses a configured `time.sleep` for the Odoo side and a hardcoded PDP value. The table below is retained as a historical illustrative model; it is **not empirical Odoo evidence** and must not be cited as a measured speedup. See the [current-state audit](./docs/technical-spec/CURRENT_STATE_AUDIT.md).
+The former `time.sleep`/hardcoded comparison is retired. On commit `4bb4c48`, a real warm-path benchmark compares one Odoo record-rule authorization against the Odoo client calling the PDP over mTLS gRPC; it records 750 raw latencies for each path. This narrow scenario is not a whole-ERP or production speedup claim. See the [raw evidence](./docs/technical-spec/evidence/ODOO_ORM_COMPARISON_2026_09_15.json) and its [method/limits](./docs/technical-spec/evidence/ODOO_ORM_COMPARISON_2026_09_15.md).
 
-| Evaluation Criteria | Odoo 17 Native ORM (`ir.rule`) | Standalone Go PDP (In-Memory) | Superiority Factor |
-|---|---|---|:---:|
-| **Illustrative Mean Latency** | **Simulated 23.77 ms** | **Hardcoded 0.000540 ms** | **Not experimentally validated** |
-| **RAM Allocation on Hot-Path** | ~24 KB / query (ORM Objects) | **0 B / op (Zero-Alloc)** | **Zero GC Pressure** |
-| **Heap Allocations per Check** | ~120 allocs / check | **0 allocs / op** | **Zero Memory Leaks** |
-| **Anti-TOCTOU Defense** | Vulnerable (Waits for DB commit) | **O(1) tenant-scoped in-memory lookup backed by PostgreSQL** | Three-replica restart/delayed-delivery evidence; 5s SLO |
-| **AI Delegation Chain Support** | Not supported (User ID only) | **Versioned full-tuple direct delegation HMAC with key-ring rotation** | Odoo duplicate, altered-command replay, rollback and two-session retry cases pass |
-| **Runtime Obligation Handling** | Triggers Database Rollback Trap | **Typed PDP obligation output** | Real Odoo test verifies `to approve` plus one Activity without rollback |
+| Metric | Odoo ORM + PostgreSQL | Odoo client + PDP mTLS gRPC |
+|---|---:|---:|
+| Mean | 1.395756 ms | 1.036841 ms |
+| p50 | 1.364612 ms | 0.941398 ms |
+| p99 | 2.412293 ms | 2.884821 ms |
 
 ---
 
