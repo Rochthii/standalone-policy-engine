@@ -1,4 +1,4 @@
-.PHONY: test bench lint build tidy generate-proto proto-check build-pectl install-pectl test-pectl test-odoo-e2e run-pdp run-control pdp control-plane migrate docker
+.PHONY: test bench lint build tidy generate-proto proto-check build-pectl install-pectl test-pectl test-odoo-e2e benchmark-odoo-orm run-pdp run-control pdp control-plane migrate docker
 
 test:
 	go test -v ./...
@@ -39,6 +39,10 @@ test-pectl:
 test-odoo-e2e:
 	docker compose -f docker-compose.testbed.yml --profile e2e run --build --rm testbed-certgen
 	docker compose -f docker-compose.testbed.yml --profile e2e up --build --abort-on-container-exit --exit-code-from testbed-odoo-e2e testbed-odoo-e2e
+
+benchmark-odoo-orm:
+	PDP_GIT_COMMIT=$$(git rev-parse --short HEAD) docker compose -f docker-compose.testbed.yml --profile benchmark run --build --rm testbed-certgen
+	PDP_GIT_COMMIT=$$(git rev-parse --short HEAD) docker compose -f docker-compose.testbed.yml --profile benchmark up --build --abort-on-container-exit --exit-code-from testbed-odoo-benchmark testbed-odoo-benchmark
 
 run-pdp:
 	go run ./cmd/pdp-server/main.go
