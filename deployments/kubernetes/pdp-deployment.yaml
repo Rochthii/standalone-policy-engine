@@ -23,6 +23,8 @@ spec:
         ports:
         - containerPort: 50051
           name: grpc-backend
+        - containerPort: 8080
+          name: health
         env:
         - name: DATABASE_URL
           valueFrom:
@@ -40,13 +42,15 @@ spec:
         - name: spill-logs-volume
           mountPath: /app/spill-logs
         readinessProbe:
-          tcpSocket:
-            port: 50051
+          httpGet:
+            path: /readyz
+            port: health
           initialDelaySeconds: 5
           periodSeconds: 10
         livenessProbe:
-          tcpSocket:
-            port: 50051
+          httpGet:
+            path: /livez
+            port: health
           initialDelaySeconds: 15
           periodSeconds: 20
 

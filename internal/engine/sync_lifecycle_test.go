@@ -16,7 +16,8 @@ type blockingSyncStore struct {
 	reconciles    atomic.Int64
 }
 
-func (s *blockingSyncStore) ListenPolicyEvents(ctx context.Context, _ func(storage.DBPolicyUpdateEvent)) error {
+func (s *blockingSyncStore) ListenPolicyEvents(ctx context.Context, _ func(storage.DBPolicyUpdateEvent), onReady func()) error {
+	onReady()
 	select {
 	case <-s.listenStarted:
 	default:
@@ -73,6 +74,28 @@ func TestSyncerReconcilesWhileListenerIsHealthy(t *testing.T) {
 	}
 	if store.reconciles.Load() == 0 {
 		t.Fatal("periodic reconciliation did not run while LISTEN remained connected")
+	}
+}
+
+func TestSyncerReadinessDetectsRevisionLag(t *testing.T) {
+	store := &blockingSyncStore{listenStarted: make(chan struct{})}
+	eng := NewEngineWithGC(GCConfig{Enabled: false})
+	if err := eng.UpdateTenantPoliciesWithRevision("tenant-a", nil, nil, 1); err != nil {
+		t.Fatal(err)
+	}
+	syncer := NewSyncer(eng, store, time.Hour)
+	if status, err := syncer.Readiness(context.Background()); err == nil || status != SyncStatusNotReady {
+		t.Fatalf("initial readiness = (%s, %v), want not_ready error", status, err)
+	}
+	syncer.setSyncStatus(SyncStatusHealthy)
+	if status, err := syncer.Readiness(context.Background()); err != nil || status != SyncStatusHealthy {
+		t.Fatalf("healthy readiness = (%s, %v)", status, err)
+	}
+	if err := eng.UpdateTenantPoliciesWithRevision("tenant-a", nil, nil, 2); err != nil {
+		t.Fatal(err)
+	}
+	if status, err := syncer.Readiness(context.Background()); err == nil || status != SyncStatusDegraded {
+		t.Fatalf("revision lag readiness = (%s, %v), want degraded error", status, err)
 	}
 }
 

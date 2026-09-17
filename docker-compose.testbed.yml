@@ -51,6 +51,11 @@ services:
     depends_on:
       testbed-db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/readyz"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
 
   # Ephemeral certificate generator used only by `make test-odoo-e2e`.
   testbed-certgen:
@@ -98,6 +103,11 @@ services:
     depends_on:
       testbed-db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/readyz"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
 
   # 3. Odoo 17.0 ERP Core
   testbed-odoo:
@@ -130,7 +140,7 @@ services:
       testbed-db:
         condition: service_healthy
       testbed-pdp:
-        condition: service_started
+        condition: service_healthy
 
   # 4. Real Odoo ORM -> gRPC -> Go PDP transaction gate
   testbed-odoo-e2e:
@@ -173,7 +183,7 @@ services:
       testbed-db:
         condition: service_healthy
       testbed-pdp-mtls:
-        condition: service_started
+        condition: service_healthy
 
   # Real comparative benchmark: Odoo record rule + PostgreSQL versus Odoo -> mTLS gRPC PDP.
   testbed-odoo-benchmark:
@@ -218,7 +228,7 @@ services:
       testbed-db:
         condition: service_healthy
       testbed-pdp-mtls:
-        condition: service_started
+        condition: service_healthy
 
   # 5. Automated in-process core vectors and benchmark runner
   testbed-runner:
@@ -243,7 +253,7 @@ services:
       "
     depends_on:
       testbed-pdp:
-        condition: service_started
+        condition: service_healthy
 
 volumes:
   testbed_pg_data:

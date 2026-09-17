@@ -86,7 +86,7 @@ The Waves preserve technical dependency order. The execution priority below is t
 | API-RUNTIME-02 | Define codec, deadlines, limits and error semantics. | `VERIFIED` | Standard protobuf wire E2E, fail-fast runtime config and oversized-request ResourceExhausted test pass. |
 | OPS-CONFIG-01 | Prove every environment key has a runtime consumer. | `VERIFIED` | Central config binding matrix covers every PDP/Control Plane runtime key; orphan Redis, audit-socket and legacy port keys were removed; Ziti inputs are centrally consumed. See `evidence/CONFIG_CONSUMERS_2026_09_13.md`. |
 | OPS-IMAGE-02 | Make testbed self-contained and pin images by digest. | `VERIFIED` | All external PostgreSQL, Go, Alpine and Odoo images are pinned by manifest-list digest; repository-local builds and the full Odoo mTLS E2E gate pass. See `evidence/TESTBED_IMAGE_PINNING_2026_09_13.md`. |
-| OPS-HEALTH-03 | Make readiness report policy/sync/dependency health. | `TODO` | Degraded pods leave readiness before receiving traffic. |
+| OPS-HEALTH-03 | Make readiness report policy/sync/dependency health. | `VERIFIED` | `/readyz` checks PostgreSQL, active policy-sync listener and loaded-tenant revision parity; it returns 503 for `degraded` and `not_ready`. Kubernetes and Compose make Odoo wait for PDP readiness. See `evidence/OPS_HEALTH_2026_09_17.md`. |
 | OPS-SHUTDOWN-04 | Cancel listeners/workers before waiting and bound shutdown. | `VERIFIED` | Blocking listener is canceled and `Stop` completes within the test deadline. |
 | EDGE-RESTORE-05 | Implement snapshot restore or remove edge-startup claim. | `TODO` | Offline restart test or explicit scope removal. |
 
@@ -101,4 +101,4 @@ The Waves preserve technical dependency order. The execution priority below is t
 
 ## Next task
 
-Next: add policy/sync/dependency readiness reporting so degraded pods leave traffic before serving (`OPS-HEALTH-03`). Remote CI inspection remains tracked by `CI-003`/G9.
+Next: implement edge snapshot restoration or remove the unsupported edge-startup claim (`EDGE-RESTORE-05`). Remote CI inspection remains tracked by `CI-003`/G9.

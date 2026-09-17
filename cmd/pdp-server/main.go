@@ -14,6 +14,7 @@ import (
 	"standalone-policy-engine/internal/server"
 	"standalone-policy-engine/internal/storage"
 	"syscall"
+	"time"
 
 	"github.com/openziti/sdk-golang/ziti"
 )
@@ -148,6 +149,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("[PDP-Server] Không thể chạy gRPC server: %v", err)
 	}
+	healthServer, err := server.StartReadinessServer(cfg.Server.HTTPPort, store, syncer)
+	if err != nil {
+		log.Fatalf("[PDP-Server] Không thể chạy health server: %v", err)
+	}
+	log.Printf("[PDP-Server] Health endpoints đang lắng nghe tại cổng :%d...", cfg.Server.HTTPPort)
 
 	// Lắng nghe tín hiệu dừng chương trình (Graceful Shutdown)
 	sigChan := make(chan os.Signal, 1)
@@ -155,6 +161,11 @@ func main() {
 	<-sigChan
 
 	log.Println("[PDP-Server] Đang tắt an toàn dịch vụ...")
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+	if err := healthServer.Shutdown(shutdownCtx); err != nil {
+		log.Printf("[PDP-Server] Health server shutdown lỗi: %v", err)
+	}
 	grpcServer.GracefulStop()
 	auditLogger.Stop()
 	stopServer()

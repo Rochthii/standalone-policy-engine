@@ -35,7 +35,8 @@ RUN mkdir -p /app/spill-logs && chmod 777 /app/spill-logs
 # Khai báo volume cho log spill để persist dữ liệu
 VOLUME ["/app/spill-logs"]
 
-# Port mặc định cho gRPC server
+# Default gRPC and local readiness ports.
 EXPOSE 50051
+EXPOSE 8080
 
 ENTRYPOINT ["./pdp-server"]

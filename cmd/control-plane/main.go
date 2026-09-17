@@ -36,9 +36,17 @@ func main() {
 		Interval:    cfg.Engine.GCInterval,
 		IdleTimeout: cfg.Engine.GCIdle,
 	})
+	ctxServer, stopServer := context.WithCancel(context.Background())
+	defer stopServer()
+	eng.StartGC(ctxServer)
+	syncer := engine.NewSyncer(eng, store, cfg.Engine.ReconcileInterval)
+	eng.SetLazyLoader(func(ctx context.Context, tenantID string) error {
+		return syncer.SyncTenant(ctx, tenantID)
+	})
+	syncer.Start(ctxServer)
 
 	// 3. Khởi chạy HTTP Server
-	httpServer, err := server.StartHTTPServer(cfg.Server.HTTPPort, store, eng, cfg.Security)
+	httpServer, err := server.StartHTTPServerWithSync(cfg.Server.HTTPPort, store, eng, syncer, cfg.Security)
 	if err != nil {
 		log.Fatalf("[Control-Plane] Không thể chạy HTTP server: %v", err)
 	}
@@ -56,5 +64,7 @@ func main() {
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		log.Printf("[Control-Plane] HTTP Shutdown lỗi: %v", err)
 	}
+	stopServer()
+	syncer.Stop()
 	log.Println("[Control-Plane] Dừng dịch vụ hoàn tất. Tạm biệt!")
 }

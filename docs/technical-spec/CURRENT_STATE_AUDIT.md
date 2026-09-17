@@ -105,6 +105,7 @@ Local full-path application evidence is recorded separately in `evidence/FULL_PA
 | Edge snapshot supports offline startup | NOT IMPLEMENTED | Snapshots are written, but production startup never loads them |
 | Odoo 17 PEP addon is included and verified | VERIFIED FOR SINGLE-PDP MTLS BOUNDARY | Fresh install, seven transaction cases and two-session retry pass through real ORM/mTLS-gRPC/PostgreSQL; clients without a certificate are rejected |
 | Frozen testbed base images | VERIFIED FOR LOCAL E2E TESTBED | PostgreSQL 15, Go 1.25, Alpine 3.19 and Odoo 17 are manifest-digest pinned; local PDP/Odoo builds and the full Odoo mTLS E2E gate pass. Future image/CVE updates require an intentional digest refresh. |
+| Readiness reports authorization dependencies | VERIFIED FOR LOCAL HTTP/CONFIG TESTS | `/readyz` verifies PostgreSQL, the active policy-sync listener and revision parity for every loaded tenant; `degraded` and `not_ready` return 503. Kubernetes probes this endpoint and Compose makes Odoo wait for PDP readiness. See `evidence/OPS_HEALTH_2026_09_17.md`. |
 | 7/7 delegation vectors | VERIFIED AS IN-PROCESS TESTS | They do not prove Odoo/container/network integration |
 | Odoo/PDP comparative authorization evidence | VERIFIED FOR ONE NARROW WARM WORKLOAD | The sleep/hardcoded model is retired. A real Odoo `ir.rule`/PostgreSQL check versus Odoo-to-PDP mTLS gRPC benchmark records 750 raw samples per path on commit `4bb4c48`; it shows a 1.346x mean difference but does not establish a general ERP speedup. See `evidence/ODOO_ORM_COMPARISON_2026_09_15.md`. |
 | gRPC contract is standard generated Protobuf | VERIFIED | Buf-pinned Go/Python generation, Docker wire E2E and Python-to-Go live call pass |
@@ -121,7 +122,6 @@ No previously identified P0 implementation finding remains open. Release is stil
 |---|---|---|
 | PERF-001 | Global/same-leaf policy lists are scanned linearly | Dense 10,000-policy cases are measured, but the zero-linear-scan invariant remains contradicted and arbitrary worst-case latency is not bounded |
 | PERF-002 | Production boundaries remain outside the local application-path measurement | mTLS, durable PostgreSQL audit flush, revocation storage/synchronization, container networking, Odoo and concurrent load are not latency-bounded |
-| OPS-004 | Readiness checks ports rather than authorization-state health/revision lag | Unready pods may receive traffic |
 | EDGE-001 | Badger snapshots have no production restore path | Offline edge promise is not met |
 | TEST-001 | The mandatory Odoo/PostgreSQL/gRPC gate passes locally and is defined in CI, but no successful remote committed run has been inspected | The local result is valid evidence; release branch protection is not yet proven |
 | DOC-001 | Current documents state verified facts that the repository contradicts | Academic and engineering credibility risk |

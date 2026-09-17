@@ -131,12 +131,12 @@ type MetricsResp struct {
 
 // HealthComponent represents a single component health state.
 type HealthComponent struct {
-	Status  string `json:"status"` // UP, DOWN, UNKNOWN
+	Status  string `json:"status"` // healthy, degraded, not_ready
 	Message string `json:"message,omitempty"`
 }
 
 // HealthResp represents health check details.
 type HealthResp struct {
-	Status     string                     `json:"status"` // UP, DOWN, PARTIAL
+	Status     string                     `json:"status"` // healthy, degraded, not_ready
 	Components map[string]HealthComponent `json:"components"`
 }

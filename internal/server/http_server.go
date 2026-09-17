@@ -17,6 +17,7 @@ import (
 type HTTPServer struct {
 	storage      *storage.Storage
 	engine       *engine.EngineWithGC
+	syncer       *engine.Syncer
 	jwtValidator *security.JWTValidator
 }
 
@@ -25,6 +26,7 @@ func NewHTTPServer(store *storage.Storage, eng *engine.EngineWithGC) *HTTPServer
 	return &HTTPServer{
 		storage:      store,
 		engine:       eng,
+		syncer:       nil,
 		jwtValidator: security.NewJWTValidator(),
 	}
 }
@@ -33,6 +35,7 @@ func NewHTTPServerWithSecurity(store *storage.Storage, eng *engine.EngineWithGC,
 	return &HTTPServer{
 		storage: store,
 		engine:  eng,
+		syncer:  nil,
 		jwtValidator: security.NewJWTValidatorWithConfig(
 			securityConfig.JWTSecret,
 			securityConfig.JWTIssuer,
@@ -41,10 +44,17 @@ func NewHTTPServerWithSecurity(store *storage.Storage, eng *engine.EngineWithGC,
 	}
 }
 
+func NewHTTPServerWithSecurityAndSync(store *storage.Storage, eng *engine.EngineWithGC, syncer *engine.Syncer, securityConfig config.SecurityConfig) *HTTPServer {
+	s := NewHTTPServerWithSecurity(store, eng, securityConfig)
+	s.syncer = syncer
+	return s
+}
+
 // ConfigureMux cấu hình router sử dụng ServeMux tiêu chuẩn Go 1.22+.
 // Các endpoint Control Plane được bảo vệ bởi TenantAuthMiddleware (JWT + cross-tenant check).
 func (s *HTTPServer) ConfigureMux() *http.ServeMux {
 	mux := http.NewServeMux()
+	registerHealthEndpoints(mux, s.storage, s.syncer)
 	tenantAuth := TenantAuthMiddleware(s.jwtValidator)
 	protect := func(permission string, handler http.Handler) http.Handler {
 		return tenantAuth(RequirePermission(permission)(handler))
@@ -79,6 +89,15 @@ func (s *HTTPServer) ConfigureMux() *http.ServeMux {
 // StartHTTPServer khởi chạy HTTP server tại cổng chỉ định.
 func StartHTTPServer(port int, store *storage.Storage, eng *engine.EngineWithGC, securityConfig config.SecurityConfig) (*http.Server, error) {
 	s := NewHTTPServerWithSecurity(store, eng, securityConfig)
+	return startHTTPServer(port, s)
+}
+
+func StartHTTPServerWithSync(port int, store *storage.Storage, eng *engine.EngineWithGC, syncer *engine.Syncer, securityConfig config.SecurityConfig) (*http.Server, error) {
+	s := NewHTTPServerWithSecurityAndSync(store, eng, syncer, securityConfig)
+	return startHTTPServer(port, s)
+}
+
+func startHTTPServer(port int, s *HTTPServer) (*http.Server, error) {
 	mux := s.ConfigureMux()
 
 	server := &http.Server{

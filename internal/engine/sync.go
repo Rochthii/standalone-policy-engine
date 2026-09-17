@@ -26,8 +26,9 @@ type PolicyUpdateEvent struct {
 type SyncStatus string
 
 const (
-	SyncStatusHealthy  SyncStatus = "HEALTHY"
-	SyncStatusDegraded SyncStatus = "DEGRADED"
+	SyncStatusHealthy  SyncStatus = "healthy"
+	SyncStatusDegraded SyncStatus = "degraded"
+	SyncStatusNotReady SyncStatus = "not_ready"
 )
 
 // Syncer chịu trách nhiệm đồng bộ trạng thái chính sách giữa PostgreSQL (Source of Truth)
@@ -47,7 +48,7 @@ type Syncer struct {
 }
 
 type policySyncStorage interface {
-	ListenPolicyEvents(context.Context, func(storage.DBPolicyUpdateEvent)) error
+	ListenPolicyEvents(context.Context, func(storage.DBPolicyUpdateEvent), func()) error
 	GetTenantRevision(context.Context, string) (uint64, error)
 	GetTenantPolicyBundle(context.Context, string) (*storage.TenantPolicyBundle, error)
 }
@@ -61,8 +62,27 @@ func NewSyncer(eng *EngineWithGC, store policySyncStorage, reconcileInterval tim
 		engine:            eng,
 		storage:           store,
 		reconcileInterval: reconcileInterval,
-		status:            SyncStatusHealthy,
+		status:            SyncStatusNotReady,
 	}
+}
+
+// Readiness verifies that the policy listener is healthy and that every loaded
+// tenant has the same policy revision in memory and PostgreSQL.
+func (s *Syncer) Readiness(ctx context.Context) (SyncStatus, error) {
+	status := s.GetSyncStatus()
+	if status != SyncStatusHealthy {
+		return status, fmt.Errorf("policy sync is %s", status)
+	}
+	for tenantID, trie := range s.engine.GetState().Tenants {
+		revision, err := s.storage.GetTenantRevision(ctx, tenantID)
+		if err != nil {
+			return SyncStatusDegraded, fmt.Errorf("read policy revision for tenant %s: %w", tenantID, err)
+		}
+		if revision != trie.Revision {
+			return SyncStatusDegraded, fmt.Errorf("policy revision lag for tenant %s: memory=%d database=%d", tenantID, trie.Revision, revision)
+		}
+	}
+	return SyncStatusHealthy, nil
 }
 
 // SetBadgerStore thiết lập tầng lưu trữ cục bộ BadgerDB (dành riêng cho Edge Mode).
@@ -70,7 +90,7 @@ func (s *Syncer) SetBadgerStore(badger *storage.BadgerStore) {
 	s.badgerStore = badger
 }
 
-// GetSyncStatus trả về trạng thái đồng bộ phân tán hiện tại (HEALTHY hoặc DEGRADED).
+// GetSyncStatus returns the current distributed policy-sync health state.
 func (s *Syncer) GetSyncStatus() SyncStatus {
 	s.statusMu.RLock()
 	defer s.statusMu.RUnlock()
@@ -119,7 +139,6 @@ func (s *Syncer) postgresEventSubscriber(ctx context.Context) {
 			return
 		}
 
-		s.setSyncStatus(SyncStatusHealthy)
 		err := s.storage.ListenPolicyEvents(ctx, func(ev storage.DBPolicyUpdateEvent) {
 			currentRev := s.engine.GetTenantRevision(ev.TenantID)
 			if !shouldSyncRevision(currentRev, ev.Revision) {
@@ -135,6 +154,8 @@ func (s *Syncer) postgresEventSubscriber(ctx context.Context) {
 				s.setSyncStatus(SyncStatusDegraded)
 				log.Printf("[Syncer] Từ chối cập nhật Tenant %s; giữ last-known-good: %v", ev.TenantID, err)
 			}
+		}, func() {
+			s.setSyncStatus(SyncStatusHealthy)
 		})
 
 		if err != nil {

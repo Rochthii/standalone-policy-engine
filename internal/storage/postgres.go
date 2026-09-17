@@ -81,6 +81,14 @@ func (s *Storage) Close() {
 	}
 }
 
+// Ping verifies that PostgreSQL is reachable through the application's pool.
+func (s *Storage) Ping(ctx context.Context) error {
+	if s == nil || s.pool == nil {
+		return errors.New("postgres storage is not initialized")
+	}
+	return s.pool.Ping(ctx)
+}
+
 func (s *Storage) runMigrations(connStr string) error {
 	migrationsDir, err := locateMigrationsDir()
 	if err != nil {
@@ -311,7 +319,7 @@ func (s *Storage) GetTenantRevision(ctx context.Context, tenantID string) (uint6
 }
 
 // ListenPolicyEvents mở kết nối chuyên dụng để lắng nghe kênh 'policy_events' của PostgreSQL.
-func (s *Storage) ListenPolicyEvents(ctx context.Context, callback func(event DBPolicyUpdateEvent)) error {
+func (s *Storage) ListenPolicyEvents(ctx context.Context, callback func(event DBPolicyUpdateEvent), onReady func()) error {
 	conn, err := s.pool.Acquire(ctx)
 	if err != nil {
 		return fmt.Errorf("lỗi acquire kết nối lắng nghe: %w", err)
@@ -321,6 +329,9 @@ func (s *Storage) ListenPolicyEvents(ctx context.Context, callback func(event DB
 	_, err = conn.Exec(ctx, "LISTEN policy_events;")
 	if err != nil {
 		return fmt.Errorf("lỗi thực thi LISTEN policy_events: %w", err)
+	}
+	if onReady != nil {
+		onReady()
 	}
 
 	log.Println("[Storage] Đang lắng nghe kênh PostgreSQL 'policy_events'...")

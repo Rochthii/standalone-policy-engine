@@ -99,7 +99,7 @@ No gate may be marked `[x]` using comments, screenshots, manually edited result 
 - [x] Environment variable names match application code and the complete runtime binding matrix is tested.
 - [x] `APP_ENV=production` enables strict secret, TLS and endpoint validation.
 - [ ] Containers run as non-root with a read-only filesystem and least capabilities where practical.
-- [ ] Readiness includes DB/sync/revision health; liveness does not hide degraded authorization state.
+- [x] Readiness includes DB/sync/revision health; liveness does not hide degraded authorization state. See `evidence/OPS_HEALTH_2026_09_17.md`.
 - [x] Shutdown cancels listeners/workers before waiting and completes within the grace period.
 - [ ] Backup, restore, policy rollback, key rotation and incident runbooks have been rehearsed.
 

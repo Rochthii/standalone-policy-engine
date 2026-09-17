@@ -17,6 +17,7 @@ services:
     container_name: pdp-data-plane
     environment:
       - GRPC_PORT=50051
+      - HTTP_PORT=8080                   # local liveness/readiness endpoint
       - STORAGE_MODE=cloud                  # cloud (stateless) | edge (badgerdb)
       - DATABASE_URL=postgres://pdp_user:pdp_pass@postgres:5432/pdp_db?sslmode=disable
       - LOG_KEK_ACTIVE_KID=audit-2026-09
@@ -32,6 +33,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     restart: always
 
   # --------------------------------------------------------------------------
@@ -51,6 +57,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     restart: always
 
   # --------------------------------------------------------------------------
@@ -92,6 +103,13 @@ volumes:
   badger-data:
   audit-spill:
 ```
+
+### Health and readiness contract
+
+- `GET /livez` returns `200` while the process can serve probes. It deliberately does not check PostgreSQL or policy synchronization.
+- `GET /readyz` and `GET /api/v1/health` check the PostgreSQL pool, the active PostgreSQL `LISTEN policy_events` session, and revision parity for every tenant currently loaded in memory. The JSON response reports `healthy`, `degraded`, or `not_ready` for the service and each component.
+- Only `healthy` returns `200`. Both `degraded` and `not_ready` return `503`, so Kubernetes removes that pod from Service endpoints before it handles PDP traffic. Configure readiness probes for `/readyz` and liveness probes for `/livez`.
+- Odoo is a PDP client, not an upstream PDP dependency. It must use Compose `depends_on: condition: service_healthy` (or the equivalent orchestrator readiness gate) for the PDP service; PDP does not probe Odoo, avoiding a circular readiness dependency.
 
 ---
 
