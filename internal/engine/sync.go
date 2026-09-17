@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -255,17 +254,17 @@ func (s *Syncer) SyncTenantWithRevision(ctx context.Context, tenantID string, re
 	log.Printf("[Syncer] Đồng bộ thành công %d chính sách (Revision: %d) lên RAM cho Tenant %s", len(compiledPolicies), revision, tenantID)
 
 	if s.badgerStore != nil {
-		rawList := make([]json.RawMessage, 0, len(bundle.Policies))
+		policies := make([]storage.PolicySnapshotPolicy, 0, len(bundle.Policies))
 		for _, dbP := range bundle.Policies {
-			if len(dbP.ASTJSON) > 0 {
-				rawList = append(rawList, dbP.ASTJSON)
-			}
+			policies = append(policies, storage.PolicySnapshotPolicy{ID: dbP.ID, Text: dbP.PolicyText})
 		}
 		snapshot := &storage.PolicySnapshot{
-			TenantID:     tenantID,
-			Policies:     rawList,
-			Inheritances: bundle.Inheritances,
-			SnapshotAt:   time.Now(),
+			FormatVersion: storage.PolicySnapshotFormatVersion,
+			TenantID:      tenantID,
+			Policies:      policies,
+			Inheritances:  bundle.Inheritances,
+			Revision:      bundle.Revision,
+			SnapshotAt:    time.Now(),
 		}
 		if err := s.badgerStore.SavePolicySnapshot(snapshot); err != nil {
 			return fmt.Errorf("save edge policy snapshot for tenant %s: %w", tenantID, err)

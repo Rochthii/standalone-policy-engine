@@ -88,7 +88,7 @@ The Waves preserve technical dependency order. The execution priority below is t
 | OPS-IMAGE-02 | Make testbed self-contained and pin images by digest. | `VERIFIED` | All external PostgreSQL, Go, Alpine and Odoo images are pinned by manifest-list digest; repository-local builds and the full Odoo mTLS E2E gate pass. See `evidence/TESTBED_IMAGE_PINNING_2026_09_13.md`. |
 | OPS-HEALTH-03 | Make readiness report policy/sync/dependency health. | `VERIFIED` | `/readyz` checks PostgreSQL, active policy-sync listener and loaded-tenant revision parity; it returns 503 for `degraded` and `not_ready`. Kubernetes and Compose make Odoo wait for PDP readiness. See `evidence/OPS_HEALTH_2026_09_17.md`. |
 | OPS-SHUTDOWN-04 | Cancel listeners/workers before waiting and bound shutdown. | `VERIFIED` | Blocking listener is canceled and `Stop` completes within the test deadline. |
-| EDGE-RESTORE-05 | Implement snapshot restore or remove edge-startup claim. | `TODO` | Offline restart test or explicit scope removal. |
+| EDGE-RESTORE-05 | Implement snapshot restore or remove edge-startup claim. | `VERIFIED` | A versioned source/revision snapshot is recompiled and atomically restored from a closed/reopened Badger store before the edge listener opens; an empty or invalid store prevents startup. See `evidence/EDGE_RESTORE_2026_09_17.md`. |
 
 ## Wave 5 — Release evidence
 

@@ -2,6 +2,7 @@ package storage
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -10,6 +11,8 @@ import (
 
 	badger "github.com/dgraph-io/badger/v4"
 )
+
+const PolicySnapshotFormatVersion = 1
 
 // BadgerStore là tầng lưu trữ cục bộ nhúng (Embedded KV Database) dùng BadgerDB.
 // Phục vụ kịch bản PDP Sidecar khởi động nhanh khi không kết nối được PostgreSQL.
@@ -20,10 +23,20 @@ type BadgerStore struct {
 
 // PolicySnapshot là cấu trúc dữ liệu lưu trữ bản sao JSON tập chính sách của một Tenant.
 type PolicySnapshot struct {
-	TenantID     string            `json:"tenant_id"`
-	Policies     []json.RawMessage `json:"policies"`
-	Inheritances [][2]string       `json:"inheritances"`
-	SnapshotAt   time.Time         `json:"snapshot_at"`
+	FormatVersion int                    `json:"format_version"`
+	TenantID      string                 `json:"tenant_id"`
+	Policies      []PolicySnapshotPolicy `json:"policies"`
+	Inheritances  [][2]string            `json:"inheritances"`
+	Revision      uint64                 `json:"revision"`
+	SnapshotAt    time.Time              `json:"snapshot_at"`
+}
+
+// PolicySnapshotPolicy is the canonical source needed to recompile a policy
+// after an offline restart. Compiled AST JSON is intentionally not persisted
+// here because its interface nodes cannot be safely deserialized.
+type PolicySnapshotPolicy struct {
+	ID   string `json:"id"`
+	Text string `json:"text"`
 }
 
 // NewBadgerStore khởi tạo database BadgerDB cục bộ tại đường dẫn chỉ định.
@@ -56,6 +69,9 @@ func (b *BadgerStore) Close() error {
 // SavePolicySnapshot lưu bản sao tập chính sách JSON của một Tenant xuống BadgerDB cục bộ.
 // Được gọi sau mỗi lần đồng bộ hoàn thành thành công từ PostgreSQL.
 func (b *BadgerStore) SavePolicySnapshot(snapshot *PolicySnapshot) error {
+	if err := validatePolicySnapshot(snapshot); err != nil {
+		return err
+	}
 	data, err := json.Marshal(snapshot)
 	if err != nil {
 		return fmt.Errorf("lỗi serialize snapshot: %w", err)
@@ -91,8 +107,40 @@ func (b *BadgerStore) LoadPolicySnapshot(tenantID string) (*PolicySnapshot, erro
 	if err != nil {
 		return nil, fmt.Errorf("lỗi đọc snapshot từ BadgerDB: %w", err)
 	}
+	if err := validatePolicySnapshot(&snapshot); err != nil {
+		return nil, fmt.Errorf("invalid policy snapshot: %w", err)
+	}
 
 	return &snapshot, nil
+}
+
+func validatePolicySnapshot(snapshot *PolicySnapshot) error {
+	if snapshot == nil {
+		return errors.New("policy snapshot is nil")
+	}
+	if snapshot.FormatVersion != PolicySnapshotFormatVersion {
+		return fmt.Errorf("unsupported policy snapshot format version %d", snapshot.FormatVersion)
+	}
+	if snapshot.TenantID == "" {
+		return errors.New("policy snapshot tenant ID is empty")
+	}
+	if snapshot.Revision == 0 {
+		return errors.New("policy snapshot revision is zero")
+	}
+	if snapshot.SnapshotAt.IsZero() {
+		return errors.New("policy snapshot timestamp is empty")
+	}
+	seen := make(map[string]struct{}, len(snapshot.Policies))
+	for _, policy := range snapshot.Policies {
+		if policy.ID == "" || policy.Text == "" {
+			return errors.New("policy snapshot contains an incomplete policy source")
+		}
+		if _, exists := seen[policy.ID]; exists {
+			return fmt.Errorf("policy snapshot contains duplicate policy ID %s", policy.ID)
+		}
+		seen[policy.ID] = struct{}{}
+	}
+	return nil
 }
 
 // ListTenantIDs liệt kê tất cả các TenantID hiện có snapshot trong BadgerDB.

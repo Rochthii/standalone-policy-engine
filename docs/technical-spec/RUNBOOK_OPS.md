@@ -148,15 +148,13 @@ def _evaluate_pdp_access(self):
 ## 3. Cold-Start Snapshot & Offline Air-Gap Recovery (BadgerDB)
 
 1. **Snapshot Generation**:
-   Mỗi khi Control Plane cập nhật chính sách thành công, PDP ghi bản chụp nhị phân (Binary Snapshot) vào BadgerDB:
-   ```bash
-   pdp-server --export-snapshot=/var/lib/pdp/badger/snapshot.bin
-   ```
+   Sau mỗi `SyncTenantWithRevision` thành công trong chế độ cloud, PDP lưu policy source, role inheritance, tenant revision và snapshot format version vào BadgerDB. AST JSON không được dùng để restore vì các interface AST không thể deserialize an toàn.
 2. **Cold-Start Sequence**:
    * Khi `pdp-server` khởi động với `STORAGE_MODE=edge`:
-     - Bỏ qua kết nối PostgreSQL.
-     - Nạp trực tiếp BadgerDB embedded KV store vào RAM trong $< 5$ms.
-     - Khởi động gRPC listener ngay lập tức.
+     - Không kết nối PostgreSQL.
+     - Liệt kê mọi snapshot BadgerDB, validate format/version, recompile toàn bộ DSL source và atomically cài COW state trước khi mở listener.
+     - Snapshot rỗng, legacy hoặc invalid khiến tiến trình dừng trước khi nhận traffic; không có partial policy state.
+     - Delegated request bị từ chối fail-closed vì edge offline không có durable revocation store. Audit PostgreSQL cũng không hoạt động trong profile này; không dùng edge mode cho ERP production.
 
 ---
 

@@ -79,6 +79,8 @@ func StartGRPCServerWithRevocations(ctx context.Context, lis net.Listener, eng *
 		if err := revocationSyncer.Start(ctx); err != nil {
 			return nil, nil, fmt.Errorf("khởi tạo đồng bộ revocation thất bại: %w", err)
 		}
+	} else {
+		service.delegationMgr.SetRevocationReady(false)
 	}
 	grpcServer := grpc.NewServer(options...)
 	policyv1.RegisterPolicyDecisionPointServer(

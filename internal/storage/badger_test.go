@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"encoding/json"
 	"os"
 	"testing"
 	"time"
@@ -17,15 +16,17 @@ func TestBadgerStoreSaveAndLoad(t *testing.T) {
 
 	// Lưu snapshot
 	snapshot := &PolicySnapshot{
-		TenantID: "tenant-test-001",
-		Policies: []json.RawMessage{
-			json.RawMessage(`{"id":"P-001","effect":"permit"}`),
-			json.RawMessage(`{"id":"P-002","effect":"forbid"}`),
+		FormatVersion: PolicySnapshotFormatVersion,
+		TenantID:      "tenant-test-001",
+		Policies: []PolicySnapshotPolicy{
+			{ID: "P-001", Text: `permit(principal == any, action == action:READ, resource == any);`},
+			{ID: "P-002", Text: `forbid(principal == any, action == action:DELETE, resource == any);`},
 		},
 		Inheritances: [][2]string{
 			{"user:alice", "role:admin"},
 			{"role:admin", "role:operator"},
 		},
+		Revision:   1,
 		SnapshotAt: time.Now(),
 	}
 
@@ -82,7 +83,7 @@ func TestBadgerStoreListTenantIDs(t *testing.T) {
 
 	tenants := []string{"tenant-A", "tenant-B", "tenant-C"}
 	for _, id := range tenants {
-		snap := &PolicySnapshot{TenantID: id, SnapshotAt: time.Now()}
+		snap := &PolicySnapshot{FormatVersion: PolicySnapshotFormatVersion, TenantID: id, Revision: 1, SnapshotAt: time.Now()}
 		if err := store.SavePolicySnapshot(snap); err != nil {
 			t.Fatalf("Lỗi lưu snapshot cho %s: %v", id, err)
 		}
@@ -105,7 +106,7 @@ func TestBadgerStoreDeleteSnapshot(t *testing.T) {
 	}
 	defer store.Close()
 
-	snap := &PolicySnapshot{TenantID: "tenant-del", SnapshotAt: time.Now()}
+	snap := &PolicySnapshot{FormatVersion: PolicySnapshotFormatVersion, TenantID: "tenant-del", Revision: 1, SnapshotAt: time.Now()}
 	_ = store.SavePolicySnapshot(snap)
 
 	// Xóa snapshot
@@ -121,6 +122,17 @@ func TestBadgerStoreDeleteSnapshot(t *testing.T) {
 	}
 	if loaded != nil {
 		t.Error("Snapshot phải là nil sau khi xóa")
+	}
+}
+
+func TestBadgerStoreRejectsUnrestorableSnapshot(t *testing.T) {
+	store, err := NewBadgerStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := store.SavePolicySnapshot(&PolicySnapshot{TenantID: "tenant-a"}); err == nil {
+		t.Fatal("expected incomplete snapshot to be rejected")
 	}
 }
 

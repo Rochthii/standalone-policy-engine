@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"standalone-policy-engine/internal/audit"
@@ -28,14 +29,6 @@ func main() {
 		log.Fatalf("[PDP-Server] Lỗi cấu hình hệ thống: %v", err)
 	}
 
-	// 1. Khởi tạo Database Storage
-	store, err := storage.NewStorage(cfg.Database.URL)
-	if err != nil {
-		log.Fatalf("[PDP-Server] Khởi tạo DB Storage thất bại: %v", err)
-	}
-	defer store.Close()
-	log.Println("[PDP-Server] Kết nối PostgreSQL thành công.")
-
 	ctxServer, stopServer := context.WithCancel(context.Background())
 	defer stopServer()
 
@@ -47,49 +40,54 @@ func main() {
 	})
 	eng.StartGC(ctxServer)
 
-	// 3. Khởi tạo bounded asynchronous audit pipeline tới PostgreSQL.
-	auditCrypto, err := security.NewEnvelopeCryptoWithKeyring(cfg.Security.AuditActiveKeyID, cfg.Security.AuditKeys)
-	if err != nil {
-		log.Fatalf("[PDP-Server] Cấu hình audit encryption thất bại: %v", err)
-	}
-	auditLogger, err := audit.NewBatchAuditLogger(store, audit.BatchConfig{
-		QueueCapacity: cfg.Audit.QueueCapacity,
-		BatchSize:     cfg.Audit.BatchSize,
-		FlushInterval: cfg.Audit.FlushInterval,
-		WriteTimeout:  cfg.Audit.WriteTimeout,
-		SpillDir:      cfg.Audit.SpillDir,
-		SpillMaxBytes: cfg.Audit.SpillMaxBytes,
-		Crypto:        auditCrypto,
-	})
-	if err != nil {
-		log.Fatalf("[PDP-Server] Cấu hình Audit Logger thất bại: %v", err)
-	}
-	auditLogger.Start(ctxServer)
-	log.Println("[PDP-Server] Khởi chạy bounded PostgreSQL Audit Logger thành công.")
-
-	// 4. Khởi tạo Syncer đồng bộ cache nóng qua PostgreSQL LISTEN/NOTIFY
-	syncer := engine.NewSyncer(eng, store, cfg.Engine.ReconcileInterval)
-
+	var store *storage.Storage
+	var syncer *engine.Syncer
+	var auditLogger *audit.AuditLogger
 	if cfg.Engine.StorageMode == "edge" {
 		badgerStore, err := storage.NewBadgerStore(cfg.Engine.BadgerDir)
 		if err != nil {
-			log.Printf("[PDP-Server] Cảnh báo: Khởi tạo BadgerStore thất bại: %v", err)
-		} else {
-			defer badgerStore.Close()
-			syncer.SetBadgerStore(badgerStore)
-			log.Printf("[PDP-Server] Chế độ EDGE STORAGE kích hoạt: lưu snapshot tại %s", cfg.Engine.BadgerDir)
+			log.Fatalf("[PDP-Server] Không thể mở Edge Storage: %v", err)
 		}
+		defer badgerStore.Close()
+		if err := engine.RestoreEdgeSnapshots(eng, badgerStore); err != nil {
+			log.Fatalf("[PDP-Server] Không thể khôi phục Edge snapshot: %v", err)
+		}
+		log.Printf("[PDP-Server] Edge snapshot đã khôi phục từ %s; delegated requests bị từ chối khi không có revocation store.", cfg.Engine.BadgerDir)
 	} else {
+		store, err = storage.NewStorage(cfg.Database.URL)
+		if err != nil {
+			log.Fatalf("[PDP-Server] Khởi tạo DB Storage thất bại: %v", err)
+		}
+		defer store.Close()
+		log.Println("[PDP-Server] Kết nối PostgreSQL thành công.")
+
+		auditCrypto, err := security.NewEnvelopeCryptoWithKeyring(cfg.Security.AuditActiveKeyID, cfg.Security.AuditKeys)
+		if err != nil {
+			log.Fatalf("[PDP-Server] Cấu hình audit encryption thất bại: %v", err)
+		}
+		auditLogger, err = audit.NewBatchAuditLogger(store, audit.BatchConfig{
+			QueueCapacity: cfg.Audit.QueueCapacity,
+			BatchSize:     cfg.Audit.BatchSize,
+			FlushInterval: cfg.Audit.FlushInterval,
+			WriteTimeout:  cfg.Audit.WriteTimeout,
+			SpillDir:      cfg.Audit.SpillDir,
+			SpillMaxBytes: cfg.Audit.SpillMaxBytes,
+			Crypto:        auditCrypto,
+		})
+		if err != nil {
+			log.Fatalf("[PDP-Server] Cấu hình Audit Logger thất bại: %v", err)
+		}
+		auditLogger.Start(ctxServer)
+		log.Println("[PDP-Server] Khởi chạy bounded PostgreSQL Audit Logger thành công.")
+
+		syncer = engine.NewSyncer(eng, store, cfg.Engine.ReconcileInterval)
+		eng.SetLazyLoader(func(ctx context.Context, tenantID string) error {
+			return syncer.SyncTenant(ctx, tenantID)
+		})
+		syncer.Start(ctxServer)
 		log.Println("[PDP-Server] Chạy chế độ CLOUD NATIVE: 100% Stateless Pod (Không tạo file BadgerDB cục bộ).")
+		log.Println("[PDP-Server] Khởi chạy Syncer đồng bộ cache nóng thành công.")
 	}
-
-	// Đăng ký lazyLoader callback để tự động tải lại Tenant từ Postgres khi bị GC unload
-	eng.SetLazyLoader(func(ctx context.Context, tenantID string) error {
-		return syncer.SyncTenant(ctx, tenantID)
-	})
-
-	syncer.Start(ctxServer)
-	log.Println("[PDP-Server] Khởi chạy Syncer đồng bộ cache nóng thành công.")
 
 	// 6. Khởi tạo net.Listener (TCP truyền thống, Unix Domain Socket hoặc Ziti Dark Service)
 	var listener net.Listener
@@ -145,11 +143,20 @@ func main() {
 		}
 	}
 
-	grpcServer, revocationSyncer, err := server.StartGRPCServerWithRevocations(ctxServer, listener, eng, auditLogger, cfg.Security, cfg.Server, store)
+	var revocationStore security.RevocationStore
+	if store != nil {
+		revocationStore = store
+	}
+	grpcServer, revocationSyncer, err := server.StartGRPCServerWithRevocations(ctxServer, listener, eng, auditLogger, cfg.Security, cfg.Server, revocationStore)
 	if err != nil {
 		log.Fatalf("[PDP-Server] Không thể chạy gRPC server: %v", err)
 	}
-	healthServer, err := server.StartReadinessServer(cfg.Server.HTTPPort, store, syncer)
+	var healthServer *http.Server
+	if store != nil {
+		healthServer, err = server.StartReadinessServer(cfg.Server.HTTPPort, store, syncer)
+	} else {
+		healthServer, err = server.StartReadinessServer(cfg.Server.HTTPPort, nil, nil)
+	}
 	if err != nil {
 		log.Fatalf("[PDP-Server] Không thể chạy health server: %v", err)
 	}
@@ -167,10 +174,14 @@ func main() {
 		log.Printf("[PDP-Server] Health server shutdown lỗi: %v", err)
 	}
 	grpcServer.GracefulStop()
-	auditLogger.Stop()
+	if auditLogger != nil {
+		auditLogger.Stop()
+	}
 	stopServer()
 	revocationSyncer.Stop()
-	syncer.Stop()
+	if syncer != nil {
+		syncer.Stop()
+	}
 	if socketPath != "" {
 		_ = os.Remove(socketPath)
 	}

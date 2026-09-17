@@ -100,4 +100,4 @@
 
 ### 3.3. Cold Start & Offline Resilience (Storage Profile)
 - **Cloud Profile (`STORAGE_MODE=cloud`)**: 100% diskless pod startup; loads snapshot directly from PostgreSQL in $< 50$ms.
-- **Edge / Air-Gapped Profile (`STORAGE_MODE=edge`)**: Embedded BadgerDB KV store snapshot cached on local NVMe, boots instantly without network dependency.
+- **Edge / Air-Gapped Profile (`STORAGE_MODE=edge`)**: A versioned BadgerDB policy-source snapshot is recompiled and atomically installed before the listener opens, without PostgreSQL. An empty, legacy or invalid snapshot aborts startup. This constrained mode rejects delegated requests because durable revocation is unavailable, and it is not a production ERP deployment profile.
