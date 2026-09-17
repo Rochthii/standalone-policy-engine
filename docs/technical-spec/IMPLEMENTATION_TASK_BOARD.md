@@ -97,8 +97,8 @@ The Waves preserve technical dependency order. The execution priority below is t
 | PERF-WORST-01 | Benchmark dense candidate sets and hash-collision correctness. | `VERIFIED` | Three 10,000-policy samples per global/same-leaf case, reported allocation data, and forced collision-bucket raw-key correctness test. See `evidence/DENSE_CANDIDATE_COLLISION_2026_09_14.md`. |
 | PERF-FULL-02 | Measure JWT + proof + gRPC + metrics + audit path. | `VERIFIED` | Three 10,000-request TCP gRPC samples record p50/p95/p99/p99.9, throughput, zero errors, process CPU, RSS and GC while validating JWT, HMAC proof, metrics and encrypted audit queueing. See `evidence/FULL_PATH_2026_09_14.md`. |
 | PERF-ODOO-03 | Replace synthetic Odoo baseline with real ORM/database work. | `VERIFIED` | Real Odoo `ir.rule`/PostgreSQL authorization and Odoo-to-PDP mTLS gRPC comparison: three 250-request samples per path, all 1,500 raw latencies, workload limits, and commit `4bb4c48` recorded. The retired model is not used for claims. See `evidence/ODOO_ORM_COMPARISON_2026_09_15.md`. |
-| REL-GATE-04 | Execute every production-readiness gate and record GO/NO-GO. | `TODO` | All P0 closed; release evidence linked to one commit. |
+| REL-GATE-04 | Execute every production-readiness gate and record GO/NO-GO. | `BLOCKED` | **NO-GO**: local unit/vet/format and Compose config gates pass, but mandatory release evidence has not frozen a candidate and G0, G6, G7, G8 and G9 remain open. Local `-race` is blocked without CGO; successful remote CI has not been inspected. See `evidence/REL_GATE_2026_09_17.md`. |
 
 ## Next task
 
-Next: implement edge snapshot restoration or remove the unsupported edge-startup claim (`EDGE-RESTORE-05`). Remote CI inspection remains tracked by `CI-003`/G9.
+Next: close the blockers recorded by `REL-GATE-04`; obtain the C-capable remote race/CI evidence in `CI-003` before re-evaluating release readiness.
