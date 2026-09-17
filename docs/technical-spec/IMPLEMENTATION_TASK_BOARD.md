@@ -36,7 +36,7 @@ The Waves preserve technical dependency order. The execution priority below is t
 | DOC-002 | Create dependency-ordered remediation plan and task board. | `VERIFIED` | This board and execution plan are linked from the master index. |
 | CI-001 | Require format, vet, unit and compile-only jobs on every change. | `VERIFIED` | Workflow has build, compile-only, vet, format, race-unit and focused delegation gates; local vet/compile pass. |
 | CI-002 | Provide a non-destructive isolated PostgreSQL integration test database. | `VERIFIED` | Unique owned database harness and PostgreSQL 15 CI service added; local PostgreSQL 15 integration passes. |
-| CI-003 | Run race tests on a runner with a C compiler. | `BLOCKED` | Local Windows runner has no GCC for CGO. |
+| CI-003 | Run race tests on a runner with a C compiler. | `VERIFIED` | GitHub-hosted Ubuntu `Unit Tests` passed `go test -v -race -count=1 ./internal/... ./pkg/...` on commit `cc5f5d2`; the enclosing CI run still failed independently at Protobuf Contract. See `evidence/CI_RACE_2026_09_17.md`. |
 
 ## Wave 1 — Identity and delegation boundary
 

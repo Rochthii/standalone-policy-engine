@@ -106,7 +106,7 @@ No gate may be marked `[x]` using comments, screenshots, manually edited result 
 ## 11. G9 — Test and performance evidence
 
 - [~] Unit tests, `go vet` and formatting checks pass on audited commit `e16fa57`.
-- [ ] Race detector passes on the release commit.
+- [x] Race detector passes on audited commit `cc5f5d2` in the GitHub-hosted Ubuntu `Unit Tests` job; see `evidence/CI_RACE_2026_09_17.md`.
 - [ ] Critical server, storage and security branches have negative tests and an agreed coverage gate.
 - [~] Mandatory local E2E runs Odoo, PostgreSQL, PDP and the real PEP without `t.Skip` fallback (7/7 plus concurrency pass); a successful remote CI run and the combined Control Plane gate remain open.
 - [x] Benchmarks cover 10,000 global/same-leaf candidates and a forced collision-bucket test validates raw-key handling; see `evidence/DENSE_CANDIDATE_COLLISION_2026_09_14.md`.
