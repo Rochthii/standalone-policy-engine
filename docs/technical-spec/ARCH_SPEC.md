@@ -43,10 +43,10 @@
 │ AUDIT PIPELINE: Async Non-Blocking Telemetry                               │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ Lock-Free Ring Buffer (1M slots) -> UDS Datagram Socket -> Vector Sidecar   │
-│ -> PostgreSQL WORM Storage (pgx.CopyFrom Batch Insert)                      │
+│ -> PostgreSQL encrypted storage (external WORM retention is not implemented)│
 └─────────────────────────────────────────────────────────────────────────────┘
                                        │
-                                       ▼ gRPC Response (< 0.35ms E2E)
+                                       ▼ gRPC response (no production E2E latency SLO established)
 [Odoo PEP Hook: State Coordinator]
   │
   ├─ ALLOW: order.pdp_status = 'allow' -> super().button_confirm() (Workflow continues)
@@ -67,7 +67,7 @@
 | **gRPC Security Interceptor** | `internal/security/auth.go` | Go 1.22 / gRPC Server | • mTLS X.509 handshake<br>• JWT claims validation<br>• HMAC-SHA256 proof verification<br>• In-Memory `RevocationMap` $O(1)$ query | • AST policy evaluation<br>• Radix Trie indexing<br>• Disk I/O |
 | **In-Memory Decision Engine** | `internal/engine/` | Go 1.22 (Zero-Alloc Hot-Path) | • Multi-level Radix Trie index<br>• Precomputed Role DAG closure $O(1)$<br>• Pure AST evaluation (27ns)<br>• Decision synthesis & Obligation attachment | • Cryptographic hashing<br>• Database queries<br>• Network protocol handling |
 | **State Synchronizer** | `internal/storage/`, `internal/engine/sync.go` | Go 1.22 / pgx | • PostgreSQL `LISTEN/NOTIFY`<br>• Monotonic Sequence (`tenants.revision`) gap detection<br>• Replay Ring Buffer catch-up (< 50ms)<br>• Cold start BadgerDB snapshot | • Request handling<br>• Telemetry parsing |
-| **Audit Logger** | `internal/audit/` | Go 1.22 / Vector / pgx | • Lock-free Ring Buffer queueing<br>• UDS Datagram dispatch<br>• Batch WORM storage (`pgx.CopyFrom`)<br>• Spill-to-Disk on failure (1GB cap) | • Inline evaluation blocking<br>• Policy checking |
+| **Audit Logger** | `internal/audit/` | Go 1.22 / Vector / pgx | • Lock-free Ring Buffer queueing<br>• UDS Datagram dispatch<br>• Encrypted PostgreSQL batch storage (`pgx.CopyFrom`)<br>• Spill-to-Disk on failure (1GB cap) | • Inline evaluation blocking<br>• Policy checking |
 
 ---
 

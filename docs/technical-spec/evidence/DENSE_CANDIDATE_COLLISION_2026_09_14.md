@@ -13,7 +13,7 @@ The two benchmark cases deliberately avoid an early `forbid` exit:
 
 ## Reproduction
 
-Environment: Windows/amd64, 13th Gen Intel(R) Core(TM) i7-13700H, Go `go1.26.4`.
+Commit: `1a6cfd6fbaa9f65292a2283de5d573f33928e665`. Environment: Windows/amd64, 13th Gen Intel(R) Core(TM) i7-13700H, Go `go1.26.4`.
 
 ```powershell
 go test ./internal/engine ./tests

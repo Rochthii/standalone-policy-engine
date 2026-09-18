@@ -18,11 +18,11 @@ No gate may be marked `[x]` using comments, screenshots, manually edited result 
 
 ## 2. G0 — Claim and documentation integrity
 
-- [ ] README identifies the repository as a prototype until all P0 gates pass.
-- [x] The “44,000x” claim is retired and replaced with real Odoo ORM/PostgreSQL versus mTLS-PDP raw data; see `evidence/ODOO_ORM_COMPARISON_2026_09_15.md`.
-- [ ] Core latency, in-process latency, gRPC latency and ERP transaction latency are reported separately.
-- [ ] Every benchmark records commit, Go version, OS, CPU, command, sample count and raw output.
-- [ ] “E2E”, “WORM”, “encrypted”, “cluster-wide” and “production-ready” are used only after their corresponding gates pass.
+- [x] README identifies the repository as a prototype until every release gate passes.
+- [x] The “44,000x” claim is retired and replaced with real Odoo/PostgreSQL purchase-confirmation versus mTLS-PDP raw data; see `evidence/ODOO_ORM_COMPARISON_2026_09_15.md`.
+- [x] Core latency, in-process latency, gRPC latency and ERP transaction latency are reported separately; the ERP boundary includes the business mutation and explicitly excludes the final database commit.
+- [x] Every benchmark records commit, Go version, OS, CPU, command, sample count and raw output.
+- [x] “E2E”, “WORM”, “encrypted”, “cluster-wide” and “production-ready” are qualified by their corresponding evidence boundary.
 
 ## 3. G1 — Identity and tenant isolation
 

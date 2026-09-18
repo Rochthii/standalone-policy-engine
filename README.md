@@ -1,7 +1,7 @@
 # Standalone In-Memory Policy Decision Point (PDP)
 ### Delegation-Aware Authorization & Guardrails for ERP AI Agents (Odoo 17)
 
-> **Current implementation status (audit update 2026-09-17):** The in-memory core is verified for the measured benchmark cases, the repository-owned Odoo PEP passes seven real ORM/mTLS-gRPC/PostgreSQL transaction cases plus a two-session concurrency/retry case, durable revocation passes a local three-replica PostgreSQL restart/delayed-delivery test, and audit records use rotatable envelope encryption with durable spill/replay. A Badger snapshot now restores local policy state for the constrained edge profile. The full distributed PDP/Odoo system is still **not production-ready**: remote CI, retention, deployment and production-load gates remain open. See [`CURRENT_STATE_AUDIT.md`](./docs/technical-spec/CURRENT_STATE_AUDIT.md) and [`PRODUCTION_READINESS_CHECKLIST.md`](./docs/technical-spec/PRODUCTION_READINESS_CHECKLIST.md).
+> **Current implementation status (evidence update 2026-09-18):** This repository is a **research prototype**, not a production-ready PDP, until every release gate passes. The in-memory core, remote CI, runtime hardening, readiness checks and real Odoo/Control Plane E2E gates have evidence within their stated boundaries. The remaining release blocker is externally controlled append-only audit retention and deletion evidence. See [`CURRENT_STATE_AUDIT.md`](./docs/technical-spec/CURRENT_STATE_AUDIT.md) and [`PRODUCTION_READINESS_CHECKLIST.md`](./docs/technical-spec/PRODUCTION_READINESS_CHECKLIST.md).
 
 **Author:** Chăm Rốch Thi  
 **Affiliation:** Posts and Telecommunications Institute of Technology (PTIT)  
@@ -28,15 +28,23 @@ An in-memory Policy Decision Point (PDP) research prototype in Go implementing P
 | **10,000 Policies Concurrent Contention** | **34.30–67.11 ns/op** | **0 B/op, 0 allocs/op** | Three 1-second samples; narrow in-memory path |
 | **Deep DAG + Heavy ABAC** | **839.8–845.1 ns/op** | **0 B/op, 0 allocs/op** | Three 1-second samples; narrow in-memory path |
 
-### Measured Odoo ORM/PostgreSQL vs PDP Authorization
+### Measured Boundaries (do not compare as one end-to-end SLO)
 
-The former `time.sleep`/hardcoded comparison is retired. On commit `4bb4c48`, a real warm-path benchmark compares one Odoo record-rule authorization against the Odoo client calling the PDP over mTLS gRPC; it records 750 raw latencies for each path. This narrow scenario is not a whole-ERP or production speedup claim. See the [raw evidence](./docs/technical-spec/evidence/ODOO_ORM_COMPARISON_2026_09_15.json) and its [method/limits](./docs/technical-spec/evidence/ODOO_ORM_COMPARISON_2026_09_15.md).
+| Boundary | Evidence | Measured result | Excluded boundary |
+|---|---|---|---|
+| Core evaluator | `BenchmarkEvaluatorLatency` | 390.3–492.8 ns/op | JWT, gRPC, TLS, network, audit and Odoo |
+| Local TCP gRPC application path | 10,000-request samples | p50 200.5–207.7 µs; p99 723.4–890.8 µs | mTLS, PostgreSQL audit flush, Odoo, containers and concurrent load |
+| ERP purchase-confirmation transaction | Odoo/PostgreSQL versus Odoo PDP PEP over mTLS gRPC | separate per-path distributions below | final database commit, concurrency and full ERP workflow |
+
+### Measured Odoo/PostgreSQL vs PDP Purchase Confirmation
+
+The former `time.sleep`/hardcoded comparison is retired. On commit `64494d9`, a warm-path benchmark creates and confirms a low-value purchase order through native Odoo/PostgreSQL or the PDP PEP over mTLS gRPC; it records 750 raw latencies for each path. The business mutation is timed, but the final database commit is excluded. This narrow scenario is not a whole-ERP, concurrent-load or production speedup claim. See the [raw evidence](./docs/technical-spec/evidence/ODOO_ORM_COMPARISON_2026_09_15.json) and its [method/limits](./docs/technical-spec/evidence/ODOO_ORM_COMPARISON_2026_09_15.md).
 
 | Metric | Odoo ORM + PostgreSQL | Odoo client + PDP mTLS gRPC |
 |---|---:|---:|
-| Mean | 1.395756 ms | 1.036841 ms |
-| p50 | 1.364612 ms | 0.941398 ms |
-| p99 | 2.412293 ms | 2.884821 ms |
+| Mean | 29.742050 ms | 58.075744 ms |
+| p50 | 24.906115 ms | 50.523270 ms |
+| p99 | 76.404948 ms | 139.145658 ms |
 
 ---
 
@@ -109,7 +117,7 @@ The Go test fixture passes all seven logic vectors defined in [`tests/e2e_delega
 
 ### 1. Docker Testbed Status
 
-The Compose file uses only repository-local Odoo addon and generated-client inputs for this path. On 2026-09-12 its fresh-database gate passed 7/7 transaction cases and the two-session concurrency/retry assertion over mTLS; a missing-client-certificate probe was rejected before RPC handling. It remains a development testbed—not a frozen release environment—because base images use mutable tags and remote CI evidence is still open. See the [evidence record](./docs/technical-spec/evidence/ODOO_E2E_2026_09_12.md).
+The Compose file uses only repository-local Odoo addon and generated-client inputs for this path. Its external bases are manifest-digest pinned. The fresh-database Odoo gate and the combined Control Plane/PDP gate run in remote CI without a skip fallback; this is still a development testbed, not a production release environment, because the external audit-retention gate remains open. See [`CI_ODOO_2026_09_18.md`](./docs/technical-spec/evidence/CI_ODOO_2026_09_18.md) and [`REL_INTEGRATION_2026_09_18.md`](./docs/technical-spec/evidence/REL_INTEGRATION_2026_09_18.md).
 
 ```bash
 # Clone the repository
@@ -125,7 +133,7 @@ make test-odoo-e2e
 # 1. Run Core Engine & Layer 1 Interceptor Tests
 go test -v ./internal/security ./internal/server
 
-# 2. Verify all 7 E2E Delegation Vectors
+# 2. Verify all 7 in-process delegation vectors
 go test -v ./tests -run=TestE2E_P2P_Delegation_7Vectors
 
 # 3. Run Sub-Microsecond Evaluator Benchmark
@@ -193,14 +201,14 @@ standalone-policy-engine/
 │   ├── security/            # DelegationManager (HMAC Canonical, O(1) RevocationMap, JWT)
 │   ├── parser/              # Cedar DSL Lexer, Pratt Parser (Depth <= 15), Compiler
 │   ├── server/              # gRPC Server (Layer 1 Interceptors), HTTP Handlers, Replay Buffer
-│   ├── audit/               # Bounded async logger, redaction, pgx.CopyFrom; encryption/spill pending
+│   ├── audit/               # Bounded async logger, redaction, pgx.CopyFrom, encryption/spill replay
 │   └── storage/             # PostgreSQL pgx driver, Postgres LISTEN/NOTIFY sync, BadgerDB
 ├── proto/v1/                # Protobuf Contract (CheckAccess, ExplainDecision, RevokeDelegation)
 ├── docs/                    # Master Index & 12 Technical Specifications
 │   ├── 00_MASTER_INDEX.md   # System navigation & live metrics
 │   ├── technical-spec/      # ARCH_SPEC, PROTOCOL_CONTRACT, SECURITY_INVARIANTS, etc.
 │   └── thesis-proposal/     # PTIT Master Thesis Proposal (5 Chapters)
-├── tests/                   # 7 E2E Vectors, Baseline Benchmark, ERP ABAC test suite
+├── tests/                   # 7 in-process vectors, benchmarks, ERP ABAC test suite
 ├── benchmarks/              # Static 2026 test artifacts & latency reports
 ├── docker-compose.testbed.yml # Frozen single-command testbed (2026-2029)
 ├── AGENTS.md / CLAUDE.md    # Master AI context guide (Single Source of Truth)

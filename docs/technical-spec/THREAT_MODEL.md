@@ -8,7 +8,7 @@
 |---|---|---|---|---|
 | **Spoofing (S)** | Giả mạo danh tính Tác tử AI hoặc Người ủy quyền | gRPC Gateway | **CRITICAL** | mTLS X.509 Client Cert + JWT `tenant_id` Claim Binding |
 | **Tampering (T)** | Chỉnh sửa `delegation_chain` hoặc số tiền trên đường truyền | Payload Context | **CRITICAL** | Chữ ký số HMAC-SHA256 `delegation_proof` tại Interceptor |
-| **Repudiation (R)** | Người dùng phủ nhận việc đã ủy quyền cho AI thực hiện giao dịch | Audit Trail | **HIGH** | Append-Only WORM Audit Logging qua UDS Datagram Socket |
+| **Repudiation (R)** | Người dùng phủ nhận việc đã ủy quyền cho AI thực hiện giao dịch | Audit Trail | **HIGH** | Encrypted PostgreSQL audit delivery; external append-only retention remains required |
 | **Information Disclosure (I)** | Rò rỉ thông tin lương bổng, ngân sách qua log hoặc lỗi PDP | gRPC API | **MEDIUM** | Zero-Alloc Sanitization + Envelope Encryption (AES-GCM `LOG_KEK`) |
 | **Denial of Service (D)** | Gửi biểu thức AST phức tạp nhằm gây cạn kiệt CPU/RAM PDP | Engine Evaluator | **HIGH** | Giới hạn độ sâu cây AST ($\le 15$) + Trie Filter $O(\log N)$ |
 | **Elevation of Privilege (E)** | Tác tử AI tự leo thang quyền hạn vượt hạn mức cấp phép | Business Logic | **CRITICAL** | Monotonic Attenuation + Invariant $\mathcal{P}_{\text{effective}} \subseteq \mathcal{P}_{\text{active}}$ |
