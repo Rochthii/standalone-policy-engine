@@ -16,7 +16,7 @@
 
 The repository contains a credible and fast in-memory policy evaluation core. The narrow evaluator benchmark is reproducible and currently achieves sub-microsecond decisions with zero reported heap allocations for the measured inputs.
 
-The working tree now enforces the Data Plane identity boundary, key-identified full-tuple delegation proof, durable multi-replica revocation, tenant-scoped policy access, linearizable COW writers, atomic ruleset compilation, typed obligations, rotatable encrypted audit delivery with spill/replay, generated standard Protobuf clients, a constrained Badger edge-policy restore path, and a repository-owned Odoo PEP whose real transaction suite passes over mTLS. It remains a prototype and is not production-ready because external append-only audit retention and deletion evidence have not been selected, implemented and rehearsed.
+The working tree now enforces the Data Plane identity boundary, key-identified full-tuple delegation proof, durable multi-replica revocation, tenant-scoped policy access, linearizable COW writers, atomic ruleset compilation, typed obligations, rotatable encrypted audit delivery with spill/replay, generated standard Protobuf clients, a constrained Badger edge-policy restore path, and a repository-owned Odoo PEP whose real transaction suite passes over mTLS. It remains a prototype and is not production-ready because the selected external append-only audit archive has not been implemented and rehearsed.
 
 The correct positioning is:
 

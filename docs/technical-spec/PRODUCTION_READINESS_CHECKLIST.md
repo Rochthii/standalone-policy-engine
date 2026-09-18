@@ -82,7 +82,7 @@ No gate may be marked `[x]` using comments, screenshots, manually edited result 
 - [x] PostgreSQL durability, envelope encryption and idempotent spill/replay are exercised against PostgreSQL 15 and restart/key-rotation tests.
 - [x] Audit entries authenticate metadata and ciphertext and carry request/trace/revision identifiers.
 - [x] Key storage, rotation, recovery and separation of duties are documented in `RUNBOOK_OPS.md`.
-- [ ] Retention, external append-only archival and deletion-evidence policy are defined and rehearsed.
+- [ ] Retention, external append-only archival and deletion-evidence policy are defined in [`AUDIT_ARCHIVE_2029.md`](./AUDIT_ARCHIVE_2029.md), implemented and externally rehearsed.
 
 ## 9. G7 — Protocol and compatibility
 

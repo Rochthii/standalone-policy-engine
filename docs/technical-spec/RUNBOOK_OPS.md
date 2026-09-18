@@ -120,7 +120,7 @@ volumes:
 - Rotate by adding the new 32-byte KEK beside retained keys, deploying it as `LOG_KEK_ACTIVE_KID`, and confirming new rows use the new `key_id`. Remove an old key only after no retained database row or spill file references it and the recovery backup has expired under policy.
 - Mount `AUDIT_SPILL_DIR` on durable storage with service-account-only permissions. Alert on `audit_spill_failures_total`, `audit_logs_dropped_total` and sustained spill growth; successful recovery increments `audit_logs_replayed_total`.
 - Recovery starts the PDP with the active key and every retained historical key. Replay verifies metadata/ciphertext integrity before idempotent insert and leaves corrupt files in place for investigation.
-- AES-GCM AAD plus the keyed integrity tag detects record modification. It does not prove deletion, ordering or legal WORM retention; send committed records to an independently administered append-only archive for those guarantees.
+- AES-GCM AAD plus the keyed integrity tag detects record modification. It does not prove deletion, ordering or legal WORM retention; send committed records to an independently administered append-only archive for those guarantees. The selected 2029 target architecture and mandatory external rehearsal are in [`AUDIT_ARCHIVE_2029.md`](./AUDIT_ARCHIVE_2029.md).
 
 ---
 
