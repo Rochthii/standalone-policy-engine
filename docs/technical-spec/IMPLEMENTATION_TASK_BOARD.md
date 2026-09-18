@@ -101,4 +101,4 @@ The Waves preserve technical dependency order. The execution priority below is t
 
 ## Next task
 
-Next: defer the external `AUD-ARCHIVE-03` rehearsal until an approved AWS account is available; then update the release decision from the retained CloudTrail evidence.
+Next: defer the external `AUD-ARCHIVE-03` rehearsal to 2029, before any final production claim or thesis defense; then update the release decision from the retained CloudTrail evidence.
