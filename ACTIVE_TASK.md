@@ -1,8 +1,8 @@
 # Active Task
 
-ID: REL-INTEGRATION-01
-Goal: Verify Control Plane publication reaches the PDP over PostgreSQL
-Scope: Control Plane Docker E2E fixture, CI workflow, integration evidence
-Acceptance: fresh Compose gate creates/publishes policy and proves PDP allow/deny without skip
-Validation: Docker Control Plane E2E; GitHub Actions job conclusion; git diff --check
-Commit: cffcd51
+ID: REL-G0-TRANSACTION-04
+Goal: Close G0 with a real ERP transaction benchmark and bounded claims
+Scope: Odoo benchmark test/runner, README, readiness audit/checklist, benchmark evidence
+Acceptance: transaction benchmark has raw per-path evidence; all four G0 checks are evidence-backed
+Validation: make benchmark-odoo-orm; targeted claim audit; git diff --check
+Commit: 2b16811 (benchmark code: 64494d9)
