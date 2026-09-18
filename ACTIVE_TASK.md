@@ -1,8 +1,8 @@
 # Active Task
 
-ID: REL-G0-TRANSACTION-04
-Goal: Close G0 with a real ERP transaction benchmark and bounded claims
-Scope: Odoo benchmark test/runner, README, readiness audit/checklist, benchmark evidence
-Acceptance: transaction benchmark has raw per-path evidence; all four G0 checks are evidence-backed
-Validation: make benchmark-odoo-orm; targeted claim audit; git diff --check
-Commit: 2b16811 (benchmark code: 64494d9)
+ID: DOC-G9-CLAIM-05
+Goal: Align the remaining G9 benchmark description with current evidence
+Scope: production readiness checklist
+Acceptance: G9 describes the purchase-confirmation benchmark accurately
+Validation: targeted claim audit; git diff --check
+Commit: pending

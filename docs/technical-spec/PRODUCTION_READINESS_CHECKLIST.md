@@ -112,7 +112,7 @@ No gate may be marked `[x]` using comments, screenshots, manually edited result 
 - [x] Benchmarks cover 10,000 global/same-leaf candidates and a forced collision-bucket test validates raw-key handling; see `evidence/DENSE_CANDIDATE_COLLISION_2026_09_14.md`.
 - [x] Local TCP application-path measurement validates JWT, HMAC, metrics, encrypted audit queueing and gRPC transport; mTLS and PostgreSQL audit flush remain excluded by scope. See `evidence/FULL_PATH_2026_09_14.md`.
 - [x] The local application-path report records p50/p95/p99/p99.9, throughput, zero errors, CPU, RSS and GC behavior; see `evidence/FULL_PATH_2026_09_14.md`.
-- [x] Real Odoo baseline executes a record-rule ORM/PostgreSQL authorization rather than `time.sleep`; see `evidence/ODOO_ORM_COMPARISON_2026_09_15.md`.
+- [x] Real Odoo benchmark executes a PostgreSQL-backed purchase confirmation with the business mutation rather than `time.sleep`; see `evidence/ODOO_ORM_COMPARISON_2026_09_15.md`.
 
 ## 12. Recommended execution order
 
