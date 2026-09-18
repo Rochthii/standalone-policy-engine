@@ -8,7 +8,7 @@ option go_package = "standalone-policy-engine/proto/v1;policyv1";
 service PolicyDecisionPoint {
   // Đánh giá quyền truy cập dựa trên ngữ cảnh động
   rpc CheckAccess (CheckAccessRequest) returns (CheckAccessResponse);
-  
+
   // Đánh giá quyền kèm giải thích chi tiết các luật áp dụng
   rpc ExplainDecision (ExplainRequest) returns (ExplainResponse);
 

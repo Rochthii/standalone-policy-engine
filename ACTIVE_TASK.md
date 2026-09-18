@@ -1,8 +1,8 @@
 # Active Task
 
-ID: CI-003
-Goal: Obtain remote Go race evidence on the committed main branch
-Scope: GitHub Actions evidence, release task board, readiness checklist
-Acceptance: Ubuntu CI race job passes for the audited commit
-Validation: public GitHub Actions jobs API; git diff --check
+ID: CI-PROTO-04
+Goal: Make the Protobuf Contract CI job pass on main
+Scope: proto/v1, buf.yaml, buf.gen.yaml, generated clients, CI evidence
+Acceptance: Buf lint, format and generated-client drift checks pass
+Validation: Buf CI commands; git diff --check
 Commit: pending
