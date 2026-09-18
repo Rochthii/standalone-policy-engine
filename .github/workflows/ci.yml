@@ -69,10 +69,11 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
-      - name: Lint and format-check canonical IDL
-        run: |
-          go run github.com/bufbuild/buf/cmd/buf@v1.72.0 lint
-          go run github.com/bufbuild/buf/cmd/buf@v1.72.0 format --diff --exit-code
+      - name: Lint canonical IDL
+        run: go run github.com/bufbuild/buf/cmd/buf@v1.72.0 lint
+
+      - name: Format-check canonical IDL
+        run: go run github.com/bufbuild/buf/cmd/buf@v1.72.0 format --diff --exit-code
 
       - name: Regenerate Go and Python clients and reject drift
         run: |
