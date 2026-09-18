@@ -1,6 +1,6 @@
 # Implementation Task Board
 
-> **Updated:** 2026-09-13
+> **Updated:** 2026-09-18
 >
 > **Current release status:** **BLOCKED — NOT PRODUCTION READY**
 >
@@ -97,8 +97,8 @@ The Waves preserve technical dependency order. The execution priority below is t
 | PERF-WORST-01 | Benchmark dense candidate sets and hash-collision correctness. | `VERIFIED` | Three 10,000-policy samples per global/same-leaf case, reported allocation data, and forced collision-bucket raw-key correctness test. See `evidence/DENSE_CANDIDATE_COLLISION_2026_09_14.md`. |
 | PERF-FULL-02 | Measure JWT + proof + gRPC + metrics + audit path. | `VERIFIED` | Three 10,000-request TCP gRPC samples record p50/p95/p99/p99.9, throughput, zero errors, process CPU, RSS and GC while validating JWT, HMAC proof, metrics and encrypted audit queueing. See `evidence/FULL_PATH_2026_09_14.md`. |
 | PERF-ODOO-03 | Replace synthetic Odoo baseline with real ORM/database work. | `VERIFIED` | Real Odoo `ir.rule`/PostgreSQL authorization and Odoo-to-PDP mTLS gRPC comparison: three 250-request samples per path, all 1,500 raw latencies, workload limits, and commit `4bb4c48` recorded. The retired model is not used for claims. See `evidence/ODOO_ORM_COMPARISON_2026_09_15.md`. |
-| REL-GATE-04 | Execute every production-readiness gate and record GO/NO-GO. | `BLOCKED` | **NO-GO**: local unit/vet/format and Compose config gates pass, but mandatory release evidence has not frozen a candidate and G0, G6, G7, G8 and G9 remain open. Local `-race` is blocked without CGO; successful remote CI has not been inspected. See `evidence/REL_GATE_2026_09_17.md`. |
+| REL-GATE-04 | Execute every production-readiness gate and record GO/NO-GO. | `BLOCKED` | **NO-GO**: implementation and CI evidence close G0, G7, G8 and G9; G6 external append-only retention/deletion rehearsal remains open. See `evidence/REL_GATE_2026_09_17.md` and `CURRENT_STATE_AUDIT.md`. |
 
 ## Next task
 
-Next: close the blockers recorded by `REL-GATE-04`; obtain the C-capable remote race/CI evidence in `CI-003` before re-evaluating release readiness.
+Next: defer the external `AUD-ARCHIVE-03` rehearsal until an approved AWS account is available; then update the release decision from the retained CloudTrail evidence.

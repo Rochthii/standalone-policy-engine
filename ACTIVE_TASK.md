@@ -1,8 +1,8 @@
 # Active Task
 
-ID: AUD-ARCHIVE-02
-Goal: Add a configurable immutable audit-archive delivery boundary
-Scope: internal/audit, internal/config, PDP server wiring, AWS archive IaC
-Acceptance: archive segments use unique immutable keys; disabled mode preserves current delivery; IaC encodes Object Lock controls
-Validation: go test ./internal/audit ./internal/config ./cmd/pdp-server; go vet ./internal/audit ./internal/config ./cmd/pdp-server; git diff --check
-Commit: d37f232
+ID: REL-GATE-04-DOC
+Goal: Synchronize release decision evidence with the current verified gates
+Scope: implementation task board and release decision record
+Acceptance: docs identify external archive rehearsal as the sole unchecked gate
+Validation: git diff --check; targeted document consistency review
+Commit: pending
