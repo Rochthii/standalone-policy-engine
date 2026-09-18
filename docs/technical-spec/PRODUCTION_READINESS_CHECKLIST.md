@@ -89,7 +89,7 @@ No gate may be marked `[x]` using comments, screenshots, manually edited result 
 - [x] One canonical `proto/v1/policy.proto` remains; the unused v0 contract was removed.
 - [x] Go and Python clients are generated reproducibly from the same contract with pinned Buf/plugins.
 - [x] Standard protobuf gRPC works without an undocumented JSON subtype.
-- [ ] Backward-compatibility checks run in CI.
+- [x] Backward-compatibility checks run in CI; see `evidence/CI_COMPAT_2026_09_18.md`.
 - [x] Deadlines/message-size limits are fail-fast configured; oversized wire requests and status semantics are tested.
 
 ## 10. G8 — Deployment and operations
