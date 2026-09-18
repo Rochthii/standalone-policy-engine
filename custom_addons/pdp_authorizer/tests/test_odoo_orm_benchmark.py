@@ -1,4 +1,4 @@
-"""Real Odoo ORM/PostgreSQL versus mTLS gRPC PDP comparison."""
+"""Real Odoo purchase-confirmation transaction versus PDP PEP comparison."""
 
 import json
 import os
@@ -10,8 +10,7 @@ from datetime import timedelta
 from odoo import Command, fields
 from odoo.tests import TransactionCase, tagged
 
-from ..models.pdp_client import SafePDPClient
-from ..pdp_protocol import issue_jwt_from_environment
+from ..models.purchase_order import PurchaseOrder as PDPPurchaseOrder
 
 
 SAMPLES = 3
@@ -27,7 +26,7 @@ def _percentile(values, percentile):
 
 @tagged("post_install", "-at_install", "pdp_benchmark")
 class TestOdooORMBenchmark(TransactionCase):
-    """Measure one low-value PO authorization decision through two real paths."""
+    """Measure low-value purchase confirmation through Odoo and PDP PEP paths."""
 
     @classmethod
     def setUpClass(cls):
@@ -84,33 +83,6 @@ class TestOdooORMBenchmark(TransactionCase):
         cls.product = cls.env["product.product"].create(
             {"name": "ORM Benchmark Product", "purchase_ok": True}
         )
-        cls.order = cls.env["purchase.order"].with_user(cls.creator).create(
-            {
-                "partner_id": cls.vendor.id,
-                "company_id": cls.env.company.id,
-                "pdp_department": "Procurement",
-                "order_line": [
-                    Command.create(
-                        {
-                            "name": cls.product.display_name,
-                            "product_id": cls.product.id,
-                            "product_qty": 1,
-                            "product_uom": cls.product.uom_po_id.id,
-                            "price_unit": 1000,
-                            "date_planned": fields.Datetime.now(),
-                        }
-                    )
-                ],
-            }
-        )
-        cls.order.flush_recordset()
-
-        cls.order.write(
-            {
-                "ai_agent_id": "agent:procurement_copilot",
-                "delegated_by_id": cls.approver.id,
-            }
-        )
         cls.grant = cls.env["pdp.delegation.grant"].create(
             {
                 "user_id": cls.approver.id,
@@ -121,48 +93,47 @@ class TestOdooORMBenchmark(TransactionCase):
             }
         )
         cls.grant.action_activate()
-        values, proof, _ = cls.grant.build_protected_tuple(
-            cls.order, "odoo-orm-benchmark-nonce"
-        )
-        request = cls.order._base_request(values["agent"])
-        request["resource"] = values["resource"]
-        request["context"].update(
-            {
-                "amount": values["amount"],
-                "delegation_grant_id": values["grant_id"],
-                "delegated_by": values["delegator"],
-                "delegation_issued_at": str(values["issued_at"]),
-                "delegation_valid_until": str(values["valid_until"]),
-                "delegation_nonce": values["nonce"],
-                "delegation_chain": values["delegation_chain"],
-                "delegation_proof": proof,
-                "resource.creator_id": values["creator_id"],
-                "tool_context": values["tool_context"],
-                "execution_mode": values["execution_mode"],
-            }
-        )
-        cls.pdp_request = request
-        cls.token = issue_jwt_from_environment(
-            request["subject"], cls.env.company.pdp_tenant_id
-        )
 
-    def _native_orm_authorize(self):
-        result = self.env["purchase.order"].with_user(self.approver).search(
-            [("id", "=", self.order.id)], limit=1
-        )
-        self.assertEqual(result.ids, [self.order.id])
+    def _new_draft_order(self, delegated):
+        values = {
+            "partner_id": self.vendor.id,
+            "company_id": self.env.company.id,
+            "pdp_department": "Procurement",
+            "order_line": [
+                Command.create(
+                    {
+                        "name": self.product.display_name,
+                        "product_id": self.product.id,
+                        "product_qty": 1,
+                        "product_uom": self.product.uom_po_id.id,
+                        "price_unit": 1000,
+                        "date_planned": fields.Datetime.now(),
+                    }
+                )
+            ],
+        }
+        if delegated:
+            values.update(
+                {
+                    "ai_agent_id": "agent:procurement_copilot",
+                    "delegated_by_id": self.approver.id,
+                    "delegation_grant_id": self.grant.id,
+                }
+            )
+        return self.env["purchase.order"].with_user(self.creator).create(values)
 
-    def _pdp_authorize(self, client):
-        decision, obligations, _ = client.check_access(
-            self.env.company.pdp_tenant_id,
-            self.pdp_request["subject"],
-            self.pdp_request["action"],
-            self.pdp_request["resource"],
-            self.pdp_request["context"],
-            self.token,
-        )
-        self.assertEqual(decision, "ALLOW")
-        self.assertFalse(obligations)
+    def _native_confirm_transaction(self):
+        order = self._new_draft_order(delegated=False).with_user(self.approver)
+        super(PDPPurchaseOrder, order).button_confirm()
+        order.flush_recordset()
+        self.assertIn(order.state, ("purchase", "done"))
+
+    def _pdp_confirm_transaction(self):
+        order = self._new_draft_order(delegated=True)
+        order.button_confirm()
+        order.flush_recordset()
+        self.assertEqual(order.pdp_status, "allow")
+        self.assertIn(order.state, ("purchase", "done"))
 
     def _measure(self, operation):
         samples = []
@@ -185,24 +156,21 @@ class TestOdooORMBenchmark(TransactionCase):
             "throughput_ops_per_second": 1_000_000_000 / statistics.mean(flattened),
         }
 
-    def test_real_orm_database_and_pdp_comparison(self):
-        self._native_orm_authorize()
-        client = SafePDPClient(timeout=1.0)
-        try:
-            self._pdp_authorize(client)
-            native = self._measure(self._native_orm_authorize)
-            pdp = self._measure(lambda: self._pdp_authorize(client))
-        finally:
-            client._channel.close()
+    def test_real_erp_transaction_and_pdp_comparison(self):
+        self._native_confirm_transaction()
+        self._pdp_confirm_transaction()
+        native = self._measure(self._native_confirm_transaction)
+        pdp = self._measure(self._pdp_confirm_transaction)
 
         result = {
-            "benchmark": "odoo_orm_record_rule_vs_mtls_grpc_pdp",
+            "benchmark": "odoo_purchase_confirmation_vs_mtls_grpc_pdp",
             "methodology": {
-                "operation": "authorize one existing low-value purchase order created by a different user",
-                "native_orm": "Odoo purchase.order search with a real ir.rule and PostgreSQL",
-                "pdp": "Odoo generated Python client over mTLS gRPC with JWT and full-tuple delegation proof",
+                "operation": "create and confirm one low-value purchase order",
+                "native_orm": "Odoo purchase.order button_confirm with PostgreSQL",
+                "pdp": "Odoo PDP PEP button_confirm with mTLS gRPC, JWT and full-tuple delegation proof",
                 "setup_and_one_warmup_per_path_excluded": True,
-                "mutations_excluded": True,
+                "business_mutation_included": True,
+                "database_commit_excluded": True,
             },
             "environment": {
                 "python": platform.python_version(),
