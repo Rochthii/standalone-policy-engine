@@ -101,7 +101,7 @@ No gate may be marked `[x]` using comments, screenshots, manually edited result 
 - [x] PDP and Control Plane images run as non-root; Kubernetes templates require read-only roots, dropped capabilities and explicit writable mounts. See `evidence/OPS_DEPLOY_2026_09_18.md`.
 - [x] Readiness includes DB/sync/revision health; liveness does not hide degraded authorization state. See `evidence/OPS_HEALTH_2026_09_17.md`.
 - [x] Shutdown cancels listeners/workers before waiting and completes within the grace period.
-- [ ] Backup, restore, policy rollback, key rotation and incident runbooks have been rehearsed.
+- [x] Backup, restore, policy rollback, key rotation and incident runbooks were rehearsed in an isolated environment; see `evidence/OPS_RUNBOOK_2026_09_18.md`.
 
 ## 11. G9 — Test and performance evidence
 
