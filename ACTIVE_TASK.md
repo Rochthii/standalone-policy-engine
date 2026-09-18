@@ -1,8 +1,8 @@
 # Active Task
 
-ID: CI-COVERAGE-11
-Goal: Establish negative-test coverage gates for server, storage and security
-Scope: CI workflow, targeted package tests, readiness evidence
-Acceptance: critical negative paths and an agreed coverage threshold run in CI
-Validation: targeted Go coverage tests; GitHub Actions job conclusion; git diff --check
-Commit: caa3d86
+ID: REL-INTEGRATION-01
+Goal: Verify Control Plane publication reaches the PDP over PostgreSQL
+Scope: Control Plane Docker E2E fixture, CI workflow, integration evidence
+Acceptance: fresh Compose gate creates/publishes policy and proves PDP allow/deny without skip
+Validation: Docker Control Plane E2E; GitHub Actions job conclusion; git diff --check
+Commit: pending

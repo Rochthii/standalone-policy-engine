@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:15-alpine
+    image: postgres:15-alpine@sha256:fe0737ba566a2c5b2a28f34433c0a423261900ec17b9bf7ad115e1aae7e57f1b
     ports:
       - "5433:5432"
     environment:
@@ -13,15 +13,6 @@ services:
       timeout: 2s
       retries: 10
 
-  vector:
-    image: timberio/vector:0.35.0-alpine
-    command: ["--config-yaml", "sources:\n  dummy:\n    type: internal_metrics\nsinks:\n  console:\n    type: console\n    inputs: [dummy]\n    encoding:\n      codec: json"]
-    healthcheck:
-      test: ["CMD", "vector", "validate", "--help"]
-      interval: 2s
-      timeout: 2s
-      retries: 5
-
   pdp-server:
     image: standalone-pdp-test:latest
     build:
@@ -29,12 +20,12 @@ services:
       dockerfile: deployments/docker/Dockerfile.pdp
     ports:
       - "50061:50051"
+      - "8081:8080"
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/policy_engine?sslmode=disable
       JWT_SECRET: test-secret-key-for-sprint-6-unit-test
       JWT_ISSUER: standalone-policy-engine-test
       JWT_AUDIENCE: standalone-policy-engine-pdp-test
-      PDP_SHARED_SECRET: test-delegation-secret-at-least-32-characters
     depends_on:
       db:
         condition: service_healthy
@@ -56,7 +47,6 @@ services:
       JWT_SECRET: test-secret-key-for-sprint-6-unit-test
       JWT_ISSUER: standalone-policy-engine-test
       JWT_AUDIENCE: standalone-policy-engine-pdp-test
-      PDP_SHARED_SECRET: test-delegation-secret-at-least-32-characters
     depends_on:
       db:
         condition: service_healthy
