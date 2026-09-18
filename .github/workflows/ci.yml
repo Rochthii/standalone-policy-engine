@@ -73,7 +73,9 @@ jobs:
         run: go run github.com/bufbuild/buf/cmd/buf@v1.72.0 lint
 
       - name: Format-check canonical IDL
-        run: go run github.com/bufbuild/buf/cmd/buf@v1.72.0 format --diff --exit-code
+        run: |
+          go run github.com/bufbuild/buf/cmd/buf@v1.72.0 format -w proto
+          git diff --exit-code -- proto
 
       - name: Regenerate Go and Python clients and reject drift
         run: |
