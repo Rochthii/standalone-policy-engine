@@ -20,4 +20,11 @@ The job also names the critical fail-closed server and security tests. The
 PostgreSQL job runs the storage migration, transaction-rollback and
 three-replica revocation tests against its real service database.
 
-Remote CI verification is required before the G9 item can be marked passed.
+## Remote verification
+
+GitHub Actions run
+[`35335669831`](https://github.com/Rochthii/standalone-policy-engine/actions/runs/35335669831)
+completed successfully for commit `caa3d86`. `Unit Tests` enforced the
+coverage and negative-path gates, while `PostgreSQL Integration` passed the
+storage migration, rollback and revocation checks. All remaining workflow jobs
+also passed.

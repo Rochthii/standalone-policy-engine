@@ -107,7 +107,7 @@ No gate may be marked `[x]` using comments, screenshots, manually edited result 
 
 - [x] Unit tests, `go vet` and formatting checks pass on audited commit `12458f0`; see `evidence/CI_ODOO_2026_09_18.md`.
 - [x] Race detector passes on audited commit `cc5f5d2` in the GitHub-hosted Ubuntu `Unit Tests` job; see `evidence/CI_RACE_2026_09_17.md`.
-- [ ] Critical server, storage and security branches have negative tests and an agreed coverage gate.
+- [x] Critical server, storage and security branches have explicit negative tests and CI coverage floors (45%/20%/70%); see `evidence/CI_COVERAGE_2026_09_18.md`.
 - [~] Mandatory local E2E runs Odoo, PostgreSQL, PDP and the real PEP without `t.Skip` fallback (7/7 plus concurrency pass); remote CI passed on `12458f0`, while the combined Control Plane gate remains open. See `evidence/CI_ODOO_2026_09_18.md`.
 - [x] Benchmarks cover 10,000 global/same-leaf candidates and a forced collision-bucket test validates raw-key handling; see `evidence/DENSE_CANDIDATE_COLLISION_2026_09_14.md`.
 - [x] Local TCP application-path measurement validates JWT, HMAC, metrics, encrypted audit queueing and gRPC transport; mTLS and PostgreSQL audit flush remain excluded by scope. See `evidence/FULL_PATH_2026_09_14.md`.
