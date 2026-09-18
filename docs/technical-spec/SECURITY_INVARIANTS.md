@@ -48,15 +48,17 @@ $$\mathcal{U}_{\text{creator}} \notin \mathcal{C}_{\text{chain}}(\text{Approver}
 
 ---
 
-### Invariant 3: Enforcement Point Integrity & Non-Repudiation
+### Invariant 3: Enforcement Point Integrity & Proof Authenticity
 Contextual attributes self-reported across process boundaries must be cryptographically verifiable:
 
-$$\text{Proof} = \text{HMAC-SHA256}\Big(K_{\text{shared}}, \; \mathcal{U}_{\text{root}} \parallel \mathcal{A}_{\text{exec}} \parallel \text{action} \parallel \text{amount} \parallel \text{nonce} \parallel \text{timestamp}\Big)$$
+$$\text{Proof} = \text{HMAC-SHA256}\Big(K_{kid}, \; \text{versioned length-prefixed full decision tuple}\Big)$$
+
+The current tuple binds tenant, grant, delegator, agent, action, resource, amount/constraints, delegation chain, creator, tool context, execution mode, nonce and validity window. HMAC provides integrity and authenticity for key holders; it is not non-repudiation.
 
 - **Threat Vector**: A rogue actor crafts arbitrary JSON requests with forged `delegation_chain: "user:cfo_john,agent:copilot"`.
 - **Architectural Boundary**:
   - Verification occurs exclusively at **Layer 1: gRPC Security Interceptor** ([`internal/security/auth.go`](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/security/auth.go)).
-  - Hot-path In-Memory Evaluator (**Layer 2**) receives only cryptographically verified, clean requests, preserving the 27ns latency budget.
+  - Hot-path In-Memory Evaluator (**Layer 2**) receives only cryptographically verified, clean requests. Latency is reported separately for the measured evaluator, local application path and Odoo boundary.
 
 ---
 
@@ -81,8 +83,8 @@ sequenceDiagram
     Note over Agent,Interceptor: Concurrently, Agent fires approval tool-call:
     Agent->>Interceptor: gRPC CheckAccess(session_id)
     Interceptor->>RAM_Revoke: Load(session_id) -> Exists!
-    Interceptor-->>Agent: Immediate Hard DENY (< 1.5 µs, Short-Circuit)
+    Interceptor-->>Agent: Immediate fail-closed DENY; propagation and latency use recorded boundary evidence
 ```
 
 - **Data Structure**: `sync.Map` or read-optimized concurrent hashmap storing active revocations with TTL.
-- **Complexity**: $O(1)$ lookup time ($< 1\,\mu\text{s}$), zero disk persistence needed on evaluation path.
+- **Complexity**: $O(1)$ process-local lookup. Revocations are durably persisted and propagated through PostgreSQL; delegated checks fail closed while synchronization is unavailable. Propagation latency is reported from the multi-replica test, not as evaluator latency.

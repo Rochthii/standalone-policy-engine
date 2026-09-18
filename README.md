@@ -5,21 +5,21 @@
 
 **Author:** Chăm Rốch Thi  
 **Affiliation:** Posts and Telecommunications Institute of Technology (PTIT)  
-**Thesis:** Software Engineering Master / Graduation Thesis  
+**Thesis:** Software Engineering Graduation Thesis
 
 [![CI](https://github.com/Rochthii/standalone-policy-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/Rochthii/standalone-policy-engine/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/tag/Rochthii/standalone-policy-engine?label=release&color=green)](https://github.com/Rochthii/standalone-policy-engine/releases/tag/v1.0.0-core-verified)
 [![Go Version](https://img.shields.io/badge/Go-1.25+-blue.svg)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Verification](https://img.shields.io/badge/7%2F7%20Vectors-PASS-brightgreen.svg)](./tests/e2e_delegation_test.go)
+[![Verification](https://img.shields.io/badge/7%2F7%20In--Process%20Vectors-PASS-brightgreen.svg)](./tests/e2e_delegation_test.go)
 
-An in-memory Policy Decision Point (PDP) research prototype in Go implementing PBAC/ABAC, constrained delegation and deterministic ERP AI-agent guardrails. The measured core path is zero-allocation for the audited cases. The Odoo non-rollback and database-level nonce/retry workflows are verified for the listed real-boundary cases; distributed TOCTOU safety and the remaining release gates are still open.
+An in-memory Policy Decision Point (PDP) research prototype in Go implementing PBAC/ABAC, constrained delegation and deterministic ERP AI-agent guardrails. The measured core path is zero-allocation for the audited cases. The Odoo non-rollback, mTLS and database-level nonce/retry workflows are verified for the listed real-boundary cases; multi-replica revocation is verified in a local PostgreSQL test, while production release gates remain open.
 
 ---
 
 ## Key Highlights & Audited Core Benchmark Results
 
-**Audited on 2026-09-11:** 13th Gen Intel Core i7-13700H (20 logical CPUs), Go 1.26.4, Windows/amd64. These values measure the in-memory `Engine` only; they do not include JWT, HMAC, GC tracking, Prometheus, audit logging, gRPC serialization, TLS, network, or Odoo.
+**Audited on 2026-09-11 at commit `e16fa57`:** 13th Gen Intel Core i7-13700H (20 logical CPUs), Go 1.26.4, Windows/amd64. These values measure the in-memory `Engine` only; they do not include JWT, HMAC, GC tracking, Prometheus, audit logging, gRPC serialization, TLS, network, or Odoo.
 
 | Scenario / Benchmark | Latency | Allocation | Throughput / Speedup |
 |---|---|---|---|
@@ -56,9 +56,9 @@ flowchart TD
     PEP["Odoo 17 PEP Addon\n(custom_addons/pdp_authorizer)\nNon-Rollback State Machine"]
     PDP["Go PDP Server (:50051)\ngRPC CheckAccess / RevokeDelegation"]
 
-    subgraph Layer1 ["Layer 1: Security Interceptor (< 2 µs)"]
+    subgraph Layer1 ["Layer 1: Security Interceptor (boundary-specific latency)"]
         RevMap["In-Memory RevocationMap O(1)\nsync.Map (Anti-TOCTOU)"]
-        HMAC["HMAC-SHA256 Canonical String\nProof & TTL Verification"]
+        HMAC["Versioned length-prefixed full-tuple HMAC\nProof & TTL Verification"]
         TenantIso["Tenant Isolation\nclaims.tenant_id == req.tenant_id"]
         FastDeny["Fast DENY / 403\nShort-Circuit Exit"]
     end
@@ -66,7 +66,7 @@ flowchart TD
     subgraph Layer2 ["Layer 2: In-Memory Engine (Lock-Free COW)"]
         Trie["Multi-Level Trie O(log N)\nFNV-1a 64-bit uint64 Index"]
         DAG["Role Hierarchy DAG\nPre-computed Transitive Closure O(1)"]
-        AST["Zero-Alloc AST Evaluator\nToán tử SoD contains + Bitmask IP"]
+        AST["Measured-case AST Evaluator\nToán tử SoD contains + Bitmask IP"]
     end
 
     Postgres[("PostgreSQL 15+\nTransactional Sequence\ntenants.revision")]
@@ -83,10 +83,10 @@ flowchart TD
     PEP -->|"state -> 'to approve' (No Rollback)"| Client
 
     PEP -->|"action_revoke() Sync gRPC"| PDP
-    PDP -->|"Instant Write O(1)"| RevMap
+    PDP -->|"Local O(1) update + PostgreSQL propagation"| RevMap
 
-    PDP -.->|"Async Ring Buffer (pgx.CopyFrom)"| Postgres
-    Postgres -->|"LISTEN/NOTIFY Gap Catch-Up (< 50ms)"| PDP
+    PDP -.->|"Bounded async audit queue (pgx.CopyFrom)"| Postgres
+    Postgres -->|"LISTEN/NOTIFY revision reconciliation"| PDP
 
     style PDP fill:#1e3a5f,color:#fff
     style Layer1 fill:#4a154b,color:#fff
@@ -197,8 +197,8 @@ standalone-policy-engine/
 ├── custom_addons/
 │   └── pdp_authorizer/      # Odoo 17 PEP, proof signer and transactional nonce ledger
 ├── internal/
-│   ├── engine/              # Multi-level Trie, Role DAG, Zero-Alloc AST Evaluator, COW
-│   ├── security/            # DelegationManager (HMAC Canonical, O(1) RevocationMap, JWT)
+│   ├── engine/              # Multi-level Trie, Role DAG, measured-case AST evaluator, COW
+│   ├── security/            # DelegationManager (full-tuple HMAC, O(1) local revocation, JWT)
 │   ├── parser/              # Cedar DSL Lexer, Pratt Parser (Depth <= 15), Compiler
 │   ├── server/              # gRPC Server (Layer 1 Interceptors), HTTP Handlers, Replay Buffer
 │   ├── audit/               # Bounded async logger, redaction, pgx.CopyFrom, encryption/spill replay
@@ -207,7 +207,7 @@ standalone-policy-engine/
 ├── docs/                    # Master Index & 12 Technical Specifications
 │   ├── 00_MASTER_INDEX.md   # System navigation & live metrics
 │   ├── technical-spec/      # ARCH_SPEC, PROTOCOL_CONTRACT, SECURITY_INVARIANTS, etc.
-│   └── thesis-proposal/     # PTIT Master Thesis Proposal (5 Chapters)
+│   └── thesis-proposal/     # PTIT Graduation Thesis Proposal (5 Chapters)
 ├── tests/                   # 7 in-process vectors, benchmarks, ERP ABAC test suite
 ├── benchmarks/              # Static 2026 test artifacts & latency reports
 ├── docker-compose.testbed.yml # Frozen single-command testbed (2026-2029)
@@ -238,5 +238,5 @@ Distributed under the **MIT License**.
 **Author:** Chăm Rốch Thi  
 **Institution:** Posts and Telecommunications Institute of Technology (PTIT)  
 
-This project serves as the primary implementation and experimental testbed for the **PTIT Software Engineering Master / Graduation Thesis**:
+This project serves as the primary implementation and experimental testbed for the **PTIT Software Engineering Graduation Thesis**:
 > *"XÂY DỰNG CƠ CHẾ POLICY DECISION POINT HỖ TRỢ ỦY QUYỀN CÓ KIỂM SOÁT (DELEGATION-AWARE AUTHORIZATION) CHO TÁC TỬ AI TRONG HỆ THỐNG ERP — NGHIÊN CỨU TRIỂN KHAI VÀ ĐÁNH GIÁ THỰC NGHIỆM TRÊN NỀN TẢNG ODOO"*.

@@ -28,7 +28,7 @@
 
 Đề cương này giữ nguyên hướng nghiên cứu, 4 RQ và phạm vi 1-Hop Delegation trên Odoo 17. Tuy nhiên, các mô tả kiến trúc và số đo lịch sử trong các phần sau chỉ là baseline hoặc mục tiêu nếu chưa được xác nhận bởi mã nguồn và bộ thực nghiệm hiện hành. Tài liệu hiệu đính bắt buộc khi viết luận văn là [`THESIS_SCOPE_AND_EVIDENCE_ALIGNMENT.md`](./THESIS_SCOPE_AND_EVIDENCE_ALIGNMENT.md); trạng thái kỹ thuật chi tiết lấy từ [`CURRENT_STATE_AUDIT.md`](../technical-spec/CURRENT_STATE_AUDIT.md).
 
-Odoo PEP được kế thừa từ baseline Project 2 tại `E:\Projects\ERP_Mastery_Hub\02_Project_2_Odoo_Go_PDP_Approval`. Addon tồn tại nhưng chưa tương thích với hợp đồng PDP hiện tại (JWT/mTLS, full-tuple proof, protobuf và obligations có cấu trúc), nên chưa được tính là kết quả tích hợp thực nghiệm.
+Odoo PEP được kế thừa từ baseline Project 2 tại `E:\Projects\ERP_Mastery_Hub\02_Project_2_Odoo_Go_PDP_Approval`. Kết quả tích hợp thực nghiệm chỉ dùng addon đã migrate và versioned trong repository này; legacy addon không phải release artifact.
 
 ---
 
@@ -229,7 +229,7 @@ flowchart TD
        (với $\mathcal{O}$ là tập hợp các nghĩa vụ thực thi thời gian chạy - Runtime Obligations).
    - **Hình thức hóa hành vi ủy quyền có kiểm soát (Constrained Delegation Tuple):**
      $$\Delta = \langle \mathcal{U}_{\text{root}}, \mathcal{A}_{\text{exec}}, \Sigma_{\text{scope}}, \Omega_{\text{constraints}}, \mathcal{C}_{\text{chain}} \rangle$$
-     Trong đó, phạm vi nghiên cứu thực nghiệm khóa chặt ở **1-Hop Delegation** ($\text{Depth} = 1$: $\mathcal{U}_{\text{root}} \to \mathcal{A}_{\text{exec}}$), đồng thời cấu trúc giao thức gRPC Protobuf được thiết kế dạng mảng mở rộng (`repeated string delegation_chain`) sẵn sàng cho Multi-Hop ($N$-Hop) tương lai.
+     Trong đó, phạm vi nghiên cứu thực nghiệm khóa chặt ở **1-Hop Delegation** ($\text{Depth} = 1$: $\mathcal{U}_{\text{root}} \to \mathcal{A}_{\text{exec}}$). Giao thức hiện hành truyền chuỗi và tool context trong context map; Multi-Hop không thuộc phạm vi luận văn.
    - **Bảo toàn tính suy giảm quyền lực theo thời gian (Time-Aware Monotonic Attenuation):**
      $$\mathcal{P}_{\text{effective}}(\mathcal{A} \mid \mathcal{U}, t) = \mathcal{P}_{\text{active}}(\mathcal{U}, t) \cap \mathcal{S}_{\text{delegation}} \cap \Omega_{\text{guardrails}}$$
      Tại thời điểm $t$, nếu User gốc bị đình chỉ hoặc cạn hạn mức, quyền của Agent lập tức suy biến về $\emptyset$ thông qua đánh giá trực tiếp thuộc tính ngữ cảnh trong RAM mà không cần truy vấn ngược database.
@@ -256,7 +256,7 @@ flowchart TD
 | **Giai đoạn 1** | Khảo sát lý thuyết NIST SP 800-162, đặc tả mô hình Unified Subject, Delegation Chain & Threat Model giải quyết RQ1, RQ3. | Tuần 1 – 3 | Báo cáo SRS & Đặc tả mô hình nghiên cứu. |
 | **Giai đoạn 2** | Kế thừa Foundation Engine, mở rộng Pratt Parser & AST Compiler hỗ trợ Delegation & Tool Context. | Tuần 4 – 7 | Bộ thư viện phân tích cú pháp mở rộng. |
 | **Giai đoạn 3** | Hiện thực hóa Risk-Aware Tri-State Engine (`REQUIRE_APPROVAL`) và tích hợp cơ chế Human-in-the-Loop vào Data Plane giải quyết RQ2, RQ3. | Tuần 8 – 11 | Mã nguồn Go PDP Engine mở rộng hoàn chỉnh. |
-| **Giai đoạn 4** | Tích hợp thử nghiệm trên 4 kịch bản Enterprise ERP (PO, SoD, Branch, Payroll) và mô phỏng Multi-Agent Workflows. | Tuần 12 – 13 | Hệ thống phân tán và Module Odoo/SAP. |
+| **Giai đoạn 4** | Tích hợp và kiểm chứng các kịch bản authorization trong purchase-confirmation/P2P checkpoint của Odoo 17, gồm ALLOW, hard DENY, SoD, approval, revoke, tamper và replay/concurrency. | Tuần 12 – 13 | Repository-owned Odoo PEP và evidence giao dịch tái lập được. |
 | **Giai đoạn 5** | Thực nghiệm toàn diện 3 chiều (Functional - Security - Comparative Performance) giải quyết RQ4, hoàn thiện Thuyết minh 100 trang & Slide. | Tuần 14 – 16 | Thuyết minh Đồ án & Slide bảo vệ. |
 
 ---
@@ -302,7 +302,7 @@ flowchart TD
 * **Chương 3: Thiết Kế Kiến Trúc & Giải Thuật Động Cơ Standalone In-Memory PDP**
   - Cấu trúc chỉ mục Radix Trie FNV-1a, Đồ thị Role DAG Transitive Closure $O(1)$ query.
   - Trình biên dịch Pratt Parser, AST Evaluator Zero-Allocation, In-Memory Policy Snapshots.
-  - Kiến trúc phân tầng: Tầng 1 gRPC Security Interceptor (mTLS, HMAC-SHA256 verify `delegation_proof`, In-Memory Revocation Blacklist $O(1)$ chống TOCTOU) và Tầng 2 In-Memory Hot-Path Core (27ns).
+  - Kiến trúc phân tầng: Tầng 1 gRPC Security Interceptor (mTLS, HMAC-SHA256 verify `delegation_proof`, tenant-scoped revocation) và Tầng 2 In-Memory Hot-Path Core. Chỉ công bố latency/throughput theo từng boundary đã đo, không dùng số lịch sử chưa tái lập.
   - Lộ trình kỹ thuật 2 pha cho Runtime Obligations (`REQUIRE_HUMAN_APPROVAL`): Pha 1 Metadata Mapping, Pha 2 mở rộng EBNF Parser.
   - Kiến trúc đồng bộ trạng thái qua PostgreSQL Monotonic Sequence (`tenants.revision`) LISTEN/NOTIFY; audit durable/WORM và edge restore được trình bày như các release gate hoặc hướng mở rộng cho tới khi có evidence.
 * **Chương 4: Hiện Thực Hóa & Tích Hợp Vào Hệ Thống Doanh Nghiệp Thực Tế (Odoo Platform)**

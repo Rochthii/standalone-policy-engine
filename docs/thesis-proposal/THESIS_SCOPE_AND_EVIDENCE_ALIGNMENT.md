@@ -20,10 +20,10 @@ The thesis contribution is evaluated through three separable artifacts:
 
 | Thesis area | Status | Evidence / required work |
 |---|---|---|
-| RQ1: unified subject, context and 1-hop delegation | Verified for the current single-PDP Odoo boundary | PDP accepts an authenticated principal, resource context and full-tuple proof; the mapper plus duplicate/altered/concurrent nonce behavior pass real Odoo/mTLS-gRPC/PostgreSQL tests. |
+| RQ1: unified subject, context and 1-hop delegation | Verified for the current single-PDP Odoo boundary | PDP accepts an authenticated principal, resource context and full-tuple proof; the mapper plus duplicate/altered/concurrent nonce behavior pass real Odoo/mTLS-gRPC/PostgreSQL tests. The wire contract uses a subject string plus context map; this is not a typed multi-hop subject schema. |
 | RQ2: in-memory runtime | Verified only for measured evaluator cases | The 2026-09-12 three-sample run reports 390.3–492.8 ns/op with 0 B/op and 0 allocs/op for the measured evaluator case. This is not gRPC, mTLS, JWT or Odoo end-to-end latency. |
 | RQ3: deterministic guardrails and obligations | Base Odoo path verified | Typed DSL obligations and structured API serialization are verified; a real Odoo transaction persists `to approve` and one Activity without rollback. |
-| RQ4: ERP empirical evaluation | Partially complete | Seven real Odoo transaction cases plus a two-session retry case pass over mTLS. Comparative measurement and production-path load evidence remain open. |
+| RQ4: ERP empirical evaluation | Partially complete | Seven real Odoo transaction cases plus a two-session retry case pass over mTLS. A real purchase-confirmation comparison exists, but it is one warm P2P checkpoint and not a full workflow, committed transaction or concurrent-load result. A current-HEAD evidence freeze remains open. |
 
 ## 3. Project 2 integration assessment
 
@@ -31,12 +31,12 @@ The Project 2 addon exists at the path above, but it is a **legacy integration b
 
 | Interface area | Project 2 baseline | Current PDP contract | Migration requirement |
 |---|---|---|---|
-| Client transport | `grpc.insecure_channel` | Production configuration requires TLS/mTLS | Build a secure channel from centralized Odoo configuration and verify certificate handling. |
-| Caller identity | No bearer metadata | Mandatory JWT bearer token with tenant, subject, issuer, audience and expiry claims | Mint/obtain a service credential at the PEP trust boundary; never trust an Odoo-provided subject as principal identity. |
-| Delegation proof | Short HMAC over grant, delegator, agent, amount and expiry; fallback secret in source | Versioned length-prefixed HMAC over the full decision tuple; no default production secret | Generate the canonical current proof at a trusted signer and remove the fallback secret. |
-| Generated protobuf | Stale, locally copied generated files | Buf-pinned standard Go/Python clients from `proto/v1/policy.proto` | Replace vendored output with the pinned generated Python client and add a compatibility test. |
+| Client transport | `grpc.insecure_channel` | Repository PEP uses centralized TLS/mTLS configuration | Retain the mTLS boundary result; do not generalize it to production deployment. |
+| Caller identity | No bearer metadata | Mandatory JWT bearer token with tenant, subject, issuer, audience and expiry claims | Keep signed principal attributes authoritative; never trust an Odoo-provided subject as principal identity. |
+| Delegation proof | Short HMAC over grant, delegator, agent, amount and expiry; fallback secret in source | Versioned length-prefixed HMAC over the full decision tuple; no default production secret | Retain the current trusted signer/key-ring contract; fallback secret remains development/test compatibility only. |
+| Generated protobuf | Stale, locally copied generated files | Buf-pinned standard Go/Python clients from `proto/v1/policy.proto` | Keep the generated compatibility test and document the actual subject/context-map contract. |
 | Decision response | String obligations and `advice` map | Structured obligations; no `advice` map guarantee | Map typed obligation `type` and payload to the Odoo approval/activity workflow. |
-| Revocation | Best-effort RPC after changing Odoo state | Authenticated, tenant-bound revoke; process-local revocation until durable work completes | Handle RPC failure explicitly and do not claim cluster-wide restart-safe revocation. |
+| Revocation | Best-effort RPC after changing Odoo state | Authenticated, tenant-bound revoke with PostgreSQL-backed multi-replica propagation | Keep the documented propagation SLO and do not claim universal production behavior. |
 
 ## 4. Claim discipline for the thesis
 
@@ -52,12 +52,12 @@ The following wording is required until new experiments are completed:
 
 ## 5. Completion sequence for the thesis
 
-1. Freeze the already verified identity, delegation, Odoo, PostgreSQL, audit and Docker baseline.
-2. Complete RQ2 evidence: dense candidate/collision cases and full production-path latency measurements.
-3. Complete RQ4 evidence: equal-workload Odoo P2P comparison with reproducible functional, security and performance results.
-4. Add deployment/race/restore hardening only where it strengthens the SE/ERP thesis claim; keep edge restore as stretch scope unless the scope changes.
+1. Execute `THESIS-RQ4-FREEZE-01`: re-run the existing functional, security and performance boundaries at one current commit and preserve raw results.
+2. Rewrite RQ2 claims so evaluator, dense candidates, local gRPC and Odoo transaction boundaries are not conflated.
+3. Rewrite RQ4 as evidence for the bounded Odoo purchase-confirmation checkpoint; do not claim full P2P or general ERP speedup.
+4. Keep deployment/race/restore hardening proportional to the SE/ERP demonstration; keep edge and external archive work outside the current thesis task.
 5. In 2029, pin the final environment, rerun the evidence suite, and update the thesis only from those measured results.
 
 ## 6. Authority order
 
-When documents conflict, use this order: current source and generated protocol, `CURRENT_STATE_AUDIT.md`, this alignment, then the proposal and historical Project 2 documents. Historical documents remain valuable as design intent, but they are not evidence of completion.
+When documents conflict, use this order: current source and generated protocol, `CURRENT_STATE_AUDIT.md`, this alignment, then the proposal and historical Project 2 documents. Historical documents remain valuable as design intent, but they are not evidence of completion. External append-only archive/WORM evidence is explicitly deferred until 2029 and is not a current thesis blocker.

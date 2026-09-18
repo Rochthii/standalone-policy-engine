@@ -23,10 +23,11 @@ The Waves preserve technical dependency order. The execution priority below is t
 1. `PERF-WORST-01` — validate RQ2 with dense candidates and collision cases.
 2. `PERF-FULL-02` — measure the real PDP path, not only the in-memory evaluator.
 3. `PERF-ODOO-03` — produce the comparative Odoo ERP evidence required by RQ4.
-4. `OPS-HEALTH-03` — improve deployment quality for the SE/ERP system demonstration.
-5. `CI-003` — obtain remote race evidence when a C-capable runner is available.
-6. `REL-GATE-04` — close the release checklist only after the thesis evidence is frozen.
-7. `EDGE-RESTORE-05` — optional stretch scope unless offline/edge ERP becomes part of the thesis.
+4. `THESIS-RQ4-FREEZE-01` — freeze one current-HEAD evidence package and reconcile thesis claims.
+5. `OPS-HEALTH-03` — improve deployment quality for the SE/ERP system demonstration.
+6. `CI-003` — obtain remote race evidence when a C-capable runner is available.
+7. `REL-GATE-04` — close the release checklist only after the thesis evidence is frozen.
+8. `EDGE-RESTORE-05` — optional stretch scope unless offline/edge ERP becomes part of the thesis.
 
 ## Wave 0 — Evidence baseline
 
@@ -96,9 +97,10 @@ The Waves preserve technical dependency order. The execution priority below is t
 |---|---|---|---|
 | PERF-WORST-01 | Benchmark dense candidate sets and hash-collision correctness. | `VERIFIED` | Three 10,000-policy samples per global/same-leaf case, reported allocation data, and forced collision-bucket raw-key correctness test. See `evidence/DENSE_CANDIDATE_COLLISION_2026_09_14.md`. |
 | PERF-FULL-02 | Measure JWT + proof + gRPC + metrics + audit path. | `VERIFIED` | Three 10,000-request TCP gRPC samples record p50/p95/p99/p99.9, throughput, zero errors, process CPU, RSS and GC while validating JWT, HMAC proof, metrics and encrypted audit queueing. See `evidence/FULL_PATH_2026_09_14.md`. |
-| PERF-ODOO-03 | Replace synthetic Odoo baseline with real ORM/database work. | `VERIFIED` | Real Odoo `ir.rule`/PostgreSQL authorization and Odoo-to-PDP mTLS gRPC comparison: three 250-request samples per path, all 1,500 raw latencies, workload limits, and commit `4bb4c48` recorded. The retired model is not used for claims. See `evidence/ODOO_ORM_COMPARISON_2026_09_15.md`. |
+| PERF-ODOO-03 | Replace synthetic Odoo baseline with real ORM/database work. | `VERIFIED` | Real Odoo purchase-confirmation versus Odoo-to-PDP mTLS gRPC comparison: three 250-request samples per path, all 1,500 raw latencies, workload limits, and commit `64494d9` recorded. The retired model is not used for claims. See `evidence/ODOO_ORM_COMPARISON_2026_09_15.md`. |
+| THESIS-RQ4-FREEZE-01 | Freeze one current-HEAD thesis evidence package and reconcile claims across proposal, chapter mapping and evidence matrix. | `TODO` | Re-run existing functional, security and performance boundaries on one commit; no new subsystem or workload. AWS archive remains deferred to 2029. |
 | REL-GATE-04 | Execute every production-readiness gate and record GO/NO-GO. | `BLOCKED` | **NO-GO**: implementation and CI evidence close G0, G7, G8 and G9; G6 external append-only retention/deletion rehearsal remains open. See `evidence/REL_GATE_2026_09_17.md` and `CURRENT_STATE_AUDIT.md`. |
 
 ## Next task
 
-Next: defer the external `AUD-ARCHIVE-03` rehearsal to 2029, before any final production claim or thesis defense; then update the release decision from the retained CloudTrail evidence.
+Next: execute `THESIS-RQ4-FREEZE-01` at the current HEAD. Keep `AUD-ARCHIVE-03` explicitly deferred until 2029; it is a production-release gate, not a current thesis blocker.

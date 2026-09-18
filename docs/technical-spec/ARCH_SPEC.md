@@ -20,20 +20,20 @@
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ 1. Mutual TLS (mTLS) X.509 Certificate Validation                           │
 │ 2. Tenant Isolation Enforcement: claims["tenant_id"] == req.TenantId        │
-│ 3. Cryptographic Verification: HMAC-SHA256(delegation_proof) (~1.2 µs)      │
-│ 4. TOCTOU Mitigation: In-Memory RevocationMap O(1) Blacklist Lookup (<1 µs)│
+│ 3. Cryptographic Verification: versioned full-tuple HMAC delegation proof   │
+│ 4. TOCTOU Mitigation: process-local O(1) lookup plus PostgreSQL propagation  │
 │    └─ If revoked -> Short-circuit Hard DENY                                 │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        │ Verified Clean Request Context
                                        ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ PDP CORE: In-Memory Decision Engine (Tầng 2 - Hot-Path Core: 27ns)          │
+│ PDP CORE: In-Memory Decision Engine (latency reported per measured case)     │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ 1. Radix Trie Policy Filtering (FNV-1a 64-bit uint64 index):               │
 │    TenantID -> SubjectHash -> ResourceHash -> ActionHash                    │
 │ 2. Role DAG Transitive Closure Query: O(1) IsDescendant()                   │
 │ 3. AST Pure Evaluation: sync.Pool EvalContext, Stack Scratch [64],          │
-│    Zero Heap Allocation (0 allocs/op, 0 B/op)                               │
+│    0 allocs/op for measured evaluator cases; bytes vary by workload          │
 │ 4. Decision Synthesis: Deny-by-Default + Forbid-Overrides                   │
 │ 5. Obligation Mapping: Matched Policy -> Obligations/Advice                 │
 └──────────────────────────────────────┬──────────────────────────────────────┘
@@ -42,8 +42,8 @@
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ AUDIT PIPELINE: Async Non-Blocking Telemetry                               │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ Lock-Free Ring Buffer (1M slots) -> UDS Datagram Socket -> Vector Sidecar   │
-│ -> PostgreSQL encrypted storage (external WORM retention is not implemented)│
+│ Bounded async queue -> PostgreSQL encrypted storage                          │
+│ (external append-only retention/deletion evidence is deferred until 2029)   │
 └─────────────────────────────────────────────────────────────────────────────┘
                                        │
                                        ▼ gRPC response (no production E2E latency SLO established)
@@ -64,10 +64,10 @@
 | Component | Physical Location | Runtime / Language | Primary Responsibilities | Non-Responsibilities |
 |---|---|---|---|---|
 | **Odoo PEP Module** | `custom_addons/pdp_authorizer/` | Python 3.10+ / Odoo ORM | • Intercept `button_confirm`<br>• PIP: Extract ORM attributes (`resource.creator_id`)<br>• Sign `delegation_proof`<br>• Coordinate ORM state transitions without rollback | • Policy logic execution<br>• In-memory rule storage<br>• Token parsing |
-| **gRPC Security Interceptor** | `internal/security/auth.go` | Go 1.22 / gRPC Server | • mTLS X.509 handshake<br>• JWT claims validation<br>• HMAC-SHA256 proof verification<br>• In-Memory `RevocationMap` $O(1)$ query | • AST policy evaluation<br>• Radix Trie indexing<br>• Disk I/O |
-| **In-Memory Decision Engine** | `internal/engine/` | Go 1.22 (Zero-Alloc Hot-Path) | • Multi-level Radix Trie index<br>• Precomputed Role DAG closure $O(1)$<br>• Pure AST evaluation (27ns)<br>• Decision synthesis & Obligation attachment | • Cryptographic hashing<br>• Database queries<br>• Network protocol handling |
-| **State Synchronizer** | `internal/storage/`, `internal/engine/sync.go` | Go 1.22 / pgx | • PostgreSQL `LISTEN/NOTIFY`<br>• Monotonic Sequence (`tenants.revision`) gap detection<br>• Replay Ring Buffer catch-up (< 50ms)<br>• Cold start BadgerDB snapshot | • Request handling<br>• Telemetry parsing |
-| **Audit Logger** | `internal/audit/` | Go 1.22 / Vector / pgx | • Lock-free Ring Buffer queueing<br>• UDS Datagram dispatch<br>• Encrypted PostgreSQL batch storage (`pgx.CopyFrom`)<br>• Spill-to-Disk on failure (1GB cap) | • Inline evaluation blocking<br>• Policy checking |
+| **gRPC Security Interceptor** | `internal/security/` | Go / gRPC Server | • mTLS X.509 handshake<br>• JWT claims validation<br>• Full-tuple HMAC proof verification<br>• In-Memory `RevocationMap` $O(1)$ query | • AST policy evaluation<br>• Radix Trie indexing<br>• Disk I/O |
+| **In-Memory Decision Engine** | `internal/engine/` | Go | • Multi-level Radix Trie index<br>• Precomputed Role DAG closure $O(1)$<br>• Pure AST evaluation with measured-case allocation results<br>• Decision synthesis & Obligation attachment | • Cryptographic hashing<br>• Database queries<br>• Network protocol handling |
+| **State Synchronizer** | `internal/storage/`, `internal/engine/sync.go` | Go / pgx | • PostgreSQL `LISTEN/NOTIFY`<br>• Monotonic Sequence (`tenants.revision`) gap detection<br>• Revision reconciliation and catch-up<br>• Cold start BadgerDB snapshot | • Request handling<br>• Telemetry parsing |
+| **Audit Logger** | `internal/audit/` | Go / pgx | • Bounded asynchronous queueing<br>• Redaction and envelope encryption<br>• Encrypted PostgreSQL batch storage (`pgx.CopyFrom`)<br>• Encrypted spill/replay on failure | • Inline evaluation blocking<br>• Policy checking |
 
 ---
 

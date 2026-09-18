@@ -1,6 +1,6 @@
 # THREAT_MODEL.md — STRIDE & OWASP LLM06 Threat Analysis
 
-> **Implementation gap notice (2026-09-11):** Tài liệu này mô tả mô hình đích. Audit hiện trạng xác định một số control quan trọng chưa được cưỡng chế trong production path, gồm JWT bắt buộc, binding đầy đủ delegation proof, revocation đa replica và audit mã hóa bền vững. Xem [`CURRENT_STATE_AUDIT.md`](./CURRENT_STATE_AUDIT.md) trước khi dùng bảng dưới đây làm security assurance.
+> **Evidence boundary (2026-09-18):** JWT, full-tuple proof, mTLS, replay/nonce, multi-replica revocation and encrypted PostgreSQL audit delivery have verified local/CI boundaries. External append-only retention/deletion evidence remains open. This document is a threat model, not production security assurance; see [`CURRENT_STATE_AUDIT.md`](./CURRENT_STATE_AUDIT.md).
 
 ## 1. Threat Classification Matrix (STRIDE + OWASP LLM06)
 
@@ -12,7 +12,7 @@
 | **Information Disclosure (I)** | Rò rỉ thông tin lương bổng, ngân sách qua log hoặc lỗi PDP | gRPC API | **MEDIUM** | Zero-Alloc Sanitization + Envelope Encryption (AES-GCM `LOG_KEK`) |
 | **Denial of Service (D)** | Gửi biểu thức AST phức tạp nhằm gây cạn kiệt CPU/RAM PDP | Engine Evaluator | **HIGH** | Giới hạn độ sâu cây AST ($\le 15$) + Trie Filter $O(\log N)$ |
 | **Elevation of Privilege (E)** | Tác tử AI tự leo thang quyền hạn vượt hạn mức cấp phép | Business Logic | **CRITICAL** | Monotonic Attenuation + Invariant $\mathcal{P}_{\text{effective}} \subseteq \mathcal{P}_{\text{active}}$ |
-| **Excessive Agency (OWASP LLM06)** | LLM bị thao túng tự ý kích hoạt các tool nhạy cảm | Tool-Call Flow | **CRITICAL** | Deterministic Guardrails 27ns + Obligation `REQUIRE_HUMAN_APPROVAL` |
+| **Excessive Agency (OWASP LLM06)** | LLM bị thao túng tự ý kích hoạt các tool nhạy cảm | Tool-Call Flow | **CRITICAL** | Deterministic guardrails + typed obligation `REQUIRE_HUMAN_APPROVAL`; latency is boundary-specific |
 
 ---
 
@@ -28,8 +28,8 @@
             ▼                               ▼                           ▼                           ▼
 ┌───────────────────────┐       ┌───────────────────────┐   ┌───────────────────────┐   ┌───────────────────────┐
 │ GATE 1: Interceptor   │       │ GATE 2: RevocationMap │   │ GATE 3: AST Guardrail │   │ GATE 4: SoD Contains  │
-│ Verify HMAC-SHA256    │       │ In-Memory O(1) Check  │   │ Forbid amount > 2000  │   │ Check creator not in  │
-│ delegation_proof      │       │ Latency < 1.0 µs      │   │ Evaluated in 286.3 ns │   │ delegation_chain      │
+│ Verify HMAC-SHA256    │       │ Process-local O(1)    │   │ Forbid amount > 2000  │   │ Check creator not in  │
+│ delegation_proof      │       │ propagation measured  │   │ benchmark-specific     │   │ delegation_chain      │
 └───────────┬───────────┘       └───────────┬───────────┘   └───────────┬───────────┘   └───────────┬───────────┘
             │                               │                           │                           │
             ▼                               ▼                           ▼                           ▼
@@ -46,7 +46,7 @@
   ```
 * **Lỗ hổng khai thác**: Nếu PDP tin tưởng mù quáng chuỗi `delegation_chain` do client tự khai báo, kẻ tấn công sẽ mạo danh CEO.
 * **Cơ chế phòng thủ (Layer 1 Security Interceptor)**:
-  * PEP Odoo tạo mã băm: `HMAC-SHA256(secret, delegator + agent + tool + amount + ts)`.
+  * PEP Odoo tạo proof theo versioned, length-prefixed full decision tuple và key-ring `kid`.
   * gRPC Interceptor giải mã và tính lại HMAC. Nếu sai lệch dù 1 bit $\to$ **`Immediate Reject (403 Forbidden)`** trước khi chạm vào Hot-path.
 
 ---
@@ -58,8 +58,8 @@
   3. Nếu PDP dựa vào cơ chế đồng bộ DB thông thường (chu kỳ 5-10s), 50 đơn hàng này sẽ **lọt lưới** trước khi quyền bị hủy!
 * **Cơ chế phòng thủ (In-Memory Revocation Map $O(1)$)**:
   * Nút Revoke trên Odoo kích hoạt gRPC call `RevokeDelegation(session_id)`.
-  * Go PDP lưu `session_id` vào `sync.Map` trên RAM trong $< 1\,\mu\text{s}$.
-  * Mọi request tiếp theo của Agent bị Interceptor tra cứu Blacklist và **`Hard DENY` trong $< 1.5\,\mu\text{s}$**.
+  * Go PDP tra cứu revocation map process-local theo $O(1)$; revocation được persist/propagate qua PostgreSQL.
+  * Khi đồng bộ không sẵn sàng, delegated checks fail closed; propagation latency dùng số đo multi-replica, không dùng latency lịch sử.
 
 ---
 
@@ -70,8 +70,7 @@
 * **Lỗ hổng khai thác**: Sự suy luận xác suất (Probabilistic) không đáng tin cậy của mô hình AI.
 * **Cơ chế phòng thủ (Deterministic AST Guardrail)**:
   * Động cơ Go PDP đánh giá quy tắc tiền định: `forbid when { context.amount > 2000 }`.
-  * Thời gian phán quyết: **286.3 ns**.
-  * Quyết định: **`Hard DENY` kèm `REQUIRE_HUMAN_APPROVAL`**, ngăn chặn hoàn toàn việc xuất tiền tự động.
+  * Quyết định: **`DENY` kèm `REQUIRE_HUMAN_APPROVAL`**, ngăn chặn việc tự động thực thi và chuyển sang human workflow.
 
 ---
 
