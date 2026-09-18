@@ -27,4 +27,11 @@ The test verified:
   PostgreSQL-backed policy sync path.
 
 The test creates and removes only its named Compose stack, network and volumes.
-Remote CI verification is required before closing the G9 combined gate.
+
+## Remote verification
+
+GitHub Actions run
+[`35337098600`](https://github.com/Rochthii/standalone-policy-engine/actions/runs/35337098600)
+completed successfully for commit `cffcd51`. The dedicated `Combined Control
+Plane PostgreSQL PDP E2E` job passed, and all remaining workflow jobs also
+passed.
