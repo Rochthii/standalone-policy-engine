@@ -1,8 +1,8 @@
 # Active Task
 
-ID: CI-PROTO-04
-Goal: Make the Protobuf Contract CI job pass on main
-Scope: proto/v1, buf.yaml, buf.gen.yaml, generated clients, .github/workflows/ci.yml, CI evidence
-Acceptance: Buf lint, format and generated-client drift checks pass
-Validation: Buf CI commands; git diff --check
-Commit: f0ab36b
+ID: CI-COMPAT-05
+Goal: Enforce protobuf backward compatibility in pull-request CI
+Scope: .github/workflows/ci.yml, buf.yaml, readiness checklist, CI evidence
+Acceptance: Buf breaking check compares every pull request with its target branch
+Validation: buf breaking against main; git diff --check
+Commit: pending
