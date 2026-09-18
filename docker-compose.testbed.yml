@@ -25,6 +25,18 @@ services:
       - testbed_pg_data:/var/lib/postgresql/data
       - ./deployments/docker/init-testbed-databases.sql:/docker-entrypoint-initdb.d/10-create-odoo.sql:ro
 
+  # Initializes persistent audit volumes before non-root PDP containers start.
+  testbed-audit-spill-init:
+    image: standalone-pdp:v1.0.0
+    restart: "no"
+    user: "0:0"
+    entrypoint: ["sh", "-ec"]
+    command:
+      - chown 10001:10001 /spill /spill-mtls && chmod 0700 /spill /spill-mtls
+    volumes:
+      - testbed_pdp_audit_spill:/spill
+      - testbed_pdp_mtls_audit_spill:/spill-mtls
+
   # 2. Standalone Go PDP Server Data Plane
   testbed-pdp:
     build:
@@ -51,6 +63,8 @@ services:
     depends_on:
       testbed-db:
         condition: service_healthy
+      testbed-audit-spill-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/readyz"]
       interval: 3s
@@ -65,6 +79,7 @@ services:
       dockerfile: deployments/docker/Dockerfile.pdp
     image: standalone-pdp:v1.0.0
     restart: "no"
+    user: "0:0"
     entrypoint: ["/app/test-certgen"]
     command: ["-output", "/certs"]
     volumes:
@@ -103,6 +118,8 @@ services:
     depends_on:
       testbed-db:
         condition: service_healthy
+      testbed-audit-spill-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/readyz"]
       interval: 3s
