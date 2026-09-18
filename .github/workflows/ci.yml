@@ -144,6 +144,26 @@ jobs:
           TEST_DATABASE_URL: ""
         run: go test -v -race -count=1 ./internal/... ./pkg/...
 
+      - name: Run critical server and security negative paths
+        run: |
+          go test -v -count=1 ./internal/server -run='^(TestGRPCServer_RequiredAuthentication|TestGRPCServer_FailsClosedWhenRevocationStateIsUnavailable|TestReadinessEndpoint|TestRESTDecisionAuthenticationAndTrustedIdentity)$'
+          go test -v -count=1 ./internal/security -run='^(TestDelegationManager_RejectsInvalidKeyringAndUnknownKey|TestDelegationManager_RejectsOverlongTTLAndDelimiterConfusion|TestJWTValidateExpiredToken|TestJWTValidateRejectsNonHS256Algorithm|TestRevocationSyncerFailsStartupWithoutSnapshot)$'
+
+      - name: Enforce critical package coverage floors
+        run: |
+          check_coverage() {
+            local package="$1" floor="$2" profile
+            profile="$(mktemp)"
+            go test -count=1 -coverprofile="$profile" "$package"
+            coverage="$(go tool cover -func="$profile" | awk '$1 == "total:" { sub(/%$/, "", $3); print $3 }')"
+            rm -f "$profile"
+            echo "$package coverage: $coverage% (floor: $floor%)"
+            awk -v coverage="$coverage" -v floor="$floor" 'BEGIN { exit coverage < floor }'
+          }
+          check_coverage ./internal/server 45
+          check_coverage ./internal/storage 20
+          check_coverage ./internal/security 70
+
   # ── Job 4: Isolated PostgreSQL integration ────────────────────────────
   postgres-integration:
     name: PostgreSQL Integration
@@ -172,10 +192,10 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
-      - name: Run storage migrations and tenant-boundary tests
+      - name: Run storage migrations, rollback and revocation tests
         env:
           TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
-        run: go test -v -count=1 ./internal/storage -run='^(TestStorage_MigrationsIntegration|TestRevocationPropagationThreeReplicasAndRestart)$'
+        run: go test -v -count=1 ./internal/storage -run='^(TestStorage_MigrationsIntegration|TestStoragePolicyMutationsRollbackOnPostgresFaults|TestRevocationPropagationThreeReplicasAndRestart)$'
 
   # ── Job 5: E2E 7 Delegation Vectors & ERP Scenarios ───────────────────
   e2e-delegation:
