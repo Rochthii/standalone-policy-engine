@@ -1,8 +1,8 @@
 # Active Task
 
-ID: AUD-ARCHIVE-01
-Goal: Define the 2029 external immutable audit-archive design and rehearsal
-Scope: audit archive decision, operations runbook, readiness checklist
-Acceptance: provider, retention, access separation and deletion evidence are explicit; G6 remains open until externally rehearsed
-Validation: targeted audit-document review; git diff --check
-Commit: f6037c6
+ID: AUD-ARCHIVE-02
+Goal: Add a configurable immutable audit-archive delivery boundary
+Scope: internal/audit, internal/config, PDP server wiring, AWS archive IaC
+Acceptance: archive segments use unique immutable keys; disabled mode preserves current delivery; IaC encodes Object Lock controls
+Validation: go test ./internal/audit ./internal/config ./cmd/pdp-server; go vet ./internal/audit ./internal/config ./cmd/pdp-server; git diff --check
+Commit: d37f232

@@ -45,12 +45,16 @@ type EngineConfig struct {
 }
 
 type AuditConfig struct {
-	SpillDir      string
-	QueueCapacity int
-	BatchSize     int
-	FlushInterval time.Duration
-	WriteTimeout  time.Duration
-	SpillMaxBytes int64
+	SpillDir                   string
+	QueueCapacity              int
+	BatchSize                  int
+	FlushInterval              time.Duration
+	WriteTimeout               time.Duration
+	SpillMaxBytes              int64
+	ArchiveBucket              string
+	ArchivePrefix              string
+	ArchiveRegion              string
+	ArchiveExpectedBucketOwner string
 }
 
 // Load nạp cấu hình từ môi trường và kiểm tra tính hợp lệ (Fail-Fast Validation).
@@ -124,6 +128,13 @@ func Load() (*Config, error) {
 	if err != nil || auditSpillMaxBytes <= 0 {
 		return nil, errors.New("AUDIT_SPILL_MAX_BYTES phai la so nguyen duong")
 	}
+	auditArchiveBucket := strings.TrimSpace(getEnv("AUDIT_ARCHIVE_BUCKET", ""))
+	auditArchivePrefix := strings.TrimSpace(getEnv("AUDIT_ARCHIVE_PREFIX", ""))
+	auditArchiveRegion := strings.TrimSpace(getEnv("AUDIT_ARCHIVE_REGION", ""))
+	auditArchiveExpectedOwner := strings.TrimSpace(getEnv("AUDIT_ARCHIVE_EXPECTED_BUCKET_OWNER", ""))
+	if err := validateAuditArchiveConfig(auditArchiveBucket, auditArchivePrefix, auditArchiveRegion, auditArchiveExpectedOwner); err != nil {
+		return nil, err
+	}
 
 	dbURL := getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/policy_engine?sslmode=disable")
 	delegationSecret := getEnv("PDP_SHARED_SECRET", developmentDelegationSecret)
@@ -160,12 +171,16 @@ func Load() (*Config, error) {
 			ReconcileInterval: reconcileInterval,
 		},
 		Audit: AuditConfig{
-			SpillDir:      getEnv("AUDIT_SPILL_DIR", "./spill-logs"),
-			QueueCapacity: auditQueueCapacity,
-			BatchSize:     auditBatchSize,
-			FlushInterval: auditFlushInterval,
-			WriteTimeout:  auditWriteTimeout,
-			SpillMaxBytes: auditSpillMaxBytes,
+			SpillDir:                   getEnv("AUDIT_SPILL_DIR", "./spill-logs"),
+			QueueCapacity:              auditQueueCapacity,
+			BatchSize:                  auditBatchSize,
+			FlushInterval:              auditFlushInterval,
+			WriteTimeout:               auditWriteTimeout,
+			SpillMaxBytes:              auditSpillMaxBytes,
+			ArchiveBucket:              auditArchiveBucket,
+			ArchivePrefix:              auditArchivePrefix,
+			ArchiveRegion:              auditArchiveRegion,
+			ArchiveExpectedBucketOwner: auditArchiveExpectedOwner,
 		},
 		Security: SecurityConfig{
 			JWTSecret:                 getEnv("JWT_SECRET", developmentJWTSecret),
@@ -227,4 +242,31 @@ func getEnvDuration(key string, defaultVal time.Duration) (time.Duration, error)
 		return 0, err
 	}
 	return d, nil
+}
+
+func validateAuditArchiveConfig(bucket, prefix, region, expectedOwner string) error {
+	configured := []string{bucket, prefix, region, expectedOwner}
+	if bucket == "" {
+		for _, value := range configured[1:] {
+			if value != "" {
+				return errors.New("AUDIT_ARCHIVE_BUCKET bat buoc khi cau hinh external audit archive")
+			}
+		}
+		return nil
+	}
+	if prefix == "" || strings.Trim(prefix, "/") != prefix || strings.Contains(prefix, "..") {
+		return errors.New("AUDIT_ARCHIVE_PREFIX phai la prefix khong rong, khong co slash dau/cuoi hay ..")
+	}
+	if region == "" {
+		return errors.New("AUDIT_ARCHIVE_REGION bat buoc khi cau hinh external audit archive")
+	}
+	if len(expectedOwner) != 12 {
+		return errors.New("AUDIT_ARCHIVE_EXPECTED_BUCKET_OWNER phai la AWS account ID 12 chu so")
+	}
+	for _, char := range expectedOwner {
+		if char < '0' || char > '9' {
+			return errors.New("AUDIT_ARCHIVE_EXPECTED_BUCKET_OWNER phai la AWS account ID 12 chu so")
+		}
+	}
+	return nil
 }

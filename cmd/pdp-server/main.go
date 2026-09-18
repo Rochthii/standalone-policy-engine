@@ -65,7 +65,24 @@ func main() {
 		if err != nil {
 			log.Fatalf("[PDP-Server] Cấu hình audit encryption thất bại: %v", err)
 		}
-		auditLogger, err = audit.NewBatchAuditLogger(store, audit.BatchConfig{
+		var auditWriter audit.BatchWriter = store
+		if cfg.Audit.ArchiveBucket != "" {
+			archiveSink, err := audit.NewS3ArchiveSink(ctxServer, audit.S3ArchiveConfig{
+				Bucket:              cfg.Audit.ArchiveBucket,
+				Prefix:              cfg.Audit.ArchivePrefix,
+				Region:              cfg.Audit.ArchiveRegion,
+				ExpectedBucketOwner: cfg.Audit.ArchiveExpectedBucketOwner,
+			})
+			if err != nil {
+				log.Fatalf("[PDP-Server] Cau hinh immutable audit archive that bai: %v", err)
+			}
+			auditWriter, err = audit.NewArchivingBatchWriter(store, archiveSink)
+			if err != nil {
+				log.Fatalf("[PDP-Server] Cau hinh immutable audit writer that bai: %v", err)
+			}
+			log.Printf("[PDP-Server] Immutable audit archive enabled for S3 bucket %s.", cfg.Audit.ArchiveBucket)
+		}
+		auditLogger, err = audit.NewBatchAuditLogger(auditWriter, audit.BatchConfig{
 			QueueCapacity: cfg.Audit.QueueCapacity,
 			BatchSize:     cfg.Audit.BatchSize,
 			FlushInterval: cfg.Audit.FlushInterval,

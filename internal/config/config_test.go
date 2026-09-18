@@ -36,6 +36,9 @@ func TestConfig_LoadDefaults(t *testing.T) {
 	if cfg.Audit.SpillMaxBytes != 1<<30 || cfg.Security.AuditActiveKeyID != "legacy" {
 		t.Fatalf("unexpected audit durability defaults: audit=%+v security=%+v", cfg.Audit, cfg.Security)
 	}
+	if cfg.Audit.ArchiveBucket != "" || cfg.Audit.ArchivePrefix != "" || cfg.Audit.ArchiveRegion != "" || cfg.Audit.ArchiveExpectedBucketOwner != "" {
+		t.Fatalf("archive must be disabled by default: %+v", cfg.Audit)
+	}
 	if cfg.Security.DelegationActiveKeyID != "legacy" || len(cfg.Security.DelegationKeys) != 1 {
 		t.Fatalf("unexpected development delegation key ring: %+v", cfg.Security)
 	}
@@ -65,40 +68,44 @@ func TestConfigRejectsNonPositiveReconcileInterval(t *testing.T) {
 
 func TestConfigRuntimeEnvironmentBindings(t *testing.T) {
 	values := map[string]string{
-		"APP_ENV":                   "test",
-		"HTTP_PORT":                 "18080",
-		"GRPC_PORT":                 "15051",
-		"GRPC_EVALUATION_TIMEOUT":   "250ms",
-		"GRPC_MAX_RECEIVE_BYTES":    "4096",
-		"GRPC_MAX_SEND_BYTES":       "8192",
-		"LISTEN_SOCKET_PATH":        "/tmp/pdp.sock",
-		"USE_ZITI":                  "true",
-		"ZITI_IDENTITY_PATH":        "/run/ziti/pdp.json",
-		"ZITI_SERVICE_NAME":         "pdp-private-service",
-		"DATABASE_URL":              "postgres://test:secret@db.internal:5432/pdp?sslmode=require",
-		"STORAGE_MODE":              "edge",
-		"BADGER_DATA_DIR":           "/var/lib/pdp/badger",
-		"DISABLE_GC":                "true",
-		"GC_INTERVAL":               "2m",
-		"GC_IDLE_TIMEOUT":           "3m",
-		"SYNC_RECONCILE_INTERVAL":   "4s",
-		"AUDIT_SPILL_DIR":           "/var/lib/pdp/audit-spill",
-		"AUDIT_QUEUE_CAPACITY":      "64",
-		"AUDIT_BATCH_SIZE":          "8",
-		"AUDIT_FLUSH_INTERVAL":      "150ms",
-		"AUDIT_WRITE_TIMEOUT":       "3s",
-		"AUDIT_SPILL_MAX_BYTES":     "2048",
-		"JWT_SECRET":                "test-jwt-secret-at-least-32-characters",
-		"JWT_ISSUER":                "https://issuer.example.test",
-		"JWT_AUDIENCE":              "pdp-test",
-		"PDP_SHARED_SECRET":         "test-delegation-secret-at-least-32-characters",
-		"PDP_DELEGATION_ACTIVE_KID": "delegation-a",
-		"PDP_DELEGATION_KEYS_JSON":  `{"delegation-a":"test-delegation-secret-at-least-32-characters"}`,
-		"LOG_KEK_ACTIVE_KID":        "audit-a",
-		"LOG_KEKS_JSON":             `{"audit-a":"test-audit-kek-new-32-bytes-key!"}`,
-		"PDP_TLS_CERT":              "/run/tls/server.crt",
-		"PDP_TLS_KEY":               "/run/tls/server.key",
-		"PDP_TLS_CA":                "/run/tls/ca.crt",
+		"APP_ENV":                             "test",
+		"HTTP_PORT":                           "18080",
+		"GRPC_PORT":                           "15051",
+		"GRPC_EVALUATION_TIMEOUT":             "250ms",
+		"GRPC_MAX_RECEIVE_BYTES":              "4096",
+		"GRPC_MAX_SEND_BYTES":                 "8192",
+		"LISTEN_SOCKET_PATH":                  "/tmp/pdp.sock",
+		"USE_ZITI":                            "true",
+		"ZITI_IDENTITY_PATH":                  "/run/ziti/pdp.json",
+		"ZITI_SERVICE_NAME":                   "pdp-private-service",
+		"DATABASE_URL":                        "postgres://test:secret@db.internal:5432/pdp?sslmode=require",
+		"STORAGE_MODE":                        "edge",
+		"BADGER_DATA_DIR":                     "/var/lib/pdp/badger",
+		"DISABLE_GC":                          "true",
+		"GC_INTERVAL":                         "2m",
+		"GC_IDLE_TIMEOUT":                     "3m",
+		"SYNC_RECONCILE_INTERVAL":             "4s",
+		"AUDIT_SPILL_DIR":                     "/var/lib/pdp/audit-spill",
+		"AUDIT_QUEUE_CAPACITY":                "64",
+		"AUDIT_BATCH_SIZE":                    "8",
+		"AUDIT_FLUSH_INTERVAL":                "150ms",
+		"AUDIT_WRITE_TIMEOUT":                 "3s",
+		"AUDIT_SPILL_MAX_BYTES":               "2048",
+		"AUDIT_ARCHIVE_BUCKET":                "pdp-audit-archive-test-123",
+		"AUDIT_ARCHIVE_PREFIX":                "pdp-audit",
+		"AUDIT_ARCHIVE_REGION":                "ap-southeast-1",
+		"AUDIT_ARCHIVE_EXPECTED_BUCKET_OWNER": "123456789012",
+		"JWT_SECRET":                          "test-jwt-secret-at-least-32-characters",
+		"JWT_ISSUER":                          "https://issuer.example.test",
+		"JWT_AUDIENCE":                        "pdp-test",
+		"PDP_SHARED_SECRET":                   "test-delegation-secret-at-least-32-characters",
+		"PDP_DELEGATION_ACTIVE_KID":           "delegation-a",
+		"PDP_DELEGATION_KEYS_JSON":            `{"delegation-a":"test-delegation-secret-at-least-32-characters"}`,
+		"LOG_KEK_ACTIVE_KID":                  "audit-a",
+		"LOG_KEKS_JSON":                       `{"audit-a":"test-audit-kek-new-32-bytes-key!"}`,
+		"PDP_TLS_CERT":                        "/run/tls/server.crt",
+		"PDP_TLS_KEY":                         "/run/tls/server.key",
+		"PDP_TLS_CA":                          "/run/tls/ca.crt",
 	}
 	for key, value := range values {
 		t.Setenv(key, value)
@@ -123,7 +130,9 @@ func TestConfigRuntimeEnvironmentBindings(t *testing.T) {
 	}
 	if cfg.Audit.SpillDir != "/var/lib/pdp/audit-spill" || cfg.Audit.QueueCapacity != 64 ||
 		cfg.Audit.BatchSize != 8 || cfg.Audit.FlushInterval != 150*time.Millisecond ||
-		cfg.Audit.WriteTimeout != 3*time.Second || cfg.Audit.SpillMaxBytes != 2048 {
+		cfg.Audit.WriteTimeout != 3*time.Second || cfg.Audit.SpillMaxBytes != 2048 ||
+		cfg.Audit.ArchiveBucket != values["AUDIT_ARCHIVE_BUCKET"] || cfg.Audit.ArchivePrefix != values["AUDIT_ARCHIVE_PREFIX"] ||
+		cfg.Audit.ArchiveRegion != values["AUDIT_ARCHIVE_REGION"] || cfg.Audit.ArchiveExpectedBucketOwner != values["AUDIT_ARCHIVE_EXPECTED_BUCKET_OWNER"] {
 		t.Fatalf("audit environment binding mismatch: %+v", cfg.Audit)
 	}
 	if cfg.Security.JWTSecret != values["JWT_SECRET"] || cfg.Security.JWTIssuer != values["JWT_ISSUER"] ||
@@ -137,18 +146,22 @@ func TestConfigRuntimeEnvironmentBindings(t *testing.T) {
 
 func TestConfig_ProductionValidation(t *testing.T) {
 	valid := map[string]string{
-		"APP_ENV":                   "production",
-		"DATABASE_URL":              "postgres://policy:secret@db.internal:5432/policy_engine?sslmode=require",
-		"JWT_SECRET":                "production-jwt-secret-at-least-32-characters",
-		"JWT_ISSUER":                "https://identity.example.test",
-		"JWT_AUDIENCE":              "standalone-policy-engine",
-		"PDP_DELEGATION_ACTIVE_KID": "key-2026-09",
-		"PDP_DELEGATION_KEYS_JSON":  `{"key-2026-08":"previous-production-delegation-secret-32-chars","key-2026-09":"active-production-delegation-secret-32-characters"}`,
-		"PDP_TLS_CERT":              "/run/secrets/pdp/tls.crt",
-		"PDP_TLS_KEY":               "/run/secrets/pdp/tls.key",
-		"PDP_TLS_CA":                "/run/secrets/pdp/ca.crt",
-		"LOG_KEK_ACTIVE_KID":        "audit-2026-09",
-		"LOG_KEKS_JSON":             `{"audit-2026-08":"test-audit-kek-old-32-bytes-key!","audit-2026-09":"test-audit-kek-new-32-bytes-key!"}`,
+		"APP_ENV":                             "production",
+		"DATABASE_URL":                        "postgres://policy:secret@db.internal:5432/policy_engine?sslmode=require",
+		"JWT_SECRET":                          "production-jwt-secret-at-least-32-characters",
+		"JWT_ISSUER":                          "https://identity.example.test",
+		"JWT_AUDIENCE":                        "standalone-policy-engine",
+		"PDP_DELEGATION_ACTIVE_KID":           "key-2026-09",
+		"PDP_DELEGATION_KEYS_JSON":            `{"key-2026-08":"previous-production-delegation-secret-32-chars","key-2026-09":"active-production-delegation-secret-32-characters"}`,
+		"PDP_TLS_CERT":                        "/run/secrets/pdp/tls.crt",
+		"PDP_TLS_KEY":                         "/run/secrets/pdp/tls.key",
+		"PDP_TLS_CA":                          "/run/secrets/pdp/ca.crt",
+		"LOG_KEK_ACTIVE_KID":                  "audit-2026-09",
+		"LOG_KEKS_JSON":                       `{"audit-2026-08":"test-audit-kek-old-32-bytes-key!","audit-2026-09":"test-audit-kek-new-32-bytes-key!"}`,
+		"AUDIT_ARCHIVE_BUCKET":                "pdp-audit-archive-production-123",
+		"AUDIT_ARCHIVE_PREFIX":                "pdp-audit",
+		"AUDIT_ARCHIVE_REGION":                "ap-southeast-1",
+		"AUDIT_ARCHIVE_EXPECTED_BUCKET_OWNER": "123456789012",
 	}
 
 	tests := []struct {
@@ -185,6 +198,28 @@ func TestConfig_ProductionValidation(t *testing.T) {
 			}
 			if err == nil || !strings.Contains(err.Error(), test.wantError) {
 				t.Fatalf("expected error containing %q, got %v", test.wantError, err)
+			}
+		})
+	}
+}
+
+func TestConfigRejectsIncompleteAuditArchive(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+	}{
+		{name: "bucket only", env: map[string]string{"AUDIT_ARCHIVE_BUCKET": "archive"}},
+		{name: "prefix without bucket", env: map[string]string{"AUDIT_ARCHIVE_PREFIX": "pdp-audit"}},
+		{name: "unsafe prefix", env: map[string]string{"AUDIT_ARCHIVE_BUCKET": "archive", "AUDIT_ARCHIVE_PREFIX": "../audit", "AUDIT_ARCHIVE_REGION": "ap-southeast-1", "AUDIT_ARCHIVE_EXPECTED_BUCKET_OWNER": "123456789012"}},
+		{name: "invalid owner", env: map[string]string{"AUDIT_ARCHIVE_BUCKET": "archive", "AUDIT_ARCHIVE_PREFIX": "pdp-audit", "AUDIT_ARCHIVE_REGION": "ap-southeast-1", "AUDIT_ARCHIVE_EXPECTED_BUCKET_OWNER": "not-an-account"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			for key, value := range test.env {
+				t.Setenv(key, value)
+			}
+			if _, err := Load(); err == nil {
+				t.Fatal("expected incomplete audit archive configuration to fail")
 			}
 		})
 	}

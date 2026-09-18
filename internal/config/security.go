@@ -55,6 +55,9 @@ func validateProductionConfig(cfg *Config) error {
 	if err := validateAuditKeyring(cfg.Security.AuditActiveKeyID, cfg.Security.AuditKeys); err != nil {
 		return err
 	}
+	if cfg.Audit.ArchiveBucket == "" {
+		return errors.New("AUDIT_ARCHIVE_BUCKET bat buoc tren Production")
+	}
 	if strings.TrimSpace(cfg.Security.TLSCertFile) == "" || strings.TrimSpace(cfg.Security.TLSKeyFile) == "" || strings.TrimSpace(cfg.Security.TLSCAFile) == "" {
 		return errors.New("PDP_TLS_CERT, PDP_TLS_KEY va PDP_TLS_CA bat buoc tren Production")
 	}
