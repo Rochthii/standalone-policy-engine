@@ -26,7 +26,13 @@ RUN apk --no-cache add ca-certificates
 COPY --from=builder /app/control-plane .
 COPY --from=builder /app/db /app/db
 
+RUN addgroup -S -g 10001 pdp \
+    && adduser -S -D -H -u 10001 -G pdp pdp \
+    && chown -R pdp:pdp /app
+
 # Port mặc định cho HTTP server
 EXPOSE 8080
+
+USER pdp
 
 ENTRYPOINT ["./control-plane"]

@@ -1,8 +1,8 @@
 # Active Task
 
-ID: CI-COMPAT-05
-Goal: Enforce protobuf backward compatibility in pull-request CI
-Scope: .github/workflows/ci.yml, buf.yaml, readiness checklist, CI evidence
-Acceptance: Buf breaking check compares every pull request with its target branch
-Validation: buf breaking against main; git diff --check
-Commit: f53894f
+ID: OPS-DEPLOY-06
+Goal: Harden PDP and Control Plane container runtime privileges
+Scope: PDP/Control Dockerfiles, Kubernetes deployments, container validation, deployment evidence
+Acceptance: runtime uses non-root, read-only root filesystems, dropped capabilities and explicit writable mounts
+Validation: Docker build/inspect, Compose config, kubectl client dry-run, git diff --check
+Commit: pending

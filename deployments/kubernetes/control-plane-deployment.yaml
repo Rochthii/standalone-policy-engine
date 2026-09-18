@@ -15,6 +15,10 @@ spec:
       labels:
         app: control-plane
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: control-plane
         image: rochthii/control-plane:latest
@@ -28,6 +32,13 @@ spec:
             secretKeyRef:
               name: db-secrets
               key: database-url
+        securityContext:
+          runAsUser: 10001
+          runAsGroup: 10001
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
         resources:
           limits:
             cpu: "1"
@@ -35,6 +46,9 @@ spec:
           requests:
             cpu: "200m"
             memory: 256Mi
+        volumeMounts:
+        - name: control-tmp-volume
+          mountPath: /tmp
         readinessProbe:
           httpGet:
             path: /readyz
@@ -47,6 +61,9 @@ spec:
             port: 8080
           initialDelaySeconds: 15
           periodSeconds: 20
+      volumes:
+      - name: control-tmp-volume
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
