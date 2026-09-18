@@ -1,8 +1,8 @@
 # Active Task
 
-ID: OPS-DEPLOY-06
-Goal: Harden PDP and Control Plane container runtime privileges
-Scope: PDP/Control Dockerfiles, Kubernetes deployments, container validation, deployment evidence
-Acceptance: runtime uses non-root, read-only root filesystems, dropped capabilities and explicit writable mounts
-Validation: Docker build/inspect, Compose config, kubectl client dry-run, git diff --check
-Commit: 4fee058
+ID: OPS-RUNBOOK-07
+Goal: Rehearse backup, restore, rollback, key rotation and incident procedures
+Scope: RUNBOOK_OPS.md, readiness checklist, operations evidence
+Acceptance: isolated PostgreSQL backup/restore plus rollback, key-replay and fail-closed incident checks pass
+Validation: Docker PostgreSQL rehearsal and focused Go tests; git diff --check
+Commit: pending

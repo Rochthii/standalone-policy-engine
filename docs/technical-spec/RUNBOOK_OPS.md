@@ -183,3 +183,72 @@ echo "==========================================================================
 echo "VERIFICATION PASSED: ALL INVARIANTS SATISFIED (0 ALLOCS/OP HOT-PATH)"
 echo "=========================================================================="
 ```
+
+---
+
+## 5. Pre-release recovery and incident rehearsal
+
+Run this drill only against an isolated staging database. Do not restore over a
+serving production database, and do not place database URLs, backups, or keys
+in source control.
+
+### PostgreSQL backup and restore
+
+1. Freeze policy mutations and record the release commit, database migration
+   version, timestamp, and SHA-256 of the backup artifact.
+2. Create a custom-format logical backup from the primary using a secrets-store
+   supplied URL: `pg_dump --format=custom --file="$BACKUP_FILE" --dbname="$DATABASE_URL"`.
+3. Restore into a newly created, isolated validation database only:
+   `pg_restore --clean --if-exists --no-owner --dbname="$RESTORE_DATABASE_URL" "$BACKUP_FILE"`.
+4. Verify the restored tenant, policy, role-inheritance, revocation, and audit
+   row counts; start a PDP against the restored database and require `/readyz`
+   to return `healthy` before accepting the backup.
+5. Record the source/restore database identifiers, command output, checksum and
+   operator in a protected recovery record. Retain the artifact according to
+   the audit-retention policy; this repository does not provide external WORM
+   storage or deletion proof.
+
+### Policy rollback
+
+Policy mutations must go through the Control Plane transaction path, never
+through direct production SQL. A failed publish, update, or delete must leave
+both the policy and tenant revision unchanged. Before release, run:
+
+```powershell
+$env:TEST_DATABASE_URL = "postgres://<admin>@<isolated-host>:5432/<admin-db>?sslmode=disable"
+go test -count=1 ./internal/storage -run '^TestStoragePolicyMutationsRollbackOnPostgresFaults$'
+```
+
+If a deployed policy is functionally wrong but committed, publish the approved
+previous policy version as a new revision, wait for every PDP `/readyz` check
+to report revision parity, then retain the failed revision and audit trail for
+investigation. Do not decrement tenant revisions or rewrite audit records.
+
+### Audit key rotation and recovery
+
+Follow the key lifecycle in section 1, then rehearse retained-key replay before
+retiring a key:
+
+```powershell
+go test -count=1 ./internal/audit -run '^TestAuditSpillReplayAcrossRestartAndKeyRotation$'
+```
+
+The drill must prove that an old encrypted spill record replays with retained
+keys and that new records use the active key. A missing historical key or an
+integrity failure is an incident: preserve the spill artifact, stop deletion,
+and escalate to the key and audit owners.
+
+### Authorization incident response
+
+When PostgreSQL, policy sync, or revision parity is unhealthy, `/readyz` must
+return `503`; remove the PDP from traffic, pause policy mutations, and keep
+Odoo fail-closed. Do not use `/livez` to route authorization traffic. Rehearse
+the local fail-closed contract with:
+
+```powershell
+go test -count=1 ./internal/server -run '^(TestReadinessEndpoint|TestLivenessEndpointDoesNotDependOnPostgreSQLOrSync)$'
+```
+
+For a real incident, retain readiness output, deployment revision, affected
+tenant revisions and audit evidence; restore traffic only after PostgreSQL,
+the policy listener, and all loaded revisions return to `healthy`.
