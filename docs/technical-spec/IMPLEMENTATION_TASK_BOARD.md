@@ -1,6 +1,6 @@
 # Implementation Task Board
 
-> **Updated:** 2026-09-18
+> **Updated:** 2026-09-19
 >
 > **Current release status:** **BLOCKED — NOT PRODUCTION READY**
 >
@@ -16,18 +16,15 @@
 | `VERIFIED` | Required automated evidence for this task passed. |
 | `BLOCKED` | A named artifact, decision or safe test environment is missing. |
 
-## Thesis-first priority (2026–2029)
+## Remaining thesis priority (2026–2029)
 
-The Waves preserve technical dependency order. The execution priority below is the thesis/ERP priority for the remaining work:
+The completed Waves remain as evidence history. Only these three tasks are active for the thesis:
 
-1. `PERF-WORST-01` — validate RQ2 with dense candidates and collision cases.
-2. `PERF-FULL-02` — measure the real PDP path, not only the in-memory evaluator.
-3. `PERF-ODOO-03` — produce the comparative Odoo ERP evidence required by RQ4.
-4. `THESIS-RQ4-FREEZE-01` — freeze one current-HEAD evidence package and reconcile thesis claims.
-5. `OPS-HEALTH-03` — improve deployment quality for the SE/ERP system demonstration.
-6. `CI-003` — obtain remote race evidence when a C-capable runner is available.
-7. `REL-GATE-04` — close the release checklist only after the thesis evidence is frozen.
-8. `EDGE-RESTORE-05` — optional stretch scope unless offline/edge ERP becomes part of the thesis.
+1. `THESIS-RQ4-FREEZE-01` — freeze one current-HEAD evidence package and reconcile thesis claims. **Model: Terra Medium.**
+2. `THESIS-DELEGATION-SEC-02` — consolidate the delegation security contribution and its evidence matrix. **Model: Terra High.**
+3. `THESIS-WRITEUP-03` — write and cross-reference Chapters 3–5 from the frozen evidence. **Model: Terra Medium.**
+
+`AUD-ARCHIVE-03` remains **DEFERRED UNTIL 2029** as a production-release task, not a thesis task.
 
 ## Wave 0 — Evidence baseline
 
@@ -97,10 +94,12 @@ The Waves preserve technical dependency order. The execution priority below is t
 |---|---|---|---|
 | PERF-WORST-01 | Benchmark dense candidate sets and hash-collision correctness. | `VERIFIED` | Three 10,000-policy samples per global/same-leaf case, reported allocation data, and forced collision-bucket raw-key correctness test. See `evidence/DENSE_CANDIDATE_COLLISION_2026_09_14.md`. |
 | PERF-FULL-02 | Measure JWT + proof + gRPC + metrics + audit path. | `VERIFIED` | Three 10,000-request TCP gRPC samples record p50/p95/p99/p99.9, throughput, zero errors, process CPU, RSS and GC while validating JWT, HMAC proof, metrics and encrypted audit queueing. See `evidence/FULL_PATH_2026_09_14.md`. |
-| PERF-ODOO-03 | Replace synthetic Odoo baseline with real ORM/database work. | `VERIFIED` | Real Odoo purchase-confirmation versus Odoo-to-PDP mTLS gRPC comparison: three 250-request samples per path, all 1,500 raw latencies, workload limits, and commit `64494d9` recorded. The retired model is not used for claims. See `evidence/ODOO_ORM_COMPARISON_2026_09_15.md`. |
-| THESIS-RQ4-FREEZE-01 | Freeze one current-HEAD thesis evidence package and reconcile claims across proposal, chapter mapping and evidence matrix. | `TODO` | Re-run existing functional, security and performance boundaries on one commit; no new subsystem or workload. AWS archive remains deferred to 2029. |
+| PERF-ODOO-03 | Replace synthetic Odoo baseline with real ORM/database work. | `VERIFIED` | Real Odoo purchase-confirmation versus Odoo-to-PDP mTLS gRPC comparison: three 250-request samples per path, all 1,500 raw latencies, workload limits, and source revision `e243db5` recorded. The retired model is not used for claims. See `evidence/ODOO_ORM_COMPARISON_2026_09_15.md`. |
+| THESIS-RQ4-FREEZE-01 | Freeze one current-HEAD thesis evidence package and reconcile claims across proposal, chapter mapping and evidence matrix. | `VERIFIED` | **Model: Terra Medium.** Existing functional, security and performance boundaries reran on source revision `e243db5`; no new subsystem or workload. Next: `THESIS-DELEGATION-SEC-02`. |
+| THESIS-DELEGATION-SEC-02 | Consolidate the real contribution: full-tuple proof, tamper resistance, replay/nonce, SoD, revocation, concurrency and non-rollback approval into one thesis security/effectiveness matrix. | `TODO` | **Model: Terra High.** Use existing evidence first; add only a missing reproducible case, not a new subsystem. Next: `THESIS-WRITEUP-03`. |
+| THESIS-WRITEUP-03 | Write Chapters 3–5 from frozen evidence: delegation contract, Odoo PEP semantics, results and limitations. | `TODO` | **Model: Terra Medium.** Every claim must cite code/test/evidence and preserve boundary limits. Next: final thesis-defense evidence rerun in 2029. |
 | REL-GATE-04 | Execute every production-readiness gate and record GO/NO-GO. | `BLOCKED` | **NO-GO**: implementation and CI evidence close G0, G7, G8 and G9; G6 external append-only retention/deletion rehearsal remains open. See `evidence/REL_GATE_2026_09_17.md` and `CURRENT_STATE_AUDIT.md`. |
 
 ## Next task
 
-Next: execute `THESIS-RQ4-FREEZE-01` at the current HEAD. Keep `AUD-ARCHIVE-03` explicitly deferred until 2029; it is a production-release gate, not a current thesis blocker.
+Next: execute `THESIS-DELEGATION-SEC-02` with **Terra High**. Keep `AUD-ARCHIVE-03` explicitly deferred until 2029; it is a production-release gate, not a current thesis blocker.
