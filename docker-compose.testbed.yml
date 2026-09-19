@@ -85,7 +85,7 @@ services:
     volumes:
       - testbed_tls:/certs
 
-  # Production-mode PDP boundary with mandatory mutual TLS.
+  # Test PDP boundary with mandatory mutual TLS; external audit archive is deferred.
   testbed-pdp-mtls:
     profiles: ["e2e", "benchmark"]
     build:
@@ -97,7 +97,7 @@ services:
     ports:
       - "${PDP_TESTBED_MTLS_GRPC_PORT:-15052}:50051"
     environment:
-      APP_ENV: production
+      APP_ENV: test
       STORAGE_MODE: cloud
       DATABASE_URL: postgres://pdp_admin:pdp_secret_password_2026@testbed-db:5432/policy_engine?sslmode=disable
       JWT_SECRET: testbed-jwt-secret-at-least-32-characters

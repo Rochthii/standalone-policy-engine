@@ -37,14 +37,27 @@ func (w *fullPathAuditWriter) InsertAuditLogsBatch(_ context.Context, entries []
 	return nil
 }
 
+type fullPathRevocationStore struct{}
+
+func (*fullPathRevocationStore) PersistRevocation(_ context.Context, record security.RevocationRecord) (security.RevocationRecord, error) {
+	return record, nil
+}
+
+func (*fullPathRevocationStore) WatchRevocations(ctx context.Context, snapshot func([]security.RevocationRecord), _ func(security.RevocationRecord)) error {
+	snapshot(nil)
+	<-ctx.Done()
+	return ctx.Err()
+}
+
 func TestFullPathEvidence(t *testing.T) {
 	if os.Getenv("RUN_PERF_FULL") != "1" {
 		t.Skip("set RUN_PERF_FULL=1 to run the 10,000-request full-path measurement")
 	}
 
-	connection, grpcServer, logger, writer, client, requestContext, request := newFullPathFixture(t)
+	connection, grpcServer, revocationSyncer, logger, writer, client, requestContext, request := newFullPathFixture(t)
 	t.Cleanup(func() { _ = connection.Close() })
 	t.Cleanup(grpcServer.Stop)
+	t.Cleanup(revocationSyncer.Stop)
 	t.Cleanup(logger.Stop)
 
 	if response, err := client.CheckAccess(requestContext, request); err != nil || response.Decision != policyv1.CheckAccessResponse_ALLOW {
@@ -119,7 +132,7 @@ func TestFullPathEvidence(t *testing.T) {
 	)
 }
 
-func newFullPathFixture(t *testing.T) (*grpc.ClientConn, *grpc.Server, *audit.AuditLogger, *fullPathAuditWriter, policyv1.PolicyDecisionPointClient, context.Context, *policyv1.CheckAccessRequest) {
+func newFullPathFixture(t *testing.T) (*grpc.ClientConn, *grpc.Server, *security.RevocationSyncer, *audit.AuditLogger, *fullPathAuditWriter, policyv1.PolicyDecisionPointClient, context.Context, *policyv1.CheckAccessRequest) {
 	t.Helper()
 	const (
 		tenantID         = "tenant-perf-full"
@@ -161,11 +174,11 @@ when { context.amount <= 2000 && context.execution_mode == "autonomous_run" };`)
 	if err != nil {
 		t.Fatalf("listen full-path gRPC: %v", err)
 	}
-	grpcServer, err := server.StartGRPCServer(listener, eng, logger, securityConfig, config.ServerConfig{
+	grpcServer, revocationSyncer, err := server.StartGRPCServerWithRevocations(context.Background(), listener, eng, logger, securityConfig, config.ServerConfig{
 		EvaluationTimeout:   100 * time.Millisecond,
 		GRPCMaxReceiveBytes: 1 << 20,
 		GRPCMaxSendBytes:    1 << 20,
-	})
+	}, &fullPathRevocationStore{})
 	if err != nil {
 		_ = listener.Close()
 		t.Fatalf("start full-path gRPC: %v", err)
@@ -175,6 +188,7 @@ when { context.amount <= 2000 && context.execution_mode == "autonomous_run" };`)
 	defer cancel()
 	connection, err := grpc.DialContext(dialContext, listener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
 	if err != nil {
+		revocationSyncer.Stop()
 		grpcServer.Stop()
 		t.Fatalf("dial full-path gRPC: %v", err)
 	}
@@ -182,6 +196,7 @@ when { context.amount <= 2000 && context.execution_mode == "autonomous_run" };`)
 	signer, err := security.NewDelegationManagerWithKeyring(delegationKeyID, map[string]string{delegationKeyID: delegationSecret})
 	if err != nil {
 		_ = connection.Close()
+		revocationSyncer.Stop()
 		grpcServer.Stop()
 		t.Fatalf("create delegation signer: %v", err)
 	}
@@ -204,6 +219,7 @@ when { context.amount <= 2000 && context.execution_mode == "autonomous_run" };`)
 
 	return connection,
 		grpcServer,
+		revocationSyncer,
 		logger,
 		writer,
 		policyv1.NewPolicyDecisionPointClient(connection),
