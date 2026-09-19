@@ -40,8 +40,8 @@ Raw samples and method limits: [`evidence/ODOO_ORM_COMPARISON_2026_09_15.md`](./
 ├──────────────────────────────────────┬──────────────────┬───────────────────┤
 │ Metric Parameter                     │ Target Budget    │ Measured Result   │
 ├──────────────────────────────────────┼──────────────────┼───────────────────┤
-│ Evaluator narrow cases               │ target-specific  │ 603–1144 ns/op, 0 allocs/op |
-│ Dense 10k candidate cases             │ diagnostic       │ global 662–1051 µs; same-leaf 1144–1234 µs; 0 allocs/op |
+│ Evaluator narrow cases               │ target-specific  │ 1329–1494 ns/op, 0 allocs/op |
+│ Dense 10k candidate cases             │ diagnostic       │ global 1286–1493 µs; same-leaf 1344–1485 µs; 0 allocs/op |
 │ Local full path                       │ boundary-specific│ p50 337–616 µs; p99 1.443–2.123 ms |
 │ Odoo purchase confirmation            │ boundary-specific│ native 29.933 ms; PDP 71.525 ms mean |
 │ Production-ready / WORM               │ no current claim │ DEFERRED / NO-GO |

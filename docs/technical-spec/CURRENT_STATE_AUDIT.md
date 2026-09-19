@@ -77,12 +77,12 @@ Observed Go core benchmarks on a 13th Gen Intel Core i7-13700H, Windows/amd64, G
 
 | Benchmark | Three observed runs | Allocation |
 |---|---:|---:|
-| `BenchmarkEvaluatorLatency` | 602.7–1144 ns/op | 0 B/op, 0 allocs/op; local rerun on baseline `18adc36` |
-| `BenchmarkConcurrentLoad` | 215.2–302.7 ns/op | 0 B/op, 0 allocs/op; local rerun on baseline `18adc36` |
-| `BenchmarkUltraExtreme_DeepDAG_HeavyABAC` | 2032–3210 ns/op | 0 B/op, 0 allocs/op; local rerun on baseline `18adc36` |
-| `BenchmarkDenseCandidates_Global10000` | 661.7–1051.4 µs/op | 51–89 B/op, 0 allocs/op; linear candidate scan diagnostic |
-| `BenchmarkDenseCandidates_SameLeaf10000` | 1143.6–1234.3 µs/op | 88–96 B/op, 0 allocs/op; linear candidate scan diagnostic |
-| `BenchmarkUltraExtreme_10kPolicies_ConcurrentContention` | 109.1–231.7 ns/op | 0 B/op, 0 allocs/op; local rerun on baseline `18adc36` |
+| `BenchmarkEvaluatorLatency` | 1329–1494 ns/op | 0 B/op, 0 allocs/op; local rerun on `e243db5` |
+| `BenchmarkConcurrentLoad` | 148.3–232.9 ns/op | 0 B/op, 0 allocs/op; local rerun on `e243db5` |
+| `BenchmarkUltraExtreme_DeepDAG_HeavyABAC` | 3149–4693 ns/op | 0 B/op, 0 allocs/op; local rerun on `e243db5` |
+| `BenchmarkDenseCandidates_Global10000` | 1285.8–1493.2 µs/op | 103–109 B/op, 0 allocs/op; linear candidate scan diagnostic on `e243db5` |
+| `BenchmarkDenseCandidates_SameLeaf10000` | 1344.4–1485.4 µs/op | 93–109 B/op, 0 allocs/op; linear candidate scan diagnostic on `e243db5` |
+| `BenchmarkUltraExtreme_10kPolicies_ConcurrentContention` | 90.80–104.8 ns/op | 0 B/op, 0 allocs/op; local rerun on `e243db5` |
 
 Local full-path application evidence is recorded separately in `evidence/FULL_PATH_2026_09_14.md`: a persistent loopback TCP gRPC connection validates JWT, full-tuple HMAC proof, a snapshot-ready revocation fixture, engine, metrics and encrypted audit queueing across three 10,000-request samples on `e243db5`. It is not a mTLS, PostgreSQL-audit, Odoo, container-network or concurrent-load measurement.
 
