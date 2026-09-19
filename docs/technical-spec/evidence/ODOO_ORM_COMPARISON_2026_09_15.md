@@ -1,10 +1,10 @@
-# Real Odoo/PostgreSQL Purchase-Confirmation Evidence — 2026-09-18
+# Real Odoo/PostgreSQL Purchase-Confirmation Evidence — 2026-09-19
 
 ## Verdict
 
-`PERF-ODOO-03` replaces the retired sleep/hardcoded comparison with a reproducible, warm-path purchase-confirmation measurement on commit `64494d9`.
+`PERF-ODOO-03` replaces the retired sleep/hardcoded comparison with a reproducible, warm-path purchase-confirmation measurement on commit `e243db5`.
 
-For this one business-transaction workload, the PDP PEP path has a higher mean (58.076 ms vs 29.742 ms), p50 (50.523 ms vs 24.906 ms) and p99 (139.146 ms vs 76.405 ms) than native Odoo. This is not a universal Odoo, ERP throughput, concurrent-load or production-performance claim.
+For this one business-transaction workload, the PDP PEP path has a higher mean (71.525 ms vs 29.933 ms), p50 (66.719 ms vs 28.641 ms) and p99 (101.640 ms vs 48.843 ms) than native Odoo. This is not a universal Odoo, ERP throughput, concurrent-load or production-performance claim.
 
 ## Equal workload and method
 
@@ -20,23 +20,24 @@ The source test is `custom_addons/pdp_authorizer/tests/test_odoo_orm_benchmark.p
 
 | Metric | Native Odoo + PostgreSQL | Odoo PDP PEP + mTLS gRPC |
 |---|---:|---:|
-| Mean | 29.742050 ms | 58.075744 ms |
-| p50 | 24.906115 ms | 50.523270 ms |
-| p95 | 57.740561 ms | 88.694339 ms |
-| p99 | 76.404948 ms | 139.145658 ms |
-| Mean-derived throughput | 33.62 ops/s | 17.22 ops/s |
+| Mean | 29.933256 ms | 71.524813 ms |
+| p50 | 28.641220 ms | 66.718540 ms |
+| p95 | 40.807260 ms | 87.975326 ms |
+| p99 | 48.843131 ms | 101.640277 ms |
+| Mean-derived throughput | 33.41 ops/s | 13.98 ops/s |
 
 ## Reproduce
 
-Run `make benchmark-odoo-orm` from the repository root. It creates an isolated `odoo_orm_benchmark` database, generates ephemeral test certificates, and writes the raw output below. The 2026-09-18 evidence run used the equivalent PowerShell commands with `PDP_GIT_COMMIT=64494d9` and the benchmark Compose profile.
+Run `make benchmark-odoo-orm` from the repository root. It creates an isolated `odoo_orm_benchmark` database, generates ephemeral test certificates, and writes the raw output below. The 2026-09-19 evidence run used the equivalent PowerShell commands with `PDP_GIT_COMMIT=e243db5` and the benchmark Compose profile.
 
-Recorded environment: commit `64494d9`; 13th Gen Intel(R) Core(TM) i7-13700H; Odoo 17 testbed; PostgreSQL 15 testbed; Go `go1.25.14 linux/amd64` from the pinned `golang:1.25-alpine@sha256:1ae0735f...` build image; Python 3.10.12; Docker on `Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.35`. Each path has 3 samples × 250 requests = 750 raw observations.
+Recorded environment: commit `e243db5`; Odoo 17 testbed; PostgreSQL 15 testbed; Go `go1.25.14 linux/amd64` from the pinned `golang:1.25-alpine@sha256:1ae0735f...` build image; Python 3.10.12; Docker Engine 29.1.3 on `Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.35`. Each path has 3 samples × 250 requests = 750 raw observations.
 
 ## Limits
 
 - This is one warm purchase-confirmation scenario, not inventory reservation, a full purchase workflow, a committed database transaction or a concurrent-load test.
 - The final database commit is deliberately excluded; the Odoo test harness rolls the enclosing test transaction back.
 - Use the raw distributions, not the mean-derived throughput, for tail-latency conclusions.
+- The PDP testbed uses `APP_ENV=test` with real mTLS and PostgreSQL. It deliberately does not configure an external audit archive; therefore it is not production or WORM evidence.
 
 ## Raw evidence
 

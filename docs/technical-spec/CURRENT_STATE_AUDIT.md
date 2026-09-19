@@ -77,12 +77,14 @@ Observed Go core benchmarks on a 13th Gen Intel Core i7-13700H, Windows/amd64, G
 
 | Benchmark | Three observed runs | Allocation |
 |---|---:|---:|
-| `BenchmarkEvaluatorLatency` | 390.3–492.8 ns/op | 0 B/op, 0 allocs/op |
-| `BenchmarkConcurrentLoad` | 26.74–27.51 ns/op | 0 B/op, 0 allocs/op |
-| `BenchmarkUltraExtreme_DeepDAG_HeavyABAC` | 839.8–845.1 ns/op | 0 B/op, 0 allocs/op |
-| `BenchmarkUltraExtreme_10kPolicies_ConcurrentContention` | 34.30–67.11 ns/op | 0 B/op, 0 allocs/op |
+| `BenchmarkEvaluatorLatency` | 602.7–1144 ns/op | 0 B/op, 0 allocs/op; local rerun on baseline `18adc36` |
+| `BenchmarkConcurrentLoad` | 215.2–302.7 ns/op | 0 B/op, 0 allocs/op; local rerun on baseline `18adc36` |
+| `BenchmarkUltraExtreme_DeepDAG_HeavyABAC` | 2032–3210 ns/op | 0 B/op, 0 allocs/op; local rerun on baseline `18adc36` |
+| `BenchmarkDenseCandidates_Global10000` | 661.7–1051.4 µs/op | 51–89 B/op, 0 allocs/op; linear candidate scan diagnostic |
+| `BenchmarkDenseCandidates_SameLeaf10000` | 1143.6–1234.3 µs/op | 88–96 B/op, 0 allocs/op; linear candidate scan diagnostic |
+| `BenchmarkUltraExtreme_10kPolicies_ConcurrentContention` | 109.1–231.7 ns/op | 0 B/op, 0 allocs/op; local rerun on baseline `18adc36` |
 
-Local full-path application evidence is recorded separately in `evidence/FULL_PATH_2026_09_14.md`: a persistent loopback TCP gRPC connection validates JWT, full-tuple HMAC proof, engine, metrics and encrypted audit queueing across three 10,000-request samples. It is not a mTLS, PostgreSQL-audit, Odoo, container-network or concurrent-load measurement.
+Local full-path application evidence is recorded separately in `evidence/FULL_PATH_2026_09_14.md`: a persistent loopback TCP gRPC connection validates JWT, full-tuple HMAC proof, a snapshot-ready revocation fixture, engine, metrics and encrypted audit queueing across three 10,000-request samples on `e243db5`. It is not a mTLS, PostgreSQL-audit, Odoo, container-network or concurrent-load measurement.
 
 `ns/op` from a parallel benchmark is aggregate throughput-normalized time. It must not be reported as the wall-clock latency of one network request.
 
@@ -110,7 +112,7 @@ Local full-path application evidence is recorded separately in `evidence/FULL_PA
 | Readiness reports authorization dependencies | VERIFIED FOR LOCAL HTTP/CONFIG TESTS | `/readyz` verifies PostgreSQL, the active policy-sync listener and revision parity for every loaded tenant; `degraded` and `not_ready` return 503. Kubernetes probes this endpoint and Compose makes Odoo wait for PDP readiness. See `evidence/OPS_HEALTH_2026_09_17.md`. |
 | Production release readiness | NO-GO | The repository remains a prototype until its sole unchecked release gate—external append-only audit retention and deletion evidence—has been implemented and rehearsed. Remote CI evidence is recorded in `evidence/CI_ODOO_2026_09_18.md`, `evidence/CI_RACE_2026_09_17.md`, `evidence/CI_COVERAGE_2026_09_18.md` and `evidence/REL_INTEGRATION_2026_09_18.md`. |
 | 7/7 delegation vectors | VERIFIED AS IN-PROCESS TESTS | They do not prove Odoo/container/network integration |
-| Odoo/PDP purchase-confirmation evidence | VERIFIED FOR ONE NARROW WARM WORKLOAD | The sleep/hardcoded model is retired. A real Odoo purchase confirmation versus the Odoo PDP PEP over mTLS gRPC records 750 raw samples per path on commit `64494d9`; it includes the business mutation but excludes final database commit and does not establish a general ERP speedup. See `evidence/ODOO_ORM_COMPARISON_2026_09_15.md`. |
+| Odoo/PDP purchase-confirmation evidence | VERIFIED FOR ONE NARROW WARM WORKLOAD | The sleep/hardcoded model is retired. A real Odoo purchase confirmation versus the Odoo PDP PEP over mTLS gRPC records 750 raw samples per path on `e243db5`; it includes the business mutation but excludes final database commit and does not establish a general ERP speedup. The testbed uses `APP_ENV=test` and is not production/WORM evidence. See `evidence/ODOO_ORM_COMPARISON_2026_09_15.md`. |
 | gRPC contract is standard generated Protobuf | VERIFIED | Buf-pinned Go/Python generation, Docker wire E2E and Python-to-Go live call pass |
 
 ## 5. Open findings

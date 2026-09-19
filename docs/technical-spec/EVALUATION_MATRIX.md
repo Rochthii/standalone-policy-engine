@@ -20,12 +20,12 @@
 
 > Historical fixed-latency, OPA and speedup claims are retired. The current comparison is a measured, narrow purchase-confirmation workload; no OPA measurement is claimed.
 
-| Measured workload (commit `64494d9`) | Native Odoo purchase confirmation + PostgreSQL | Odoo PEP purchase confirmation + mTLS gRPC | Interpretation |
+| Measured workload (commit `e243db5`) | Native Odoo purchase confirmation + PostgreSQL | Odoo PEP purchase confirmation + mTLS gRPC | Interpretation |
 |---|---:|---:|---|
-| Mean latency, 750 warm purchase confirmations | 29.742 ms | 58.076 ms | PDP path is slower in this workload only |
-| p50 latency | 24.906 ms | 50.523 ms | Native path is lower |
-| p95 latency | 57.741 ms | 88.694 ms | No tail-latency win is claimed |
-| p99 latency | 76.405 ms | 139.146 ms | Native path is lower |
+| Mean latency, 750 warm purchase confirmations | 29.933 ms | 71.525 ms | PDP path is slower in this workload only |
+| p50 latency | 28.641 ms | 66.719 ms | Native path is lower |
+| p95 latency | 40.807 ms | 87.975 ms | No tail-latency win is claimed |
+| p99 latency | 48.843 ms | 101.640 ms | Native path is lower |
 | Scope | One warm purchase-confirmation checkpoint; final commit excluded | Same business mutation with JWT, full proof and mTLS gRPC | Not full P2P, committed transaction, concurrent load or production comparison |
 
 Raw samples and method limits: [`evidence/ODOO_ORM_COMPARISON_2026_09_15.md`](./evidence/ODOO_ORM_COMPARISON_2026_09_15.md).
@@ -40,10 +40,10 @@ Raw samples and method limits: [`evidence/ODOO_ORM_COMPARISON_2026_09_15.md`](./
 ├──────────────────────────────────────┬──────────────────┬───────────────────┤
 │ Metric Parameter                     │ Target Budget    │ Measured Result   │
 ├──────────────────────────────────────┼──────────────────┼───────────────────┤
-│ Evaluator narrow cases               │ target-specific  │ 390–493 ns/op, 0 allocs/op |
-│ Dense 10k candidate cases             │ diagnostic       │ 372–389 µs/op, 0 allocs/op, 27–34 B/op |
-│ Local full path                       │ boundary-specific│ p50 200–208 µs; p99 723–891 µs |
-│ Odoo purchase confirmation            │ boundary-specific│ native 29.742 ms; PDP 58.076 ms mean |
+│ Evaluator narrow cases               │ target-specific  │ 603–1144 ns/op, 0 allocs/op |
+│ Dense 10k candidate cases             │ diagnostic       │ global 662–1051 µs; same-leaf 1144–1234 µs; 0 allocs/op |
+│ Local full path                       │ boundary-specific│ p50 337–616 µs; p99 1.443–2.123 ms |
+│ Odoo purchase confirmation            │ boundary-specific│ native 29.933 ms; PDP 71.525 ms mean |
 │ Production-ready / WORM               │ no current claim │ DEFERRED / NO-GO |
 └──────────────────────────────────────┴──────────────────┴───────────────────┘
 ```

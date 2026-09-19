@@ -1,6 +1,6 @@
 # BENCHMARK_REPRODUCIBILITY.md — Đặc Tả Tái Lập Thực Nghiệm & Test Vectors
 
-> **Audit notice (updated 2026-09-18):** Các số liệu core evaluator phải được diễn giải đúng phạm vi in-memory. Mô hình Odoo `time.sleep`/PDP hardcoded đã bị loại bỏ; phép đo hiện hành là Odoo purchase-confirmation so với Odoo-to-PDP mTLS gRPC trên commit `64494d9`. Đây chỉ là một workload cấp quyền ấm, không phải tuyên bố speedup chung cho ERP. Xem [`ODOO_ORM_COMPARISON_2026_09_15.md`](./evidence/ODOO_ORM_COMPARISON_2026_09_15.md), [`CURRENT_STATE_AUDIT.md`](./CURRENT_STATE_AUDIT.md) và gate G0/G9 trong [`PRODUCTION_READINESS_CHECKLIST.md`](./PRODUCTION_READINESS_CHECKLIST.md).
+> **Audit notice (updated 2026-09-19):** Các số liệu core evaluator phải được diễn giải đúng phạm vi in-memory. Mô hình Odoo `time.sleep`/PDP hardcoded đã bị loại bỏ; phép đo hiện hành là Odoo purchase-confirmation so với Odoo-to-PDP mTLS gRPC trên commit `e243db5`. Đây chỉ là một workload cấp quyền ấm, không phải tuyên bố speedup chung cho ERP. Xem [`ODOO_ORM_COMPARISON_2026_09_15.md`](./evidence/ODOO_ORM_COMPARISON_2026_09_15.md), [`CURRENT_STATE_AUDIT.md`](./CURRENT_STATE_AUDIT.md) và gate G0/G9 trong [`PRODUCTION_READINESS_CHECKLIST.md`](./PRODUCTION_READINESS_CHECKLIST.md).
 
 Tài liệu này lưu các test vector và output benchmark lịch sử để tham khảo. Các số `27.12 ns/op`, `36.8M RPS` và `286.3 ns` không còn là claim hiện hành; luận văn chỉ sử dụng kết quả có commit, môi trường, command, raw output và boundary được ghi trong [`CURRENT_STATE_AUDIT.md`](./CURRENT_STATE_AUDIT.md).
 
