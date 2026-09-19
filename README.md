@@ -1,7 +1,7 @@
 # Standalone In-Memory Policy Decision Point (PDP)
 ### Delegation-Aware Authorization & Guardrails for ERP AI Agents (Odoo 17)
 
-> **Current implementation status (evidence update 2026-09-18):** This repository is a **research prototype**, not a production-ready PDP, until every release gate passes. The in-memory core, remote CI, runtime hardening, readiness checks and real Odoo/Control Plane E2E gates have evidence within their stated boundaries. The remaining release blocker is externally controlled append-only audit retention and deletion evidence. See [`CURRENT_STATE_AUDIT.md`](./docs/technical-spec/CURRENT_STATE_AUDIT.md) and [`PRODUCTION_READINESS_CHECKLIST.md`](./docs/technical-spec/PRODUCTION_READINESS_CHECKLIST.md).
+> **Current implementation status (evidence update 2026-09-19):** This repository is a **research prototype**, not a production-ready PDP. The authoritative status, limits and release gates are in [`CURRENT_STATE_AUDIT.md`](./docs/technical-spec/CURRENT_STATE_AUDIT.md) and [`PRODUCTION_READINESS_CHECKLIST.md`](./docs/technical-spec/PRODUCTION_READINESS_CHECKLIST.md).
 
 **Author:** Chăm Rốch Thi  
 **Affiliation:** Posts and Telecommunications Institute of Technology (PTIT)  
@@ -17,34 +17,21 @@ An in-memory Policy Decision Point (PDP) research prototype in Go implementing P
 
 ---
 
-## Key Highlights & Audited Core Benchmark Results
+## Read this first
 
-**Audited on 2026-09-11 at commit `e16fa57`:** 13th Gen Intel Core i7-13700H (20 logical CPUs), Go 1.26.4, Windows/amd64. These values measure the in-memory `Engine` only; they do not include JWT, HMAC, GC tracking, Prometheus, audit logging, gRPC serialization, TLS, network, or Odoo.
+- [`CURRENT_STATE_AUDIT.md`](./docs/technical-spec/CURRENT_STATE_AUDIT.md): authoritative implementation status and claim boundaries.
+- [`EVALUATION_MATRIX.md`](./docs/technical-spec/EVALUATION_MATRIX.md): thesis scenarios and comparative result summary.
+- [`evidence/`](./docs/technical-spec/evidence/): reproducible commands, limits and raw benchmark artifacts.
 
-| Scenario / Benchmark | Latency | Allocation | Throughput / Speedup |
-|---|---|---|---|
-| **Hot-Path Decision Latency** (`BenchmarkEvaluatorLatency`) | **390.3–492.8 ns/op** | **0 B/op, 0 allocs/op** | Three 1-second samples; narrow in-memory path |
-| **Concurrent Hot-Path Load** (`BenchmarkConcurrentLoad`) | **26.74–27.51 ns/op** | **0 B/op, 0 allocs/op** | Aggregate throughput-normalized result, not per-request latency |
-| **10,000 Policies Concurrent Contention** | **34.30–67.11 ns/op** | **0 B/op, 0 allocs/op** | Three 1-second samples; narrow in-memory path |
-| **Deep DAG + Heavy ABAC** | **839.8–845.1 ns/op** | **0 B/op, 0 allocs/op** | Three 1-second samples; narrow in-memory path |
+Current source evidence is `e243db5`. It covers three distinct boundaries that must not be compared as one end-to-end SLO:
 
-### Measured Boundaries (do not compare as one end-to-end SLO)
+| Boundary | Current result | Limit |
+|---|---|---|
+| In-memory evaluator | 1329–1494 ns/op, 0 allocs | Excludes JWT, gRPC, TLS, audit and Odoo |
+| Local TCP gRPC path | p50 337–616 µs; p99 1.443–2.123 ms | Excludes mTLS, PostgreSQL audit flush, containers and Odoo |
+| Odoo purchase confirmation | Native mean 29.933 ms; PDP mean 71.525 ms | Warm low-value PO only; final DB commit and concurrency excluded |
 
-| Boundary | Evidence | Measured result | Excluded boundary |
-|---|---|---|---|
-| Core evaluator | `BenchmarkEvaluatorLatency` | 390.3–492.8 ns/op | JWT, gRPC, TLS, network, audit and Odoo |
-| Local TCP gRPC application path | 10,000-request samples | p50 200.5–207.7 µs; p99 723.4–890.8 µs | mTLS, PostgreSQL audit flush, Odoo, containers and concurrent load |
-| ERP purchase-confirmation transaction | Odoo/PostgreSQL versus Odoo PDP PEP over mTLS gRPC | separate per-path distributions below | final database commit, concurrency and full ERP workflow |
-
-### Measured Odoo/PostgreSQL vs PDP Purchase Confirmation
-
-The former `time.sleep`/hardcoded comparison is retired. On commit `64494d9`, a warm-path benchmark creates and confirms a low-value purchase order through native Odoo/PostgreSQL or the PDP PEP over mTLS gRPC; it records 750 raw latencies for each path. The business mutation is timed, but the final database commit is excluded. This narrow scenario is not a whole-ERP, concurrent-load or production speedup claim. See the [raw evidence](./docs/technical-spec/evidence/ODOO_ORM_COMPARISON_2026_09_15.json) and its [method/limits](./docs/technical-spec/evidence/ODOO_ORM_COMPARISON_2026_09_15.md).
-
-| Metric | Odoo ORM + PostgreSQL | Odoo client + PDP mTLS gRPC |
-|---|---:|---:|
-| Mean | 29.742050 ms | 58.075744 ms |
-| p50 | 24.906115 ms | 50.523270 ms |
-| p99 | 76.404948 ms | 139.145658 ms |
+The PDP path is slower in the measured Odoo workload. Raw samples and method limits are in the [Odoo evidence](./docs/technical-spec/evidence/ODOO_ORM_COMPARISON_2026_09_15.md).
 
 ---
 
