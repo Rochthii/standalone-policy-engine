@@ -1,6 +1,6 @@
 # EVALUATION_MATRIX.md — Verification Matrix & Performance Benchmarks
 
-> **Audit notice (2026-09-11):** Bảng này kết hợp mục tiêu thiết kế, kết quả test in-process và một số số liệu chưa có bằng chứng E2E tương ứng. Trạng thái xác minh chính thức nằm trong [`CURRENT_STATE_AUDIT.md`](./CURRENT_STATE_AUDIT.md). Không coi obligation, Odoo PEP, cluster-wide revocation hoặc gRPC mTLS latency là verified cho tới khi checklist production tương ứng PASS.
+> **Evidence notice (2026-09-19):** Trạng thái xác minh chính thức nằm trong [`CURRENT_STATE_AUDIT.md`](./CURRENT_STATE_AUDIT.md). Bảng dưới đây tách design intent, code/test và evidence đã freeze; không suy diễn thành production, WORM, latency mTLS end-to-end tổng quát hoặc universal cluster behavior.
 
 ## 1. Edge Test Scenarios (7 Scenarios)
 
@@ -16,7 +16,23 @@
 
 ---
 
-## 2. Comparative Benchmark Matrix (current evidence)
+## 2. Delegation security and effectiveness matrix
+
+| Property evaluated | Implemented control | Code and reproducible test | Frozen evidence | Status and thesis boundary |
+|---|---|---|---|---|
+| Trusted principal and tenant binding | JWT claims replace caller-supplied subject; tenant must match the request | `internal/server/grpc_server.go`; `tests/grpc_auth_test.go` | Odoo mTLS boundary reaches JWT validation | **VERIFIED** for the tested PDP boundary; it is not an enterprise IAM integration claim. |
+| 1-hop full-tuple integrity | Versioned, length-prefixed HMAC binds tenant, grant, delegator, agent, action, resource, amount, chain, creator, tool, execution mode, nonce and validity window | `internal/security/delegation_proof.go`; `TestDelegationManager_VerifyProof_BindsCompleteTuple`; `TestDelegationInterceptor_CompleteTupleIsRequired` | Odoo mTLS E2E includes a tampered-proof denial | **VERIFIED** for proof integrity/authenticity. HMAC is not non-repudiation and the protocol is deliberately 1-hop. |
+| TTL and proof tampering fail closed | Missing, expired or modified protected fields return `PermissionDenied` before policy evaluation | `internal/server/delegation_auth.go`; `TestDelegationInterceptor_ExpiredProof_Denied`; `TestDelegationInterceptor_TamperedProof_Denied` | Odoo mTLS E2E: tampered proof denial | **VERIFIED** for the listed negative cases. |
+| Replay protection and idempotent command outcome | Odoo locks the PO nonce and persists a unique `(tenant, grant, nonce)` authorization attempt with a protected command fingerprint | `custom_addons/pdp_authorizer/models/purchase_order.py`; `test_nonce_replay_for_different_order_fails_closed` | Odoo mTLS E2E: altered-command replay denied; two independent sessions finish with one nonce and one executed attempt | **VERIFIED** for one purchase-order command and the tested two-session contention; not a general distributed idempotency claim. |
+| Separation of duties | A policy `contains` check denies when the creator is in the delegated approval chain | `internal/engine/evaluator.go`; `TestE2E_P2P_Delegation_7Vectors` TC-01/TC-02; `test_sod_hard_deny_rolls_back_attempt_and_nonce` | In-process vectors and Odoo mTLS rollback case | **VERIFIED** for the tested P2P policy and 1-hop chain; not a universal ERP SoD model. |
+| Revocation / TOCTOU mitigation | Revoked grants are checked before evaluation; PostgreSQL sync loads a durable snapshot before ready | `internal/server/grpc_server.go`; `TestDelegationInterceptor_Revocation_TOCTOU_Defense`; `TestRevocationPropagationThreeReplicasAndRestart` | Odoo mTLS E2E live revoke (one PDP); local 3-replica PostgreSQL test, 108 samples, max 38.8256 ms under a 5 s SLO | **VERIFIED FOR STATED LOCAL TESTS.** Do not call this instant, universal or production cluster-wide revocation. |
+| Human-approval routing without rollback | A typed `REQUIRE_HUMAN_APPROVAL` obligation transitions the PO to `to approve`, records one attempt and schedules one activity | `custom_addons/pdp_authorizer/models/purchase_order.py`; `test_approval_obligation_commits_once_without_rollback` | Odoo mTLS E2E | **VERIFIED** for the tested purchase-confirmation workflow; it does not establish a general approval-process deployment. |
+| Availability failure | Odoo raises `AccessError` when the PDP cannot be reached and the surrounding transaction rolls back | `custom_addons/pdp_authorizer/models/pdp_client.py`; `test_pdp_outage_fails_closed_without_consuming_nonce` | Odoo mTLS E2E outage case | **VERIFIED** for the tested unavailable PDP client path; not an availability SLO. |
+| Dynamic attenuation from current HR/limit state | Proposed status/limit inputs would narrow the delegator's active rights | No current request field, policy input or test for `delegator_status` / `delegator_limit` | None | **NOT VERIFIED.** Exclude “immediate collapse on suspension/departure/daily limit” from results. |
+
+The experiment's concrete contribution is therefore the enforced Odoo PEP/PDP boundary for a bounded P2P tool call: it authenticates the acting subject, protects the 1-hop delegation tuple, prevents tested replay/SoD/revocation cases, and preserves a non-rollback approval state. It is not evidence for a production authorization service or a generalized multi-agent delegation framework.
+
+## 3. Comparative Benchmark Matrix (current evidence)
 
 > Historical fixed-latency, OPA and speedup claims are retired. The current comparison is a measured, narrow purchase-confirmation workload; no OPA measurement is claimed.
 
@@ -32,7 +48,7 @@ Raw samples and method limits: [`evidence/ODOO_ORM_COMPARISON_2026_09_15.md`](./
 
 ---
 
-## 3. Performance Target Metrics & Budgets
+## 4. Performance Target Metrics & Budgets
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐

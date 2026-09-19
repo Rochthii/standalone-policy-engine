@@ -23,8 +23,8 @@ An agent's effective permissions $\mathcal{P}_{\text{effective}}$ at time $t$ ca
 
 $$\mathcal{P}_{\text{effective}}(\mathcal{A} \mid \mathcal{U}, t) = \mathcal{P}_{\text{active}}(\mathcal{U}, t) \cap \mathcal{S}_{\text{delegation}} \cap \Omega_{\text{guardrails}}$$
 
-- **Dynamic Collapse**: If at time $t$, $\mathcal{U}_{\text{root}}$ is suspended, departs the organization, or exhausts their daily approval limit, $\mathcal{P}_{\text{active}}(\mathcal{U}, t) \to \emptyset$, causing $\mathcal{P}_{\text{effective}}(\mathcal{A})$ to collapse to $\emptyset$ immediately.
-- **Evaluation Mechanism**: Handled without external database lookups via pre-extracted context attributes (`context.delegator_status`, `context.delegator_limit`) in memory.
+- **Implemented attenuation (VERIFIED within the stated boundary):** the Odoo PEP requires an active 1-hop grant, and the PDP verifies a tenant-bound, TTL-bounded full tuple before policy evaluation. A revoked grant is denied before the evaluator; policy guardrails and SoD can further deny the call.
+- **Dynamic collapse (NOT VERIFIED):** suspension, departure, or a daily approval limit would require a trusted, current source for the delegator's status/limit. The current request builder, PDP tuple and tests do not supply or evaluate `delegator_status` or `delegator_limit`. This remains a future design property, not a thesis result.
 
 ---
 
@@ -34,7 +34,7 @@ The resource creator is prohibited from appearing anywhere within the approval d
 $$\mathcal{U}_{\text{creator}} \notin \mathcal{C}_{\text{chain}}(\text{Approver})$$
 
 - **Threat Vector**: A malicious user creates a fraudulent purchase order, then triggers an AI Copilot (either their own or an AI acting under delegation from their manager) to approve the order.
-- **Engine Enforcement**: Implemented in [`evaluator.go:387`](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/engine/evaluator.go#L387) using `BinOpContains`:
+- **Engine Enforcement (VERIFIED):** the evaluator's `BinOpContains` applies the policy predicate to the proof-bound `delegation_chain` and `resource.creator_id`. The in-process seven-vector suite covers self-approval and the delegator-created-order chain collision; the Odoo mTLS suite covers the self-approval rollback path:
   ```cedar
   forbid(
       principal == any,
@@ -56,9 +56,7 @@ $$\text{Proof} = \text{HMAC-SHA256}\Big(K_{kid}, \; \text{versioned length-prefi
 The current tuple binds tenant, grant, delegator, agent, action, resource, amount/constraints, delegation chain, creator, tool context, execution mode, nonce and validity window. HMAC provides integrity and authenticity for key holders; it is not non-repudiation.
 
 - **Threat Vector**: A rogue actor crafts arbitrary JSON requests with forged `delegation_chain: "user:cfo_john,agent:copilot"`.
-- **Architectural Boundary**:
-  - Verification occurs exclusively at **Layer 1: gRPC Security Interceptor** ([`internal/security/auth.go`](file:///e:/Projects/Project_TN/standalone-policy-engine/internal/security/auth.go)).
-  - Hot-path In-Memory Evaluator (**Layer 2**) receives only cryptographically verified, clean requests. Latency is reported separately for the measured evaluator, local application path and Odoo boundary.
+- **Architectural Boundary (VERIFIED):** [`GRPCServer.CheckAccess`](../../internal/server/grpc_server.go) binds the JWT identity, checks revocation readiness/revocation, then calls [`validateDelegation`](../../internal/server/delegation_auth.go) before `Engine.CheckPermission`. This is the implemented Go PDP security boundary; it is not a separate gRPC unary interceptor. The evaluator therefore receives the server-normalized request after the delegated-request checks pass. Latency is reported separately for the measured evaluator, local application path and Odoo boundary.
 
 ---
 
@@ -86,5 +84,5 @@ sequenceDiagram
     Interceptor-->>Agent: Immediate fail-closed DENY; propagation and latency use recorded boundary evidence
 ```
 
-- **Data Structure**: `sync.Map` or read-optimized concurrent hashmap storing active revocations with TTL.
-- **Complexity**: $O(1)$ process-local lookup. Revocations are durably persisted and propagated through PostgreSQL; delegated checks fail closed while synchronization is unavailable. Propagation latency is reported from the multi-replica test, not as evaluator latency.
+- **Data Structure (VERIFIED):** a tenant-scoped `sync.Map` holds active revocations with TTL for the process-local lookup.
+- **Boundary:** PostgreSQL snapshot-first propagation, delayed delivery and restart are verified only by the local three-replica integration test (108 samples; recorded maximum 38.8256 ms against the 5 s test SLO). The Odoo suite proves a live revoke against one PDP, not cluster behavior. Delegated checks fail closed while synchronization is unavailable. This is neither a universal propagation guarantee nor production evidence.
