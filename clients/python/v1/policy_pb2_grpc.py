@@ -30,6 +30,16 @@ class PolicyDecisionPointStub(object):
                 request_serializer=v1_dot_policy__pb2.RevokeRequest.SerializeToString,
                 response_deserializer=v1_dot_policy__pb2.RevokeResponse.FromString,
                 _registered_method=True)
+        self.IssueApprovalCapability = channel.unary_unary(
+                '/policy.v1.PolicyDecisionPoint/IssueApprovalCapability',
+                request_serializer=v1_dot_policy__pb2.IssueApprovalCapabilityRequest.SerializeToString,
+                response_deserializer=v1_dot_policy__pb2.IssueApprovalCapabilityResponse.FromString,
+                _registered_method=True)
+        self.VerifyApprovalCapability = channel.unary_unary(
+                '/policy.v1.PolicyDecisionPoint/VerifyApprovalCapability',
+                request_serializer=v1_dot_policy__pb2.VerifyApprovalCapabilityRequest.SerializeToString,
+                response_deserializer=v1_dot_policy__pb2.VerifyApprovalCapabilityResponse.FromString,
+                _registered_method=True)
 
 
 class PolicyDecisionPointServicer(object):
@@ -57,6 +67,20 @@ class PolicyDecisionPointServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def IssueApprovalCapability(self, request, context):
+        """Phát hành bằng chứng phê duyệt chính xác cho một intent đang chờ.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def VerifyApprovalCapability(self, request, context):
+        """Xác minh chữ ký, thời hạn và binding của bằng chứng phê duyệt.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_PolicyDecisionPointServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -74,6 +98,16 @@ def add_PolicyDecisionPointServicer_to_server(servicer, server):
                     servicer.RevokeDelegation,
                     request_deserializer=v1_dot_policy__pb2.RevokeRequest.FromString,
                     response_serializer=v1_dot_policy__pb2.RevokeResponse.SerializeToString,
+            ),
+            'IssueApprovalCapability': grpc.unary_unary_rpc_method_handler(
+                    servicer.IssueApprovalCapability,
+                    request_deserializer=v1_dot_policy__pb2.IssueApprovalCapabilityRequest.FromString,
+                    response_serializer=v1_dot_policy__pb2.IssueApprovalCapabilityResponse.SerializeToString,
+            ),
+            'VerifyApprovalCapability': grpc.unary_unary_rpc_method_handler(
+                    servicer.VerifyApprovalCapability,
+                    request_deserializer=v1_dot_policy__pb2.VerifyApprovalCapabilityRequest.FromString,
+                    response_serializer=v1_dot_policy__pb2.VerifyApprovalCapabilityResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -158,6 +192,60 @@ class PolicyDecisionPoint(object):
             '/policy.v1.PolicyDecisionPoint/RevokeDelegation',
             v1_dot_policy__pb2.RevokeRequest.SerializeToString,
             v1_dot_policy__pb2.RevokeResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def IssueApprovalCapability(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/policy.v1.PolicyDecisionPoint/IssueApprovalCapability',
+            v1_dot_policy__pb2.IssueApprovalCapabilityRequest.SerializeToString,
+            v1_dot_policy__pb2.IssueApprovalCapabilityResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def VerifyApprovalCapability(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/policy.v1.PolicyDecisionPoint/VerifyApprovalCapability',
+            v1_dot_policy__pb2.VerifyApprovalCapabilityRequest.SerializeToString,
+            v1_dot_policy__pb2.VerifyApprovalCapabilityResponse.FromString,
             options,
             channel_credentials,
             insecure,

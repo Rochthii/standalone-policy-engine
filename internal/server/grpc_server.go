@@ -23,6 +23,7 @@ type GRPCServer struct {
 	auditLogger       *audit.AuditLogger
 	jwtValidator      *security.JWTValidator
 	delegationMgr     *security.DelegationManager
+	approvalMgr       *security.ApprovalCapabilityManager
 	revocationStore   security.RevocationStore
 	evaluationTimeout time.Duration
 }
@@ -68,6 +69,24 @@ func newGRPCServerWithSecurity(
 	if err != nil {
 		return nil, err
 	}
+	approvalActiveKeyID := securityConfig.ApprovalActiveKeyID
+	approvalKeys := securityConfig.ApprovalKeys
+	approvalTTL := securityConfig.ApprovalTTL
+	if len(approvalKeys) == 0 {
+		approvalActiveKeyID = "approval-legacy"
+		approvalKeys = map[string]string{"approval-legacy": "standalone-policy-engine-dev-approval-secret"}
+	}
+	if approvalTTL <= 0 {
+		approvalTTL = 15 * time.Minute
+	}
+	approvalManager, err := security.NewApprovalCapabilityManagerWithKeyring(
+		approvalActiveKeyID,
+		approvalKeys,
+		approvalTTL,
+	)
+	if err != nil {
+		return nil, err
+	}
 	return &GRPCServer{
 		engine:      eng,
 		auditLogger: logger,
@@ -77,6 +96,7 @@ func newGRPCServerWithSecurity(
 			securityConfig.JWTAudience,
 		),
 		delegationMgr:     delegationManager,
+		approvalMgr:       approvalManager,
 		revocationStore:   revocationStore,
 		evaluationTimeout: serverConfig.EvaluationTimeout,
 	}, nil

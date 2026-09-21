@@ -14,6 +14,12 @@ service PolicyDecisionPoint {
 
   // Thu hồi phiên ủy quyền của Tác tử AI tức thời (In-Memory Revocation < 1 µs)
   rpc RevokeDelegation(RevokeRequest) returns (RevokeResponse);
+
+  // Phát hành bằng chứng phê duyệt chính xác cho một intent đang chờ.
+  rpc IssueApprovalCapability(IssueApprovalCapabilityRequest) returns (IssueApprovalCapabilityResponse);
+
+  // Xác minh chữ ký, thời hạn và binding của bằng chứng phê duyệt.
+  rpc VerifyApprovalCapability(VerifyApprovalCapabilityRequest) returns (VerifyApprovalCapabilityResponse);
 }
 
 // Yêu cầu kiểm tra quyền truy cập
@@ -83,4 +89,60 @@ message RevokeResponse {
   bool success = 1; // Kết quả (true/false)
   int64 revoked_at = 2; // Thời điểm thu hồi dạng Unix timestamp
   string message = 3; // Thông báo phản hồi
+}
+
+message ApprovalCapability {
+  string capability_version = 1;
+  string purpose = 2;
+  string approval_id = 3;
+  string tenant_id = 4;
+  int64 company_id = 5;
+  string intent_hash = 6;
+  string state_witness = 7;
+  string command_id = 8;
+  int64 delegation_grant_id = 9;
+  string delegator_subject = 10;
+  string agent_subject = 11;
+  string creator_subject = 12;
+  int64 approver_user_id = 13;
+  string approver_subject = 14;
+  string required_permission = 15;
+  int64 issuance_policy_revision = 16;
+  int64 issued_at = 17;
+  int64 expires_at = 18;
+  string one_time_id = 19;
+  string algorithm = 20;
+  string key_id = 21;
+  bytes canonical_payload = 22;
+  bytes signature = 23;
+}
+
+message IssueApprovalCapabilityRequest {
+  string tenant_id = 1;
+  int64 company_id = 2;
+  string approval_id = 3;
+  string intent_hash = 4;
+  string state_witness = 5;
+  string command_id = 6;
+  int64 delegation_grant_id = 7;
+  string delegator_subject = 8;
+  string agent_subject = 9;
+  string creator_subject = 10;
+  int64 approver_user_id = 11;
+  string resource = 12;
+  int64 delegation_valid_until = 13;
+  map<string, string> context = 14;
+}
+
+message IssueApprovalCapabilityResponse {
+  ApprovalCapability capability = 1;
+}
+
+message VerifyApprovalCapabilityRequest {
+  string tenant_id = 1;
+  ApprovalCapability capability = 2;
+}
+
+message VerifyApprovalCapabilityResponse {
+  bool valid = 1;
 }

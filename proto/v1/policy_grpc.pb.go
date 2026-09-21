@@ -19,9 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PolicyDecisionPoint_CheckAccess_FullMethodName      = "/policy.v1.PolicyDecisionPoint/CheckAccess"
-	PolicyDecisionPoint_ExplainDecision_FullMethodName  = "/policy.v1.PolicyDecisionPoint/ExplainDecision"
-	PolicyDecisionPoint_RevokeDelegation_FullMethodName = "/policy.v1.PolicyDecisionPoint/RevokeDelegation"
+	PolicyDecisionPoint_CheckAccess_FullMethodName              = "/policy.v1.PolicyDecisionPoint/CheckAccess"
+	PolicyDecisionPoint_ExplainDecision_FullMethodName          = "/policy.v1.PolicyDecisionPoint/ExplainDecision"
+	PolicyDecisionPoint_RevokeDelegation_FullMethodName         = "/policy.v1.PolicyDecisionPoint/RevokeDelegation"
+	PolicyDecisionPoint_IssueApprovalCapability_FullMethodName  = "/policy.v1.PolicyDecisionPoint/IssueApprovalCapability"
+	PolicyDecisionPoint_VerifyApprovalCapability_FullMethodName = "/policy.v1.PolicyDecisionPoint/VerifyApprovalCapability"
 )
 
 // PolicyDecisionPointClient is the client API for PolicyDecisionPoint service.
@@ -36,6 +38,10 @@ type PolicyDecisionPointClient interface {
 	ExplainDecision(ctx context.Context, in *ExplainRequest, opts ...grpc.CallOption) (*ExplainResponse, error)
 	// Thu hồi phiên ủy quyền của Tác tử AI tức thời (In-Memory Revocation < 1 µs)
 	RevokeDelegation(ctx context.Context, in *RevokeRequest, opts ...grpc.CallOption) (*RevokeResponse, error)
+	// Phát hành bằng chứng phê duyệt chính xác cho một intent đang chờ.
+	IssueApprovalCapability(ctx context.Context, in *IssueApprovalCapabilityRequest, opts ...grpc.CallOption) (*IssueApprovalCapabilityResponse, error)
+	// Xác minh chữ ký, thời hạn và binding của bằng chứng phê duyệt.
+	VerifyApprovalCapability(ctx context.Context, in *VerifyApprovalCapabilityRequest, opts ...grpc.CallOption) (*VerifyApprovalCapabilityResponse, error)
 }
 
 type policyDecisionPointClient struct {
@@ -76,6 +82,26 @@ func (c *policyDecisionPointClient) RevokeDelegation(ctx context.Context, in *Re
 	return out, nil
 }
 
+func (c *policyDecisionPointClient) IssueApprovalCapability(ctx context.Context, in *IssueApprovalCapabilityRequest, opts ...grpc.CallOption) (*IssueApprovalCapabilityResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(IssueApprovalCapabilityResponse)
+	err := c.cc.Invoke(ctx, PolicyDecisionPoint_IssueApprovalCapability_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *policyDecisionPointClient) VerifyApprovalCapability(ctx context.Context, in *VerifyApprovalCapabilityRequest, opts ...grpc.CallOption) (*VerifyApprovalCapabilityResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VerifyApprovalCapabilityResponse)
+	err := c.cc.Invoke(ctx, PolicyDecisionPoint_VerifyApprovalCapability_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PolicyDecisionPointServer is the server API for PolicyDecisionPoint service.
 // All implementations must embed UnimplementedPolicyDecisionPointServer
 // for forward compatibility.
@@ -88,6 +114,10 @@ type PolicyDecisionPointServer interface {
 	ExplainDecision(context.Context, *ExplainRequest) (*ExplainResponse, error)
 	// Thu hồi phiên ủy quyền của Tác tử AI tức thời (In-Memory Revocation < 1 µs)
 	RevokeDelegation(context.Context, *RevokeRequest) (*RevokeResponse, error)
+	// Phát hành bằng chứng phê duyệt chính xác cho một intent đang chờ.
+	IssueApprovalCapability(context.Context, *IssueApprovalCapabilityRequest) (*IssueApprovalCapabilityResponse, error)
+	// Xác minh chữ ký, thời hạn và binding của bằng chứng phê duyệt.
+	VerifyApprovalCapability(context.Context, *VerifyApprovalCapabilityRequest) (*VerifyApprovalCapabilityResponse, error)
 	mustEmbedUnimplementedPolicyDecisionPointServer()
 }
 
@@ -106,6 +136,12 @@ func (UnimplementedPolicyDecisionPointServer) ExplainDecision(context.Context, *
 }
 func (UnimplementedPolicyDecisionPointServer) RevokeDelegation(context.Context, *RevokeRequest) (*RevokeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RevokeDelegation not implemented")
+}
+func (UnimplementedPolicyDecisionPointServer) IssueApprovalCapability(context.Context, *IssueApprovalCapabilityRequest) (*IssueApprovalCapabilityResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method IssueApprovalCapability not implemented")
+}
+func (UnimplementedPolicyDecisionPointServer) VerifyApprovalCapability(context.Context, *VerifyApprovalCapabilityRequest) (*VerifyApprovalCapabilityResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method VerifyApprovalCapability not implemented")
 }
 func (UnimplementedPolicyDecisionPointServer) mustEmbedUnimplementedPolicyDecisionPointServer() {}
 func (UnimplementedPolicyDecisionPointServer) testEmbeddedByValue()                             {}
@@ -182,6 +218,42 @@ func _PolicyDecisionPoint_RevokeDelegation_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PolicyDecisionPoint_IssueApprovalCapability_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(IssueApprovalCapabilityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PolicyDecisionPointServer).IssueApprovalCapability(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PolicyDecisionPoint_IssueApprovalCapability_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PolicyDecisionPointServer).IssueApprovalCapability(ctx, req.(*IssueApprovalCapabilityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PolicyDecisionPoint_VerifyApprovalCapability_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifyApprovalCapabilityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PolicyDecisionPointServer).VerifyApprovalCapability(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PolicyDecisionPoint_VerifyApprovalCapability_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PolicyDecisionPointServer).VerifyApprovalCapability(ctx, req.(*VerifyApprovalCapabilityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PolicyDecisionPoint_ServiceDesc is the grpc.ServiceDesc for PolicyDecisionPoint service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -200,6 +272,14 @@ var PolicyDecisionPoint_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RevokeDelegation",
 			Handler:    _PolicyDecisionPoint_RevokeDelegation_Handler,
+		},
+		{
+			MethodName: "IssueApprovalCapability",
+			Handler:    _PolicyDecisionPoint_IssueApprovalCapability_Handler,
+		},
+		{
+			MethodName: "VerifyApprovalCapability",
+			Handler:    _PolicyDecisionPoint_VerifyApprovalCapability_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -648,6 +648,514 @@ func (x *RevokeResponse) GetMessage() string {
 	return ""
 }
 
+type ApprovalCapability struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	CapabilityVersion      string                 `protobuf:"bytes,1,opt,name=capability_version,json=capabilityVersion,proto3" json:"capability_version,omitempty"`
+	Purpose                string                 `protobuf:"bytes,2,opt,name=purpose,proto3" json:"purpose,omitempty"`
+	ApprovalId             string                 `protobuf:"bytes,3,opt,name=approval_id,json=approvalId,proto3" json:"approval_id,omitempty"`
+	TenantId               string                 `protobuf:"bytes,4,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	CompanyId              int64                  `protobuf:"varint,5,opt,name=company_id,json=companyId,proto3" json:"company_id,omitempty"`
+	IntentHash             string                 `protobuf:"bytes,6,opt,name=intent_hash,json=intentHash,proto3" json:"intent_hash,omitempty"`
+	StateWitness           string                 `protobuf:"bytes,7,opt,name=state_witness,json=stateWitness,proto3" json:"state_witness,omitempty"`
+	CommandId              string                 `protobuf:"bytes,8,opt,name=command_id,json=commandId,proto3" json:"command_id,omitempty"`
+	DelegationGrantId      int64                  `protobuf:"varint,9,opt,name=delegation_grant_id,json=delegationGrantId,proto3" json:"delegation_grant_id,omitempty"`
+	DelegatorSubject       string                 `protobuf:"bytes,10,opt,name=delegator_subject,json=delegatorSubject,proto3" json:"delegator_subject,omitempty"`
+	AgentSubject           string                 `protobuf:"bytes,11,opt,name=agent_subject,json=agentSubject,proto3" json:"agent_subject,omitempty"`
+	CreatorSubject         string                 `protobuf:"bytes,12,opt,name=creator_subject,json=creatorSubject,proto3" json:"creator_subject,omitempty"`
+	ApproverUserId         int64                  `protobuf:"varint,13,opt,name=approver_user_id,json=approverUserId,proto3" json:"approver_user_id,omitempty"`
+	ApproverSubject        string                 `protobuf:"bytes,14,opt,name=approver_subject,json=approverSubject,proto3" json:"approver_subject,omitempty"`
+	RequiredPermission     string                 `protobuf:"bytes,15,opt,name=required_permission,json=requiredPermission,proto3" json:"required_permission,omitempty"`
+	IssuancePolicyRevision int64                  `protobuf:"varint,16,opt,name=issuance_policy_revision,json=issuancePolicyRevision,proto3" json:"issuance_policy_revision,omitempty"`
+	IssuedAt               int64                  `protobuf:"varint,17,opt,name=issued_at,json=issuedAt,proto3" json:"issued_at,omitempty"`
+	ExpiresAt              int64                  `protobuf:"varint,18,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	OneTimeId              string                 `protobuf:"bytes,19,opt,name=one_time_id,json=oneTimeId,proto3" json:"one_time_id,omitempty"`
+	Algorithm              string                 `protobuf:"bytes,20,opt,name=algorithm,proto3" json:"algorithm,omitempty"`
+	KeyId                  string                 `protobuf:"bytes,21,opt,name=key_id,json=keyId,proto3" json:"key_id,omitempty"`
+	CanonicalPayload       []byte                 `protobuf:"bytes,22,opt,name=canonical_payload,json=canonicalPayload,proto3" json:"canonical_payload,omitempty"`
+	Signature              []byte                 `protobuf:"bytes,23,opt,name=signature,proto3" json:"signature,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *ApprovalCapability) Reset() {
+	*x = ApprovalCapability{}
+	mi := &file_v1_policy_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApprovalCapability) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApprovalCapability) ProtoMessage() {}
+
+func (x *ApprovalCapability) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_policy_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApprovalCapability.ProtoReflect.Descriptor instead.
+func (*ApprovalCapability) Descriptor() ([]byte, []int) {
+	return file_v1_policy_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ApprovalCapability) GetCapabilityVersion() string {
+	if x != nil {
+		return x.CapabilityVersion
+	}
+	return ""
+}
+
+func (x *ApprovalCapability) GetPurpose() string {
+	if x != nil {
+		return x.Purpose
+	}
+	return ""
+}
+
+func (x *ApprovalCapability) GetApprovalId() string {
+	if x != nil {
+		return x.ApprovalId
+	}
+	return ""
+}
+
+func (x *ApprovalCapability) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *ApprovalCapability) GetCompanyId() int64 {
+	if x != nil {
+		return x.CompanyId
+	}
+	return 0
+}
+
+func (x *ApprovalCapability) GetIntentHash() string {
+	if x != nil {
+		return x.IntentHash
+	}
+	return ""
+}
+
+func (x *ApprovalCapability) GetStateWitness() string {
+	if x != nil {
+		return x.StateWitness
+	}
+	return ""
+}
+
+func (x *ApprovalCapability) GetCommandId() string {
+	if x != nil {
+		return x.CommandId
+	}
+	return ""
+}
+
+func (x *ApprovalCapability) GetDelegationGrantId() int64 {
+	if x != nil {
+		return x.DelegationGrantId
+	}
+	return 0
+}
+
+func (x *ApprovalCapability) GetDelegatorSubject() string {
+	if x != nil {
+		return x.DelegatorSubject
+	}
+	return ""
+}
+
+func (x *ApprovalCapability) GetAgentSubject() string {
+	if x != nil {
+		return x.AgentSubject
+	}
+	return ""
+}
+
+func (x *ApprovalCapability) GetCreatorSubject() string {
+	if x != nil {
+		return x.CreatorSubject
+	}
+	return ""
+}
+
+func (x *ApprovalCapability) GetApproverUserId() int64 {
+	if x != nil {
+		return x.ApproverUserId
+	}
+	return 0
+}
+
+func (x *ApprovalCapability) GetApproverSubject() string {
+	if x != nil {
+		return x.ApproverSubject
+	}
+	return ""
+}
+
+func (x *ApprovalCapability) GetRequiredPermission() string {
+	if x != nil {
+		return x.RequiredPermission
+	}
+	return ""
+}
+
+func (x *ApprovalCapability) GetIssuancePolicyRevision() int64 {
+	if x != nil {
+		return x.IssuancePolicyRevision
+	}
+	return 0
+}
+
+func (x *ApprovalCapability) GetIssuedAt() int64 {
+	if x != nil {
+		return x.IssuedAt
+	}
+	return 0
+}
+
+func (x *ApprovalCapability) GetExpiresAt() int64 {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return 0
+}
+
+func (x *ApprovalCapability) GetOneTimeId() string {
+	if x != nil {
+		return x.OneTimeId
+	}
+	return ""
+}
+
+func (x *ApprovalCapability) GetAlgorithm() string {
+	if x != nil {
+		return x.Algorithm
+	}
+	return ""
+}
+
+func (x *ApprovalCapability) GetKeyId() string {
+	if x != nil {
+		return x.KeyId
+	}
+	return ""
+}
+
+func (x *ApprovalCapability) GetCanonicalPayload() []byte {
+	if x != nil {
+		return x.CanonicalPayload
+	}
+	return nil
+}
+
+func (x *ApprovalCapability) GetSignature() []byte {
+	if x != nil {
+		return x.Signature
+	}
+	return nil
+}
+
+type IssueApprovalCapabilityRequest struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	TenantId             string                 `protobuf:"bytes,1,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	CompanyId            int64                  `protobuf:"varint,2,opt,name=company_id,json=companyId,proto3" json:"company_id,omitempty"`
+	ApprovalId           string                 `protobuf:"bytes,3,opt,name=approval_id,json=approvalId,proto3" json:"approval_id,omitempty"`
+	IntentHash           string                 `protobuf:"bytes,4,opt,name=intent_hash,json=intentHash,proto3" json:"intent_hash,omitempty"`
+	StateWitness         string                 `protobuf:"bytes,5,opt,name=state_witness,json=stateWitness,proto3" json:"state_witness,omitempty"`
+	CommandId            string                 `protobuf:"bytes,6,opt,name=command_id,json=commandId,proto3" json:"command_id,omitempty"`
+	DelegationGrantId    int64                  `protobuf:"varint,7,opt,name=delegation_grant_id,json=delegationGrantId,proto3" json:"delegation_grant_id,omitempty"`
+	DelegatorSubject     string                 `protobuf:"bytes,8,opt,name=delegator_subject,json=delegatorSubject,proto3" json:"delegator_subject,omitempty"`
+	AgentSubject         string                 `protobuf:"bytes,9,opt,name=agent_subject,json=agentSubject,proto3" json:"agent_subject,omitempty"`
+	CreatorSubject       string                 `protobuf:"bytes,10,opt,name=creator_subject,json=creatorSubject,proto3" json:"creator_subject,omitempty"`
+	ApproverUserId       int64                  `protobuf:"varint,11,opt,name=approver_user_id,json=approverUserId,proto3" json:"approver_user_id,omitempty"`
+	Resource             string                 `protobuf:"bytes,12,opt,name=resource,proto3" json:"resource,omitempty"`
+	DelegationValidUntil int64                  `protobuf:"varint,13,opt,name=delegation_valid_until,json=delegationValidUntil,proto3" json:"delegation_valid_until,omitempty"`
+	Context              map[string]string      `protobuf:"bytes,14,rep,name=context,proto3" json:"context,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *IssueApprovalCapabilityRequest) Reset() {
+	*x = IssueApprovalCapabilityRequest{}
+	mi := &file_v1_policy_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IssueApprovalCapabilityRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IssueApprovalCapabilityRequest) ProtoMessage() {}
+
+func (x *IssueApprovalCapabilityRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_policy_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IssueApprovalCapabilityRequest.ProtoReflect.Descriptor instead.
+func (*IssueApprovalCapabilityRequest) Descriptor() ([]byte, []int) {
+	return file_v1_policy_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *IssueApprovalCapabilityRequest) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *IssueApprovalCapabilityRequest) GetCompanyId() int64 {
+	if x != nil {
+		return x.CompanyId
+	}
+	return 0
+}
+
+func (x *IssueApprovalCapabilityRequest) GetApprovalId() string {
+	if x != nil {
+		return x.ApprovalId
+	}
+	return ""
+}
+
+func (x *IssueApprovalCapabilityRequest) GetIntentHash() string {
+	if x != nil {
+		return x.IntentHash
+	}
+	return ""
+}
+
+func (x *IssueApprovalCapabilityRequest) GetStateWitness() string {
+	if x != nil {
+		return x.StateWitness
+	}
+	return ""
+}
+
+func (x *IssueApprovalCapabilityRequest) GetCommandId() string {
+	if x != nil {
+		return x.CommandId
+	}
+	return ""
+}
+
+func (x *IssueApprovalCapabilityRequest) GetDelegationGrantId() int64 {
+	if x != nil {
+		return x.DelegationGrantId
+	}
+	return 0
+}
+
+func (x *IssueApprovalCapabilityRequest) GetDelegatorSubject() string {
+	if x != nil {
+		return x.DelegatorSubject
+	}
+	return ""
+}
+
+func (x *IssueApprovalCapabilityRequest) GetAgentSubject() string {
+	if x != nil {
+		return x.AgentSubject
+	}
+	return ""
+}
+
+func (x *IssueApprovalCapabilityRequest) GetCreatorSubject() string {
+	if x != nil {
+		return x.CreatorSubject
+	}
+	return ""
+}
+
+func (x *IssueApprovalCapabilityRequest) GetApproverUserId() int64 {
+	if x != nil {
+		return x.ApproverUserId
+	}
+	return 0
+}
+
+func (x *IssueApprovalCapabilityRequest) GetResource() string {
+	if x != nil {
+		return x.Resource
+	}
+	return ""
+}
+
+func (x *IssueApprovalCapabilityRequest) GetDelegationValidUntil() int64 {
+	if x != nil {
+		return x.DelegationValidUntil
+	}
+	return 0
+}
+
+func (x *IssueApprovalCapabilityRequest) GetContext() map[string]string {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+type IssueApprovalCapabilityResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Capability    *ApprovalCapability    `protobuf:"bytes,1,opt,name=capability,proto3" json:"capability,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IssueApprovalCapabilityResponse) Reset() {
+	*x = IssueApprovalCapabilityResponse{}
+	mi := &file_v1_policy_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IssueApprovalCapabilityResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IssueApprovalCapabilityResponse) ProtoMessage() {}
+
+func (x *IssueApprovalCapabilityResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_policy_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IssueApprovalCapabilityResponse.ProtoReflect.Descriptor instead.
+func (*IssueApprovalCapabilityResponse) Descriptor() ([]byte, []int) {
+	return file_v1_policy_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *IssueApprovalCapabilityResponse) GetCapability() *ApprovalCapability {
+	if x != nil {
+		return x.Capability
+	}
+	return nil
+}
+
+type VerifyApprovalCapabilityRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TenantId      string                 `protobuf:"bytes,1,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	Capability    *ApprovalCapability    `protobuf:"bytes,2,opt,name=capability,proto3" json:"capability,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyApprovalCapabilityRequest) Reset() {
+	*x = VerifyApprovalCapabilityRequest{}
+	mi := &file_v1_policy_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyApprovalCapabilityRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyApprovalCapabilityRequest) ProtoMessage() {}
+
+func (x *VerifyApprovalCapabilityRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_policy_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyApprovalCapabilityRequest.ProtoReflect.Descriptor instead.
+func (*VerifyApprovalCapabilityRequest) Descriptor() ([]byte, []int) {
+	return file_v1_policy_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *VerifyApprovalCapabilityRequest) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *VerifyApprovalCapabilityRequest) GetCapability() *ApprovalCapability {
+	if x != nil {
+		return x.Capability
+	}
+	return nil
+}
+
+type VerifyApprovalCapabilityResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Valid         bool                   `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyApprovalCapabilityResponse) Reset() {
+	*x = VerifyApprovalCapabilityResponse{}
+	mi := &file_v1_policy_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyApprovalCapabilityResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyApprovalCapabilityResponse) ProtoMessage() {}
+
+func (x *VerifyApprovalCapabilityResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_policy_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyApprovalCapabilityResponse.ProtoReflect.Descriptor instead.
+func (*VerifyApprovalCapabilityResponse) Descriptor() ([]byte, []int) {
+	return file_v1_policy_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *VerifyApprovalCapabilityResponse) GetValid() bool {
+	if x != nil {
+		return x.Valid
+	}
+	return false
+}
+
 var File_v1_policy_proto protoreflect.FileDescriptor
 
 const file_v1_policy_proto_rawDesc = "" +
@@ -712,11 +1220,77 @@ const file_v1_policy_proto_rawDesc = "" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x1d\n" +
 	"\n" +
 	"revoked_at\x18\x02 \x01(\x03R\trevokedAt\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage2\xf6\x01\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\xe6\x06\n" +
+	"\x12ApprovalCapability\x12-\n" +
+	"\x12capability_version\x18\x01 \x01(\tR\x11capabilityVersion\x12\x18\n" +
+	"\apurpose\x18\x02 \x01(\tR\apurpose\x12\x1f\n" +
+	"\vapproval_id\x18\x03 \x01(\tR\n" +
+	"approvalId\x12\x1b\n" +
+	"\ttenant_id\x18\x04 \x01(\tR\btenantId\x12\x1d\n" +
+	"\n" +
+	"company_id\x18\x05 \x01(\x03R\tcompanyId\x12\x1f\n" +
+	"\vintent_hash\x18\x06 \x01(\tR\n" +
+	"intentHash\x12#\n" +
+	"\rstate_witness\x18\a \x01(\tR\fstateWitness\x12\x1d\n" +
+	"\n" +
+	"command_id\x18\b \x01(\tR\tcommandId\x12.\n" +
+	"\x13delegation_grant_id\x18\t \x01(\x03R\x11delegationGrantId\x12+\n" +
+	"\x11delegator_subject\x18\n" +
+	" \x01(\tR\x10delegatorSubject\x12#\n" +
+	"\ragent_subject\x18\v \x01(\tR\fagentSubject\x12'\n" +
+	"\x0fcreator_subject\x18\f \x01(\tR\x0ecreatorSubject\x12(\n" +
+	"\x10approver_user_id\x18\r \x01(\x03R\x0eapproverUserId\x12)\n" +
+	"\x10approver_subject\x18\x0e \x01(\tR\x0fapproverSubject\x12/\n" +
+	"\x13required_permission\x18\x0f \x01(\tR\x12requiredPermission\x128\n" +
+	"\x18issuance_policy_revision\x18\x10 \x01(\x03R\x16issuancePolicyRevision\x12\x1b\n" +
+	"\tissued_at\x18\x11 \x01(\x03R\bissuedAt\x12\x1d\n" +
+	"\n" +
+	"expires_at\x18\x12 \x01(\x03R\texpiresAt\x12\x1e\n" +
+	"\vone_time_id\x18\x13 \x01(\tR\toneTimeId\x12\x1c\n" +
+	"\talgorithm\x18\x14 \x01(\tR\talgorithm\x12\x15\n" +
+	"\x06key_id\x18\x15 \x01(\tR\x05keyId\x12+\n" +
+	"\x11canonical_payload\x18\x16 \x01(\fR\x10canonicalPayload\x12\x1c\n" +
+	"\tsignature\x18\x17 \x01(\fR\tsignature\"\x97\x05\n" +
+	"\x1eIssueApprovalCapabilityRequest\x12\x1b\n" +
+	"\ttenant_id\x18\x01 \x01(\tR\btenantId\x12\x1d\n" +
+	"\n" +
+	"company_id\x18\x02 \x01(\x03R\tcompanyId\x12\x1f\n" +
+	"\vapproval_id\x18\x03 \x01(\tR\n" +
+	"approvalId\x12\x1f\n" +
+	"\vintent_hash\x18\x04 \x01(\tR\n" +
+	"intentHash\x12#\n" +
+	"\rstate_witness\x18\x05 \x01(\tR\fstateWitness\x12\x1d\n" +
+	"\n" +
+	"command_id\x18\x06 \x01(\tR\tcommandId\x12.\n" +
+	"\x13delegation_grant_id\x18\a \x01(\x03R\x11delegationGrantId\x12+\n" +
+	"\x11delegator_subject\x18\b \x01(\tR\x10delegatorSubject\x12#\n" +
+	"\ragent_subject\x18\t \x01(\tR\fagentSubject\x12'\n" +
+	"\x0fcreator_subject\x18\n" +
+	" \x01(\tR\x0ecreatorSubject\x12(\n" +
+	"\x10approver_user_id\x18\v \x01(\x03R\x0eapproverUserId\x12\x1a\n" +
+	"\bresource\x18\f \x01(\tR\bresource\x124\n" +
+	"\x16delegation_valid_until\x18\r \x01(\x03R\x14delegationValidUntil\x12P\n" +
+	"\acontext\x18\x0e \x03(\v26.policy.v1.IssueApprovalCapabilityRequest.ContextEntryR\acontext\x1a:\n" +
+	"\fContextEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"`\n" +
+	"\x1fIssueApprovalCapabilityResponse\x12=\n" +
+	"\n" +
+	"capability\x18\x01 \x01(\v2\x1d.policy.v1.ApprovalCapabilityR\n" +
+	"capability\"}\n" +
+	"\x1fVerifyApprovalCapabilityRequest\x12\x1b\n" +
+	"\ttenant_id\x18\x01 \x01(\tR\btenantId\x12=\n" +
+	"\n" +
+	"capability\x18\x02 \x01(\v2\x1d.policy.v1.ApprovalCapabilityR\n" +
+	"capability\"8\n" +
+	" VerifyApprovalCapabilityResponse\x12\x14\n" +
+	"\x05valid\x18\x01 \x01(\bR\x05valid2\xdd\x03\n" +
 	"\x13PolicyDecisionPoint\x12L\n" +
 	"\vCheckAccess\x12\x1d.policy.v1.CheckAccessRequest\x1a\x1e.policy.v1.CheckAccessResponse\x12H\n" +
 	"\x0fExplainDecision\x12\x19.policy.v1.ExplainRequest\x1a\x1a.policy.v1.ExplainResponse\x12G\n" +
-	"\x10RevokeDelegation\x12\x18.policy.v1.RevokeRequest\x1a\x19.policy.v1.RevokeResponseB,Z*standalone-policy-engine/proto/v1;policyv1b\x06proto3"
+	"\x10RevokeDelegation\x12\x18.policy.v1.RevokeRequest\x1a\x19.policy.v1.RevokeResponse\x12p\n" +
+	"\x17IssueApprovalCapability\x12).policy.v1.IssueApprovalCapabilityRequest\x1a*.policy.v1.IssueApprovalCapabilityResponse\x12s\n" +
+	"\x18VerifyApprovalCapability\x12*.policy.v1.VerifyApprovalCapabilityRequest\x1a+.policy.v1.VerifyApprovalCapabilityResponseB,Z*standalone-policy-engine/proto/v1;policyv1b\x06proto3"
 
 var (
 	file_v1_policy_proto_rawDescOnce sync.Once
@@ -731,43 +1305,56 @@ func file_v1_policy_proto_rawDescGZIP() []byte {
 }
 
 var file_v1_policy_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_v1_policy_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_v1_policy_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_v1_policy_proto_goTypes = []any{
-	(CheckAccessResponse_Decision)(0), // 0: policy.v1.CheckAccessResponse.Decision
-	(ExplainResponse_Decision)(0),     // 1: policy.v1.ExplainResponse.Decision
-	(*CheckAccessRequest)(nil),        // 2: policy.v1.CheckAccessRequest
-	(*CheckAccessResponse)(nil),       // 3: policy.v1.CheckAccessResponse
-	(*Obligation)(nil),                // 4: policy.v1.Obligation
-	(*ExplainRequest)(nil),            // 5: policy.v1.ExplainRequest
-	(*ExplainResponse)(nil),           // 6: policy.v1.ExplainResponse
-	(*PolicyMetadata)(nil),            // 7: policy.v1.PolicyMetadata
-	(*RevokeRequest)(nil),             // 8: policy.v1.RevokeRequest
-	(*RevokeResponse)(nil),            // 9: policy.v1.RevokeResponse
-	nil,                               // 10: policy.v1.CheckAccessRequest.ContextEntry
-	nil,                               // 11: policy.v1.CheckAccessResponse.AdviceEntry
-	nil,                               // 12: policy.v1.Obligation.PayloadEntry
-	nil,                               // 13: policy.v1.ExplainRequest.ContextEntry
+	(CheckAccessResponse_Decision)(0),        // 0: policy.v1.CheckAccessResponse.Decision
+	(ExplainResponse_Decision)(0),            // 1: policy.v1.ExplainResponse.Decision
+	(*CheckAccessRequest)(nil),               // 2: policy.v1.CheckAccessRequest
+	(*CheckAccessResponse)(nil),              // 3: policy.v1.CheckAccessResponse
+	(*Obligation)(nil),                       // 4: policy.v1.Obligation
+	(*ExplainRequest)(nil),                   // 5: policy.v1.ExplainRequest
+	(*ExplainResponse)(nil),                  // 6: policy.v1.ExplainResponse
+	(*PolicyMetadata)(nil),                   // 7: policy.v1.PolicyMetadata
+	(*RevokeRequest)(nil),                    // 8: policy.v1.RevokeRequest
+	(*RevokeResponse)(nil),                   // 9: policy.v1.RevokeResponse
+	(*ApprovalCapability)(nil),               // 10: policy.v1.ApprovalCapability
+	(*IssueApprovalCapabilityRequest)(nil),   // 11: policy.v1.IssueApprovalCapabilityRequest
+	(*IssueApprovalCapabilityResponse)(nil),  // 12: policy.v1.IssueApprovalCapabilityResponse
+	(*VerifyApprovalCapabilityRequest)(nil),  // 13: policy.v1.VerifyApprovalCapabilityRequest
+	(*VerifyApprovalCapabilityResponse)(nil), // 14: policy.v1.VerifyApprovalCapabilityResponse
+	nil,                                      // 15: policy.v1.CheckAccessRequest.ContextEntry
+	nil,                                      // 16: policy.v1.CheckAccessResponse.AdviceEntry
+	nil,                                      // 17: policy.v1.Obligation.PayloadEntry
+	nil,                                      // 18: policy.v1.ExplainRequest.ContextEntry
+	nil,                                      // 19: policy.v1.IssueApprovalCapabilityRequest.ContextEntry
 }
 var file_v1_policy_proto_depIdxs = []int32{
-	10, // 0: policy.v1.CheckAccessRequest.context:type_name -> policy.v1.CheckAccessRequest.ContextEntry
+	15, // 0: policy.v1.CheckAccessRequest.context:type_name -> policy.v1.CheckAccessRequest.ContextEntry
 	0,  // 1: policy.v1.CheckAccessResponse.decision:type_name -> policy.v1.CheckAccessResponse.Decision
 	4,  // 2: policy.v1.CheckAccessResponse.obligations:type_name -> policy.v1.Obligation
-	11, // 3: policy.v1.CheckAccessResponse.advice:type_name -> policy.v1.CheckAccessResponse.AdviceEntry
-	12, // 4: policy.v1.Obligation.payload:type_name -> policy.v1.Obligation.PayloadEntry
-	13, // 5: policy.v1.ExplainRequest.context:type_name -> policy.v1.ExplainRequest.ContextEntry
+	16, // 3: policy.v1.CheckAccessResponse.advice:type_name -> policy.v1.CheckAccessResponse.AdviceEntry
+	17, // 4: policy.v1.Obligation.payload:type_name -> policy.v1.Obligation.PayloadEntry
+	18, // 5: policy.v1.ExplainRequest.context:type_name -> policy.v1.ExplainRequest.ContextEntry
 	1,  // 6: policy.v1.ExplainResponse.decision:type_name -> policy.v1.ExplainResponse.Decision
 	7,  // 7: policy.v1.ExplainResponse.matched:type_name -> policy.v1.PolicyMetadata
-	2,  // 8: policy.v1.PolicyDecisionPoint.CheckAccess:input_type -> policy.v1.CheckAccessRequest
-	5,  // 9: policy.v1.PolicyDecisionPoint.ExplainDecision:input_type -> policy.v1.ExplainRequest
-	8,  // 10: policy.v1.PolicyDecisionPoint.RevokeDelegation:input_type -> policy.v1.RevokeRequest
-	3,  // 11: policy.v1.PolicyDecisionPoint.CheckAccess:output_type -> policy.v1.CheckAccessResponse
-	6,  // 12: policy.v1.PolicyDecisionPoint.ExplainDecision:output_type -> policy.v1.ExplainResponse
-	9,  // 13: policy.v1.PolicyDecisionPoint.RevokeDelegation:output_type -> policy.v1.RevokeResponse
-	11, // [11:14] is the sub-list for method output_type
-	8,  // [8:11] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	19, // 8: policy.v1.IssueApprovalCapabilityRequest.context:type_name -> policy.v1.IssueApprovalCapabilityRequest.ContextEntry
+	10, // 9: policy.v1.IssueApprovalCapabilityResponse.capability:type_name -> policy.v1.ApprovalCapability
+	10, // 10: policy.v1.VerifyApprovalCapabilityRequest.capability:type_name -> policy.v1.ApprovalCapability
+	2,  // 11: policy.v1.PolicyDecisionPoint.CheckAccess:input_type -> policy.v1.CheckAccessRequest
+	5,  // 12: policy.v1.PolicyDecisionPoint.ExplainDecision:input_type -> policy.v1.ExplainRequest
+	8,  // 13: policy.v1.PolicyDecisionPoint.RevokeDelegation:input_type -> policy.v1.RevokeRequest
+	11, // 14: policy.v1.PolicyDecisionPoint.IssueApprovalCapability:input_type -> policy.v1.IssueApprovalCapabilityRequest
+	13, // 15: policy.v1.PolicyDecisionPoint.VerifyApprovalCapability:input_type -> policy.v1.VerifyApprovalCapabilityRequest
+	3,  // 16: policy.v1.PolicyDecisionPoint.CheckAccess:output_type -> policy.v1.CheckAccessResponse
+	6,  // 17: policy.v1.PolicyDecisionPoint.ExplainDecision:output_type -> policy.v1.ExplainResponse
+	9,  // 18: policy.v1.PolicyDecisionPoint.RevokeDelegation:output_type -> policy.v1.RevokeResponse
+	12, // 19: policy.v1.PolicyDecisionPoint.IssueApprovalCapability:output_type -> policy.v1.IssueApprovalCapabilityResponse
+	14, // 20: policy.v1.PolicyDecisionPoint.VerifyApprovalCapability:output_type -> policy.v1.VerifyApprovalCapabilityResponse
+	16, // [16:21] is the sub-list for method output_type
+	11, // [11:16] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_v1_policy_proto_init() }
@@ -781,7 +1368,7 @@ func file_v1_policy_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_v1_policy_proto_rawDesc), len(file_v1_policy_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   12,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
