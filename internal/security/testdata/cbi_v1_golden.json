@@ -1,0 +1,65 @@
+{
+  "key_id": "key-2026-09",
+  "secret": "test-delegation-secret-at-least-32-characters",
+  "issued_at": 1800000000,
+  "valid_until": 1800003600,
+  "amount_total": "1234.56",
+  "intent": {
+    "intent_version": "cbi.v1",
+    "tenant_id": "tenant-a",
+    "company_id": 7,
+    "resource_type": "purchase.order",
+    "resource_id": 42,
+    "action": "action:CONFIRM_PURCHASE_ORDER",
+    "vendor_id": 19,
+    "currency_code": "USD",
+    "currency_scale": 2,
+    "amount_minor": 123456,
+    "line_digest": "",
+    "record_state": "to approve",
+    "record_write_version": "2026-09-20T10:11:12.123456Z",
+    "state_witness": "",
+    "creator_subject": "user:alice",
+    "delegation_grant_id": 81,
+    "delegator_subject": "user:bob",
+    "agent_subject": "agent:procurement_copilot",
+    "command_id": "MVWzjbydBxQUvpx-QFT5dHISK0t95CznvTGPEEqnRDk",
+    "proof_version": "v2"
+  },
+  "lines": [
+    {
+      "line_id": 101,
+      "sequence": 10,
+      "display_type": "",
+      "product_id": 501,
+      "description": "Café beans\r\nPremium",
+      "uom_id": 1,
+      "quantity": "2.5",
+      "unit_price": "123.456",
+      "tax_ids": [9, 3],
+      "planned_at": "2026-09-25T08:30:00.000000Z",
+      "line_write_version": "2026-09-20T10:10:00.000001Z"
+    },
+    {
+      "line_id": 102,
+      "sequence": 5,
+      "display_type": "line_section",
+      "product_id": 0,
+      "description": "Procurement",
+      "uom_id": 0,
+      "quantity": "0",
+      "unit_price": "0",
+      "tax_ids": [],
+      "planned_at": "",
+      "line_write_version": "2026-09-20T10:09:00.000001Z"
+    }
+  ],
+  "expected": {
+    "line_bytes_base64": "UERQLU9ET08tUE8tTElORVMtVjEAAAACAAAAAAAAAGYAAAAAAAAABQAAAAxsaW5lX3NlY3Rpb24AAAAAAAAAAAAAAAtQcm9jdXJlbWVudAAAAAAAAAAAAAAAATAAAAABMAAAAAAAAAAAAAAAGzIwMjYtMDktMjBUMTA6MDk6MDAuMDAwMDAxWgAAAAAAAABlAAAAAAAAAAoAAAAAAAAAAAAAAfUAAAATQ2Fmw6kgYmVhbnMKUHJlbWl1bQAAAAAAAAABAAAAAzIuNQAAAAcxMjMuNDU2AAAAAgAAAAAAAAADAAAAAAAAAAkAAAAbMjAyNi0wOS0yNVQwODozMDowMC4wMDAwMDBaAAAAGzIwMjYtMDktMjBUMTA6MTA6MDAuMDAwMDAxWg==",
+    "line_digest": "360cf5de0587cf0f0b8a73f6fd20f913e4e16f5f2efa40bea24d43868e3ab1e7",
+    "state_witness": "3a5ed9d8efb872f718fb26fe15dcfdfa825d934f74d8927ad49495d3333ac804",
+    "intent_bytes_base64": "UERQLUNBTk9OSUNBTC1CVVNJTkVTUy1JTlRFTlQAAAAGY2JpLnYxAAAACHRlbmFudC1hAAAAAAAAAAcAAAAOcHVyY2hhc2Uub3JkZXIAAAAAAAAAKgAAAB1hY3Rpb246Q09ORklSTV9QVVJDSEFTRV9PUkRFUgAAAAAAAAATAAAAA1VTRAAAAAAAAAACAAAAAAAB4kA2DPXeBYfPDwuKc/b9IPkT5OFvXy76QL6iTUOGjjqx5wAAAAp0byBhcHByb3ZlAAAAGzIwMjYtMDktMjBUMTA6MTE6MTIuMTIzNDU2Wjpe2djvuHL3GPsm/hXc/fqCXZNPdNiSetSUldMzOsgEAAAACnVzZXI6YWxpY2UAAAAAAAAAUQAAAAh1c2VyOmJvYgAAABlhZ2VudDpwcm9jdXJlbWVudF9jb3BpbG90AAAAK01WV3pqYnlkQnhRVXZweC1RRlQ1ZEhJU0swdDk1Q3pudlRHUEVFcW5SRGsAAAACdjI=",
+    "intent_hash": "ea1481e884e77d05bf9b88848d7ee68d38654336c7720ed48f8a5abe937581c5",
+    "proof": "v2.key-2026-09.a9d2469b65f88d64827299fee36c8bcbfb105c35d519a9d1d3f5dec586e65f3a"
+  }
+}
