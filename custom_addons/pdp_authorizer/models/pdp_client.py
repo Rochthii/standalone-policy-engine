@@ -142,6 +142,61 @@ class SafePDPClient:
             raise AccessError(_("Delegation revocation was rejected by the PDP."))
         return response
 
+    def issue_approval_capability(self, values, token):
+        request = policy_pb2.IssueApprovalCapabilityRequest(
+            tenant_id=str(values["tenant_id"]),
+            company_id=int(values["company_id"]),
+            approval_id=str(values["approval_id"]),
+            intent_hash=str(values["intent_hash"]),
+            state_witness=str(values["state_witness"]),
+            command_id=str(values["command_id"]),
+            delegation_grant_id=int(values["delegation_grant_id"]),
+            delegator_subject=str(values["delegator_subject"]),
+            agent_subject=str(values["agent_subject"]),
+            creator_subject=str(values["creator_subject"]),
+            approver_user_id=int(values["approver_user_id"]),
+            resource=str(values["resource"]),
+            delegation_valid_until=int(values["delegation_valid_until"]),
+            context={str(key): str(value) for key, value in values["context"].items()},
+        )
+        try:
+            response = self._get_stub().IssueApprovalCapability(
+                request, timeout=self._timeout, metadata=self._metadata(token)
+            )
+        except grpc.RpcError as exc:
+            _logger.error("PDP approval issuance failed closed with status %s", exc.code())
+            raise AccessError(_("PDP approval issuance was denied or unavailable.")) from exc
+        if not response.HasField("capability"):
+            raise AccessError(_("PDP returned no approval capability."))
+        return self._capability_to_dict(response.capability)
+
+    def verify_approval_capability(self, tenant_id, capability, token):
+        request = policy_pb2.VerifyApprovalCapabilityRequest(
+            tenant_id=str(tenant_id),
+            capability=self._capability_from_dict(capability),
+        )
+        try:
+            response = self._get_stub().VerifyApprovalCapability(
+                request, timeout=self._timeout, metadata=self._metadata(token)
+            )
+        except grpc.RpcError as exc:
+            _logger.error("PDP approval verification failed closed with status %s", exc.code())
+            raise AccessError(_("PDP approval capability verification failed.")) from exc
+        if not response.valid:
+            raise AccessError(_("PDP rejected the approval capability."))
+        return True
+
+    @staticmethod
+    def _capability_to_dict(source):
+        return {
+            field.name: getattr(source, field.name)
+            for field in source.DESCRIPTOR.fields
+        }
+
+    @staticmethod
+    def _capability_from_dict(values):
+        return policy_pb2.ApprovalCapability(**values)
+
 
 _client = None
 _client_lock = threading.Lock()

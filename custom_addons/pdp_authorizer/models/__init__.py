@@ -1,3 +1,5 @@
+from . import approval_request
+from . import approval_capability
 from . import authorization_attempt
 from . import delegation_grant
 from . import pdp_client

@@ -55,6 +55,9 @@ services:
       JWT_AUDIENCE: standalone-policy-engine-pdp
       PDP_DELEGATION_ACTIVE_KID: testbed-2026
       PDP_DELEGATION_KEYS_JSON: '{"testbed-2026":"testbed-delegation-secret-at-least-32-characters"}'
+      PDP_APPROVAL_ACTIVE_KID: approval-testbed-2026
+      PDP_APPROVAL_KEYS_JSON: '{"approval-testbed-2026":"testbed-approval-secret-at-least-32-characters"}'
+      PDP_APPROVAL_TTL: 15m
       LOG_KEK_ACTIVE_KID: testbed-audit-2026
       LOG_KEKS_JSON: '{"testbed-audit-2026":"testbed-audit-kek-2026-32-bytes!"}'
       AUDIT_SPILL_DIR: /var/lib/pdp/audit-spill
@@ -105,6 +108,9 @@ services:
       JWT_AUDIENCE: standalone-policy-engine-testbed-pdp
       PDP_DELEGATION_ACTIVE_KID: testbed-2026
       PDP_DELEGATION_KEYS_JSON: '{"testbed-2026":"testbed-delegation-secret-at-least-32-characters"}'
+      PDP_APPROVAL_ACTIVE_KID: approval-testbed-2026
+      PDP_APPROVAL_KEYS_JSON: '{"approval-testbed-2026":"testbed-approval-secret-at-least-32-characters"}'
+      PDP_APPROVAL_TTL: 15m
       LOG_KEK_ACTIVE_KID: testbed-audit-2026
       LOG_KEKS_JSON: '{"testbed-audit-2026":"testbed-audit-kek-2026-32-bytes!"}'
       AUDIT_SPILL_DIR: /var/lib/pdp/audit-spill

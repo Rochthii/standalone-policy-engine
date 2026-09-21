@@ -1,6 +1,6 @@
 {
     "name": "Standalone PDP AI Agent Authorizer",
-    "version": "17.0.2.0.0",
+    "version": "17.0.5.0.0",
     "category": "Purchases",
     "summary": "Fail-closed Odoo PEP for the standalone Go policy engine",
     "description": "Repository-owned Odoo 17 policy enforcement point for the standalone PDP.",
@@ -9,6 +9,7 @@
     "external_dependencies": {"python": ["grpcio", "protobuf"]},
     "data": [
         "security/ir.model.access.csv",
+        "security/approval_request_rules.xml",
         "views/res_company_views.xml",
         "views/res_users_views.xml",
         "views/delegation_grant_views.xml",
