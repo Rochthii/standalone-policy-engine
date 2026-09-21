@@ -6,7 +6,9 @@ from psycopg2 import IntegrityError
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 
+from ..cbi_protocol import canonical_business_intent_context, minor_units_to_decimal
 from ..pdp_protocol import issue_jwt_from_environment
+from .cbi_builder import build_purchase_order_intent
 from .pdp_client import get_pdp_client
 
 
@@ -53,7 +55,7 @@ class PurchaseOrder(models.Model):
         creator = "user:%s" % self.create_uid.login
         return {
             "subject": subject,
-            "action": "action:APPROVE_PURCHASE_ORDER",
+            "action": "action:CONFIRM_PURCHASE_ORDER",
             "resource": "purchase_order:%s" % self.id,
             "context": {
                 "amount": str(int(math.ceil(self.amount_total))),
@@ -97,6 +99,25 @@ class PurchaseOrder(models.Model):
                 raise AccessError(_("Concurrent PDP authorization attempt could not be resolved."))
             return self._validate_existing_attempt(existing, fingerprint), False
 
+    def _completed_authorization_attempt(self, grant, nonce):
+        """Return a completed retry before rebuilding state-dependent CBI."""
+        self.ensure_one()
+        attempt = self.env["pdp.authorization.attempt"].sudo().search(
+            [
+                ("tenant_id", "=", self._tenant_id()),
+                ("delegation_grant_id", "=", grant.id),
+                ("delegation_nonce", "=", nonce),
+            ],
+            limit=1,
+        )
+        if not attempt:
+            return attempt
+        if attempt.business_model != self._name or attempt.business_res_id != self.id:
+            raise AccessError(_("Delegation nonce was replayed for a different business command."))
+        if attempt.state == "pending":
+            raise AccessError(_("A prior authorization attempt is still pending."))
+        return attempt
+
     def _validate_existing_attempt(self, attempt, fingerprint):
         self.ensure_one()
         if (
@@ -115,25 +136,35 @@ class PurchaseOrder(models.Model):
         if grant.user_id.company_id != self.company_id:
             raise UserError(_("Delegation grant and purchase order belong to different companies."))
         nonce = self._locked_delegation_nonce()
-        values, proof, fingerprint = grant.build_protected_tuple(self, nonce)
+        completed = self._completed_authorization_attempt(grant, nonce)
+        if completed:
+            return None, completed, False
+        intent, proof, fingerprint, issued_at, valid_until = grant.build_protected_intent(
+            self, nonce
+        )
         attempt, created = self._authorization_attempt(grant, nonce, fingerprint)
-        request = self._base_request(values["agent"])
-        request["resource"] = values["resource"]
+        request = self._base_request(intent["agent_subject"])
+        request["action"] = intent["action"]
+        request["resource"] = "purchase_order:%s" % intent["resource_id"]
         request["context"].update(
             {
-                "amount": values["amount"],
-                "delegation_grant_id": values["grant_id"],
-                "delegated_by": values["delegator"],
-                "delegation_issued_at": str(values["issued_at"]),
-                "delegation_valid_until": str(values["valid_until"]),
-                "delegation_nonce": values["nonce"],
-                "delegation_chain": values["delegation_chain"],
+                "amount": minor_units_to_decimal(
+                    intent["amount_minor"], intent["currency_scale"]
+                ),
+                "delegation_grant_id": str(intent["delegation_grant_id"]),
+                "delegated_by": intent["delegator_subject"],
+                "delegation_issued_at": str(issued_at),
+                "delegation_valid_until": str(valid_until),
+                "delegation_nonce": intent["command_id"],
+                "delegation_chain": "%s,%s"
+                % (intent["delegator_subject"], intent["agent_subject"]),
                 "delegation_proof": proof,
-                "resource.creator_id": values["creator_id"],
-                "tool_context": values["tool_context"],
-                "execution_mode": values["execution_mode"],
+                "resource.creator_id": intent["creator_subject"],
+                "tool_context": "tool:auto_confirm_po",
+                "execution_mode": "autonomous_run",
             }
         )
+        request["context"].update(canonical_business_intent_context(intent))
         return request, attempt, created
 
     def _locked_delegation_nonce(self):
@@ -154,15 +185,13 @@ class PurchaseOrder(models.Model):
         self.write({"pdp_delegation_nonce": nonce})
         return nonce
 
-    def _schedule_pdp_activity(self, obligation, advice):
+    def _schedule_pdp_activity(self, obligation, advice, approver):
         self.ensure_one()
-        approver = self.delegated_by_id or self.env.ref(
-            "base.user_admin", raise_if_not_found=False
-        ) or self.env.user
+        approver.ensure_one()
         note = obligation.get("message") or advice.get("reason") or _(
             "The PDP requires human approval for this purchase order."
         )
-        self.activity_schedule(
+        return self.activity_schedule(
             "mail.mail_activity_data_todo",
             summary=_("PDP human approval required: %s") % self.name,
             note=note,
@@ -214,8 +243,19 @@ class PurchaseOrder(models.Model):
         )
         if approval:
             self.write({"state": "to approve", "pdp_status": "require_approval"})
-            self._schedule_pdp_activity(approval, advice)
             if attempt:
+                pending_intent = build_purchase_order_intent(
+                    self, self.delegation_grant_id, attempt.delegation_nonce
+                )
+                pending_approval = self.env["pdp.approval.request"].sudo().create_pending(
+                    self, attempt, pending_intent
+                )
+                approver = pending_approval.select_activity_approver()
+            else:
+                approver = self.env.user
+            activity = self._schedule_pdp_activity(approval, advice, approver)
+            if attempt:
+                pending_approval.attach_activity(activity, approver)
                 attempt.mark_completed("approval_required", "deny", self.state)
             return True
 

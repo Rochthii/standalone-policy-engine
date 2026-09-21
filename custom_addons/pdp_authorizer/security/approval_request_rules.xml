@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="rule_pdp_approval_request_purchase_manager_company" model="ir.rule">
+        <field name="name">PDP approval requests: purchase-manager companies</field>
+        <field name="model_id" ref="model_pdp_approval_request"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('purchase.group_purchase_manager'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+</odoo>
