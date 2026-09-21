@@ -101,6 +101,9 @@ func TestConfigRuntimeEnvironmentBindings(t *testing.T) {
 		"PDP_SHARED_SECRET":                   "test-delegation-secret-at-least-32-characters",
 		"PDP_DELEGATION_ACTIVE_KID":           "delegation-a",
 		"PDP_DELEGATION_KEYS_JSON":            `{"delegation-a":"test-delegation-secret-at-least-32-characters"}`,
+		"PDP_APPROVAL_ACTIVE_KID":             "approval-a",
+		"PDP_APPROVAL_KEYS_JSON":              `{"approval-a":"test-approval-secret-at-least-32-characters"}`,
+		"PDP_APPROVAL_TTL":                    "20m",
 		"LOG_KEK_ACTIVE_KID":                  "audit-a",
 		"LOG_KEKS_JSON":                       `{"audit-a":"test-audit-kek-new-32-bytes-key!"}`,
 		"PDP_TLS_CERT":                        "/run/tls/server.crt",
@@ -138,6 +141,7 @@ func TestConfigRuntimeEnvironmentBindings(t *testing.T) {
 	if cfg.Security.JWTSecret != values["JWT_SECRET"] || cfg.Security.JWTIssuer != values["JWT_ISSUER"] ||
 		cfg.Security.JWTAudience != values["JWT_AUDIENCE"] || cfg.Security.DelegationSecret != values["PDP_SHARED_SECRET"] ||
 		cfg.Security.DelegationActiveKeyID != "delegation-a" || !cfg.Security.DelegationKeyringExplicit ||
+		cfg.Security.ApprovalActiveKeyID != "approval-a" || !cfg.Security.ApprovalKeyringExplicit || cfg.Security.ApprovalTTL != 20*time.Minute ||
 		cfg.Security.AuditActiveKeyID != "audit-a" || !cfg.Security.AuditKeyringExplicit ||
 		cfg.Security.TLSCertFile != values["PDP_TLS_CERT"] || cfg.Security.TLSKeyFile != values["PDP_TLS_KEY"] || cfg.Security.TLSCAFile != values["PDP_TLS_CA"] {
 		t.Fatalf("security environment binding mismatch: %+v", cfg.Security)
@@ -153,6 +157,9 @@ func TestConfig_ProductionValidation(t *testing.T) {
 		"JWT_AUDIENCE":                        "standalone-policy-engine",
 		"PDP_DELEGATION_ACTIVE_KID":           "key-2026-09",
 		"PDP_DELEGATION_KEYS_JSON":            `{"key-2026-08":"previous-production-delegation-secret-32-chars","key-2026-09":"active-production-delegation-secret-32-characters"}`,
+		"PDP_APPROVAL_ACTIVE_KID":             "approval-2026-09",
+		"PDP_APPROVAL_KEYS_JSON":              `{"approval-2026-08":"previous-production-approval-secret-32-characters","approval-2026-09":"active-production-approval-secret-32-characters"}`,
+		"PDP_APPROVAL_TTL":                    "15m",
 		"PDP_TLS_CERT":                        "/run/secrets/pdp/tls.crt",
 		"PDP_TLS_KEY":                         "/run/secrets/pdp/tls.key",
 		"PDP_TLS_CA":                          "/run/secrets/pdp/ca.crt",
@@ -177,6 +184,8 @@ func TestConfig_ProductionValidation(t *testing.T) {
 		{name: "development audience", override: map[string]string{"JWT_AUDIENCE": "standalone-policy-engine-pdp"}, wantError: "JWT_AUDIENCE"},
 		{name: "missing active delegation key", override: map[string]string{"PDP_DELEGATION_ACTIVE_KID": "missing"}, wantError: "PDP_DELEGATION_ACTIVE_KID"},
 		{name: "short delegation key", override: map[string]string{"PDP_DELEGATION_KEYS_JSON": `{"key-2026-09":"short"}`}, wantError: "delegation active key"},
+		{name: "missing active approval key", override: map[string]string{"PDP_APPROVAL_ACTIVE_KID": "missing"}, wantError: "PDP_APPROVAL_ACTIVE_KID"},
+		{name: "short approval key", override: map[string]string{"PDP_APPROVAL_KEYS_JSON": `{"approval-2026-09":"short"}`}, wantError: "approval key"},
 		{name: "missing TLS key", override: map[string]string{"PDP_TLS_KEY": " "}, wantError: "PDP_TLS"},
 		{name: "missing audit active key", override: map[string]string{"LOG_KEK_ACTIVE_KID": "missing"}, wantError: "LOG_KEK_ACTIVE_KID"},
 	}
@@ -200,6 +209,17 @@ func TestConfig_ProductionValidation(t *testing.T) {
 				t.Fatalf("expected error containing %q, got %v", test.wantError, err)
 			}
 		})
+	}
+}
+
+func TestConfigRejectsApprovalKeyReuse(t *testing.T) {
+	shared := "shared-security-secret-at-least-32-characters"
+	t.Setenv("PDP_DELEGATION_ACTIVE_KID", "delegation-a")
+	t.Setenv("PDP_DELEGATION_KEYS_JSON", `{"delegation-a":"`+shared+`"}`)
+	t.Setenv("PDP_APPROVAL_ACTIVE_KID", "approval-a")
+	t.Setenv("PDP_APPROVAL_KEYS_JSON", `{"approval-a":"`+shared+`"}`)
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "key material reused") {
+		t.Fatalf("expected cross-domain key reuse failure, got %v", err)
 	}
 }
 

@@ -142,6 +142,14 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	approvalActiveKeyID, approvalKeys, approvalKeyringExplicit, err := loadApprovalKeyring()
+	if err != nil {
+		return nil, err
+	}
+	approvalTTL, err := getEnvDuration("PDP_APPROVAL_TTL", 15*time.Minute)
+	if err != nil || approvalTTL <= 0 || approvalTTL > 24*time.Hour {
+		return nil, errors.New("PDP_APPROVAL_TTL phai lon hon 0 va khong vuot qua 24h")
+	}
 	auditActiveKeyID, auditKeys, auditKeyringExplicit, err := loadAuditKeyring()
 	if err != nil {
 		return nil, err
@@ -190,6 +198,10 @@ func Load() (*Config, error) {
 			DelegationActiveKeyID:     delegationActiveKeyID,
 			DelegationKeys:            delegationKeys,
 			DelegationKeyringExplicit: delegationKeyringExplicit,
+			ApprovalActiveKeyID:       approvalActiveKeyID,
+			ApprovalKeys:              approvalKeys,
+			ApprovalKeyringExplicit:   approvalKeyringExplicit,
+			ApprovalTTL:               approvalTTL,
 			TLSCertFile:               getEnv("PDP_TLS_CERT", ""),
 			TLSKeyFile:                getEnv("PDP_TLS_KEY", ""),
 			TLSCAFile:                 getEnv("PDP_TLS_CA", ""),
@@ -197,6 +209,9 @@ func Load() (*Config, error) {
 			AuditKeys:                 auditKeys,
 			AuditKeyringExplicit:      auditKeyringExplicit,
 		},
+	}
+	if err := validateSecurityKeySeparation(cfg.Security); err != nil {
+		return nil, err
 	}
 
 	if err := validateProductionConfig(cfg); err != nil {

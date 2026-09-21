@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 type SecurityConfig struct {
@@ -16,6 +17,10 @@ type SecurityConfig struct {
 	DelegationActiveKeyID     string
 	DelegationKeys            map[string]string
 	DelegationKeyringExplicit bool
+	ApprovalActiveKeyID       string
+	ApprovalKeys              map[string]string
+	ApprovalKeyringExplicit   bool
+	ApprovalTTL               time.Duration
 	TLSCertFile               string
 	TLSKeyFile                string
 	TLSCAFile                 string
@@ -27,6 +32,7 @@ type SecurityConfig struct {
 const (
 	developmentJWTSecret        = "standalone-policy-engine-dev-jwt-secret"
 	developmentDelegationSecret = "standalone-policy-engine-dev-delegation-secret"
+	developmentApprovalSecret   = "standalone-policy-engine-dev-approval-secret"
 	developmentAuditKEK         = "development-audit-kek-32-bytes!!"
 )
 
@@ -47,6 +53,12 @@ func validateProductionConfig(cfg *Config) error {
 		return errors.New("JWT_AUDIENCE tren Production phai duoc cau hinh ro rang")
 	}
 	if err := validateProductionDelegationKeyring(cfg.Security); err != nil {
+		return err
+	}
+	if !cfg.Security.ApprovalKeyringExplicit {
+		return errors.New("PDP_APPROVAL_KEYS_JSON va PDP_APPROVAL_ACTIVE_KID bat buoc tren Production")
+	}
+	if err := validateApprovalKeyring(cfg.Security.ApprovalActiveKeyID, cfg.Security.ApprovalKeys); err != nil {
 		return err
 	}
 	if !cfg.Security.AuditKeyringExplicit {
@@ -143,4 +155,70 @@ func loadDelegationKeyring(fallbackSecret string) (string, map[string]string, bo
 		return "", nil, false, errors.New("PDP_DELEGATION_ACTIVE_KID khong co trong key ring")
 	}
 	return activeKeyID, keys, true, nil
+}
+
+func loadApprovalKeyring() (string, map[string]string, bool, error) {
+	activeKeyID, activeExplicit := os.LookupEnv("PDP_APPROVAL_ACTIVE_KID")
+	rawKeys, keysExplicit := os.LookupEnv("PDP_APPROVAL_KEYS_JSON")
+	if !activeExplicit && !keysExplicit {
+		return "approval-legacy", map[string]string{"approval-legacy": developmentApprovalSecret}, false, nil
+	}
+	if strings.TrimSpace(activeKeyID) == "" || strings.TrimSpace(rawKeys) == "" {
+		return "", nil, false, errors.New("PDP_APPROVAL_ACTIVE_KID va PDP_APPROVAL_KEYS_JSON phai duoc cau hinh cung nhau")
+	}
+	keys := make(map[string]string)
+	if err := json.Unmarshal([]byte(rawKeys), &keys); err != nil {
+		return "", nil, false, fmt.Errorf("PDP_APPROVAL_KEYS_JSON khong hop le: %w", err)
+	}
+	if err := validateApprovalKeyring(activeKeyID, keys); err != nil {
+		return "", nil, false, err
+	}
+	return activeKeyID, keys, true, nil
+}
+
+func validateApprovalKeyring(activeKeyID string, keys map[string]string) error {
+	if strings.TrimSpace(activeKeyID) == "" {
+		return errors.New("approval active key id khong duoc rong")
+	}
+	if _, exists := keys[activeKeyID]; !exists {
+		return errors.New("PDP_APPROVAL_ACTIVE_KID khong co trong key ring")
+	}
+	for keyID, key := range keys {
+		if strings.TrimSpace(keyID) == "" || len(key) < 32 {
+			return fmt.Errorf("approval key %q phai dai toi thieu 32 bytes", keyID)
+		}
+	}
+	return nil
+}
+
+func validateSecurityKeySeparation(cfg SecurityConfig) error {
+	used := make(map[string]string)
+	register := func(domain, secret string) error {
+		if secret == "" {
+			return nil
+		}
+		if previous, exists := used[secret]; exists {
+			return fmt.Errorf("security key material reused across %s and %s", previous, domain)
+		}
+		used[secret] = domain
+		return nil
+	}
+	if err := register("jwt", cfg.JWTSecret); err != nil {
+		return err
+	}
+	for _, entry := range []struct {
+		domain string
+		keys   map[string]string
+	}{
+		{domain: "delegation", keys: cfg.DelegationKeys},
+		{domain: "approval", keys: cfg.ApprovalKeys},
+		{domain: "audit", keys: cfg.AuditKeys},
+	} {
+		for _, secret := range entry.keys {
+			if err := register(entry.domain, secret); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
