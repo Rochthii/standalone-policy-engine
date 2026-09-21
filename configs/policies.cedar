@@ -16,7 +16,7 @@ when {
 // RULE 2: Trưởng phòng được duyệt Purchase Order <= $5,000 trong phòng ban
 permit(
     principal in role:department_manager,
-    action    == action:APPROVE_PURCHASE_ORDER,
+    action    == action:CONFIRM_PURCHASE_ORDER,
     resource  == any
 )
 when {
@@ -28,7 +28,7 @@ when {
 // (Kích hoạt Obligation REQUIRE_HUMAN_APPROVAL tại Decision Synthesizer)
 forbid(
     principal in role:department_manager,
-    action    == action:APPROVE_PURCHASE_ORDER,
+    action    == action:CONFIRM_PURCHASE_ORDER,
     resource  == any
 )
 when {
@@ -40,7 +40,7 @@ obligation REQUIRE_HUMAN_APPROVAL "Purchase order exceeds the department-manager
 // RULE 4: AI Agent được tự động duyệt PO nhỏ trong trần tự hành (<= $2,000)
 permit(
     principal == agent:procurement_copilot,
-    action    == action:APPROVE_PURCHASE_ORDER,
+    action    == action:CONFIRM_PURCHASE_ORDER,
     resource  == any
 )
 when {
@@ -53,7 +53,7 @@ when {
 // (Chống Prompt Injection & Kích hoạt Human-in-the-Loop)
 forbid(
     principal == agent:procurement_copilot,
-    action    == action:APPROVE_PURCHASE_ORDER,
+    action    == action:CONFIRM_PURCHASE_ORDER,
     resource  == any
 )
 when {
@@ -67,9 +67,21 @@ obligation REQUIRE_HUMAN_APPROVAL "Autonomous agent spending requires human appr
 // Sử dụng toán tử CONTAINS kiểm tra chuỗi phân tách bởi dấu phẩy
 forbid(
     principal == any,
-    action    == action:APPROVE_PURCHASE_ORDER,
+    action    == action:CONFIRM_PURCHASE_ORDER,
     resource  == any
 )
 when {
     context.delegation_chain contains resource.creator_id
+};
+
+// RULE 7: Chỉ vai trò phê duyệt mua hàng cùng phòng ban mới được qua cổng human approval.
+// Odoo vẫn bắt buộc kiểm tra tenant/company và creator/delegator/agent SoD từ dữ liệu tin cậy.
+permit(
+    principal in role:purchase_approver,
+    action    == action:APPROVE_PURCHASE_ORDER,
+    resource  == any
+)
+when {
+    context.approval_state == "pending" &&
+    principal.department == resource.department
 };

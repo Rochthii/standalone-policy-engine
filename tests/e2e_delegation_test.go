@@ -74,7 +74,7 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 		req := &policyv1.CheckAccessRequest{
 			TenantId: "tenant-odoo",
 			Subject:  "user:manager_bob",
-			Action:   "action:APPROVE_PURCHASE_ORDER",
+			Action:   "action:CONFIRM_PURCHASE_ORDER",
 			Resource: "purchase_order:PO-2026-001",
 			Context: map[string]string{
 				"amount":               "4500",
@@ -96,17 +96,17 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 	// TC-02: AI Agent duyệt hộ PO do Manager tạo (Confused Deputy SoD) -> DENY
 	// ========================================================================
 	t.Run("TC-02: AI Agent approves PO created by Delegator -> DENY (SoD Chain)", func(t *testing.T) {
-		grantID := "grant-tc02"
+		grantID := "102"
 		delegator := "user:manager_bob"
 		agent := "agent:procurement_copilot"
 		amount := "1800"
 		req := &policyv1.CheckAccessRequest{
 			TenantId: "tenant-odoo",
 			Subject:  agent,
-			Action:   "action:APPROVE_PURCHASE_ORDER",
-			Resource: "purchase_order:PO-2026-002",
+			Action:   "action:CONFIRM_PURCHASE_ORDER",
+			Resource: "purchase_order:2",
 			Context: signedDelegationContext(t, delegationMgr, "tenant-odoo", grantID, delegator, agent,
-				"action:APPROVE_PURCHASE_ORDER", "purchase_order:PO-2026-002", amount, validUntil, "user:manager_bob"),
+				"action:CONFIRM_PURCHASE_ORDER", "purchase_order:2", amount, validUntil, "user:manager_bob"),
 		}
 		res, err := srv.CheckAccess(authenticatedIncomingContext(t, "tenant-odoo", agent), req)
 		if err != nil {
@@ -121,17 +121,17 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 	// TC-03: AI Agent tự động duyệt PO hợp lệ (<= 2,000 USD) -> ALLOW
 	// ========================================================================
 	t.Run("TC-03: AI Agent autonomous PO approval <= $2,000 -> ALLOW", func(t *testing.T) {
-		grantID := "grant-tc03"
+		grantID := "103"
 		delegator := "user:manager_bob"
 		agent := "agent:procurement_copilot"
 		amount := "1500"
 		req := &policyv1.CheckAccessRequest{
 			TenantId: "tenant-odoo",
 			Subject:  agent,
-			Action:   "action:APPROVE_PURCHASE_ORDER",
-			Resource: "purchase_order:PO-2026-003",
+			Action:   "action:CONFIRM_PURCHASE_ORDER",
+			Resource: "purchase_order:3",
 			Context: signedDelegationContext(t, delegationMgr, "tenant-odoo", grantID, delegator, agent,
-				"action:APPROVE_PURCHASE_ORDER", "purchase_order:PO-2026-003", amount, validUntil, "user:staff_alice"),
+				"action:CONFIRM_PURCHASE_ORDER", "purchase_order:3", amount, validUntil, "user:staff_alice"),
 		}
 		res, err := srv.CheckAccess(authenticatedIncomingContext(t, "tenant-odoo", agent), req)
 		if err != nil {
@@ -146,17 +146,17 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 	// TC-04: AI Agent duyệt PO vượt trần tự hành (> 2,000 USD) -> DENY (Forbid Override)
 	// ========================================================================
 	t.Run("TC-04: AI Agent approves PO > $2,000 -> DENY (Guardrail Limit)", func(t *testing.T) {
-		grantID := "grant-tc04"
+		grantID := "104"
 		delegator := "user:manager_bob"
 		agent := "agent:procurement_copilot"
 		amount := "3500"
 		req := &policyv1.CheckAccessRequest{
 			TenantId: "tenant-odoo",
 			Subject:  agent,
-			Action:   "action:APPROVE_PURCHASE_ORDER",
-			Resource: "purchase_order:PO-2026-004",
+			Action:   "action:CONFIRM_PURCHASE_ORDER",
+			Resource: "purchase_order:4",
 			Context: signedDelegationContext(t, delegationMgr, "tenant-odoo", grantID, delegator, agent,
-				"action:APPROVE_PURCHASE_ORDER", "purchase_order:PO-2026-004", amount, validUntil, "user:staff_alice"),
+				"action:CONFIRM_PURCHASE_ORDER", "purchase_order:4", amount, validUntil, "user:staff_alice"),
 		}
 		res, err := srv.CheckAccess(authenticatedIncomingContext(t, "tenant-odoo", agent), req)
 		if err != nil {
@@ -171,19 +171,19 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 	// TC-05: AI Agent duyệt PO với HMAC bị sửa đổi -> 403 PermissionDenied
 	// ========================================================================
 	t.Run("TC-05: Tampered Amount in Proof -> 403 PermissionDenied", func(t *testing.T) {
-		grantID := "grant-tc05"
+		grantID := "105"
 		delegator := "user:manager_bob"
 		agent := "agent:procurement_copilot"
 		// Proof được ký cho $1,500, sau đó amount bị sửa thành $50,000.
 		contextValues := signedDelegationContext(t, delegationMgr, "tenant-odoo", grantID, delegator, agent,
-			"action:APPROVE_PURCHASE_ORDER", "purchase_order:PO-2026-005", "1500", validUntil, "user:staff_alice")
-		contextValues["amount"] = "50000"
+			"action:CONFIRM_PURCHASE_ORDER", "purchase_order:5", "1500", validUntil, "user:staff_alice")
+		contextValues["cbi.amount_minor"] = "50000"
 
 		req := &policyv1.CheckAccessRequest{
 			TenantId: "tenant-odoo",
 			Subject:  agent,
-			Action:   "action:APPROVE_PURCHASE_ORDER",
-			Resource: "purchase_order:PO-2026-005",
+			Action:   "action:CONFIRM_PURCHASE_ORDER",
+			Resource: "purchase_order:5",
 			Context:  contextValues,
 		}
 		_, err := srv.CheckAccess(authenticatedIncomingContext(t, "tenant-odoo", agent), req)
@@ -200,7 +200,7 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 	// TC-06: AI Agent duyệt PO khi Grant đã bị Revoke trên RAM -> DENY
 	// ========================================================================
 	t.Run("TC-06: Revoked Grant on RAM -> DENY (TOCTOU Defense)", func(t *testing.T) {
-		grantID := "grant-revoked-ram"
+		grantID := "106"
 		delegator := "user:manager_bob"
 		agent := "agent:procurement_copilot"
 		amount := "1200"
@@ -220,10 +220,10 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 		req := &policyv1.CheckAccessRequest{
 			TenantId: "tenant-odoo",
 			Subject:  agent,
-			Action:   "action:APPROVE_PURCHASE_ORDER",
-			Resource: "purchase_order:PO-2026-006",
+			Action:   "action:CONFIRM_PURCHASE_ORDER",
+			Resource: "purchase_order:6",
 			Context: signedDelegationContext(t, delegationMgr, "tenant-odoo", grantID, delegator, agent,
-				"action:APPROVE_PURCHASE_ORDER", "purchase_order:PO-2026-006", amount, validUntil, "user:staff_alice"),
+				"action:CONFIRM_PURCHASE_ORDER", "purchase_order:6", amount, validUntil, "user:staff_alice"),
 		}
 		res, err := srv.CheckAccess(authenticatedIncomingContext(t, "tenant-odoo", agent), req)
 		if err != nil {
@@ -241,17 +241,17 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 	// TC-07: AI Agent duyệt PO với Token hết hạn TTL -> 403 PermissionDenied
 	// ========================================================================
 	t.Run("TC-07: Expired TTL Proof -> 403 PermissionDenied", func(t *testing.T) {
-		grantID := "grant-expired-ttl"
+		grantID := "107"
 		delegator := "user:manager_bob"
 		agent := "agent:procurement_copilot"
 		amount := "1200"
 		req := &policyv1.CheckAccessRequest{
 			TenantId: "tenant-odoo",
 			Subject:  agent,
-			Action:   "action:APPROVE_PURCHASE_ORDER",
-			Resource: "purchase_order:PO-2026-007",
+			Action:   "action:CONFIRM_PURCHASE_ORDER",
+			Resource: "purchase_order:7",
 			Context: signedDelegationContext(t, delegationMgr, "tenant-odoo", grantID, delegator, agent,
-				"action:APPROVE_PURCHASE_ORDER", "purchase_order:PO-2026-007", amount, pastUntil, "user:staff_alice"),
+				"action:CONFIRM_PURCHASE_ORDER", "purchase_order:7", amount, pastUntil, "user:staff_alice"),
 		}
 		_, err := srv.CheckAccess(authenticatedIncomingContext(t, "tenant-odoo", agent), req)
 		if err == nil {

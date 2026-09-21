@@ -11,6 +11,9 @@ from ..pdp_protocol import (
     load_delegation_keyring,
     sign_delegation_tuple,
 )
+from ..cbi_protocol import canonical_business_intent_hash
+from ..delegation_proof_v2 import sign_delegation_proof_v2
+from .cbi_builder import build_purchase_order_intent
 from .pdp_client import get_pdp_client
 
 
@@ -109,3 +112,25 @@ class PDPDelegationGrant(models.Model):
         key_id, keys = load_delegation_keyring()
         proof = sign_delegation_tuple(values, key_id, keys[key_id])
         return values, proof, delegation_fingerprint(values, key_id)
+
+    def build_protected_intent(self, order, command_id):
+        """Build the V2 proof from trusted persisted Odoo purchase-order state."""
+        self.ensure_one()
+        if self.state != "active":
+            raise UserError(_("The selected delegation grant is not active."))
+        if not order.ai_agent_id or order.ai_agent_id != self.agent_id:
+            raise UserError(_("The purchase order agent does not match the delegation grant."))
+        intent = build_purchase_order_intent(order, self, command_id)
+        issued_at = _unix_seconds(self.valid_from)
+        valid_until = _unix_seconds(self.valid_until)
+        key_id, keys = load_delegation_keyring()
+        proof = sign_delegation_proof_v2(
+            intent, key_id, keys[key_id], issued_at, valid_until
+        )
+        return (
+            intent,
+            proof,
+            canonical_business_intent_hash(intent),
+            issued_at,
+            valid_until,
+        )

@@ -14,7 +14,7 @@ VALUES
     $policy$
 permit(
     principal == agent:procurement_copilot,
-    action == action:APPROVE_PURCHASE_ORDER,
+    action == action:CONFIRM_PURCHASE_ORDER,
     resource == any
 )
 when {
@@ -33,7 +33,7 @@ $policy$,
     $policy$
 forbid(
     principal == agent:procurement_copilot,
-    action == action:APPROVE_PURCHASE_ORDER,
+    action == action:CONFIRM_PURCHASE_ORDER,
     resource == any
 )
 when { context.amount > 2000 }
@@ -49,10 +49,28 @@ $policy$,
     $policy$
 forbid(
     principal == any,
-    action == action:APPROVE_PURCHASE_ORDER,
+    action == action:CONFIRM_PURCHASE_ORDER,
     resource == any
 )
 when { context.delegation_chain contains resource.creator_id };
+$policy$,
+    'ACTIVE',
+    1
+),
+(
+    '10000000-0000-0000-0000-000000000004',
+    (SELECT id FROM tenants WHERE name = 'odoo-e2e'),
+    'PERMIT',
+    $policy$
+permit(
+    principal == user:pdp_e2e_approver,
+    action == action:APPROVE_PURCHASE_ORDER,
+    resource == any
+)
+when {
+    context.approval_state == "pending" &&
+    principal.department == resource.department
+};
 $policy$,
     'ACTIVE',
     1

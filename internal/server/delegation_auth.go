@@ -24,7 +24,7 @@ var delegationContextKeys = []string{
 func (s *GRPCServer) validateDelegation(req *policyv1.CheckAccessRequest) error {
 	grantID := req.Context["delegation_grant_id"]
 	if grantID == "" {
-		for _, key := range delegationContextKeys {
+		for _, key := range append(delegationContextKeys, canonicalIntentContextKeys...) {
 			if req.Context[key] != "" {
 				return status.Errorf(codes.PermissionDenied, "%s không hợp lệ khi thiếu delegation_grant_id", key)
 			}
@@ -37,13 +37,19 @@ func (s *GRPCServer) validateDelegation(req *policyv1.CheckAccessRequest) error 
 		return status.Error(codes.Internal, "delegation manager chưa được cấu hình")
 	}
 
-	input, err := delegationProofInput(req)
-	if err != nil {
-		return status.Errorf(codes.PermissionDenied, "delegation tuple không hợp lệ: %v", err)
-	}
 	proof := req.Context["delegation_proof"]
 	if proof == "" {
 		return status.Error(codes.PermissionDenied, "delegated request bắt buộc có delegation_proof")
+	}
+	if requiresDelegationProofV2(req) {
+		if err := s.validateDelegationV2(req, proof); err != nil {
+			return status.Errorf(codes.PermissionDenied, "delegation_proof v2 không hợp lệ: %v", err)
+		}
+		return nil
+	}
+	input, err := delegationProofInput(req)
+	if err != nil {
+		return status.Errorf(codes.PermissionDenied, "delegation tuple không hợp lệ: %v", err)
 	}
 	if err := s.delegationMgr.VerifyProof(input, proof); err != nil {
 		return status.Error(codes.PermissionDenied, "delegation_proof không hợp lệ hoặc đã hết hạn")
