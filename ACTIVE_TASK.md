@@ -1,12 +1,13 @@
 # Active Task
 
-ID: THESIS-2029-FINAL-FREEZE-04
-Goal: Re-run the final thesis evidence package in the pinned 2029 environment before submitting any final deployment or operational claim.
-Scope: Reproduce the bounded functional, security and performance suite at the final commit and environment. Update evidence and write-up only from raw, versioned results. Do not add AWS/WORM/CloudTrail unless a final thesis claim requires its evidence.
-Acceptance: Every final quantitative or operational statement carries commit, command, environment and raw result; prototype, local-test and production boundaries remain distinct.
-Validation: Execute the final reproducibility suite in 2029 and preserve its raw outputs before changing final claims.
-Files: docs/technical-spec/evidence/; docs/technical-spec/THESIS_CHAPTER_MAPPING.md; docs/thesis-proposal/THESIS_SCOPE_AND_EVIDENCE_ALIGNMENT.md; docs/technical-spec/CURRENT_STATE_AUDIT.md
-Model: Terra High for final evidence interpretation; Terra Medium for bounded reruns and documentation.
-Next task: None before the 2029 evidence freeze.
-Status: DEFERRED UNTIL 2029.
-Blocker: Time-bound final environment. AWS/WORM/CloudTrail remain optional unless required to prove a final claim.
+ID: V2-APP-03
+Goal: Issue and verify a purpose-separated, expiring ApprovalCapability v1 for one authenticated human approval of one unchanged pending purchase-order intent.
+Scope: Add a typed Go AC v1 payload, deterministic canonical encoding, dedicated approval key ring/domain, bounded TTL, signer and verifier; reject key/version/algorithm confusion and configured key reuse. Extend the canonical generated-Protobuf boundary with typed issue/verify RPCs. The issue RPC must authenticate the human JWT, bind tenant/subject and request fields, re-evaluate the approval action, require ready/non-revoked delegation state, enforce expiry and SoD, then return one signed capability. In Odoo, lock/reconstruct the pending intent, rerun the APP-02 guard, call issuance, verify the returned binding through the PDP, and atomically persist the capability fields plus `approved` state without confirming the PO. Do not implement invalidation, final execution, capability consumption or command consumption.
+Acceptance: An independent authorized approver turns exactly one unchanged row from `pending` to `approved`; the persisted capability binds approval ID, tenant/company, intent hash, state witness, command/grant and creator/delegator/agent/approver identities, permission, policy revision, issue/expiry times and unique one-time ID. Odoo never receives approval signing keys. Identical retry is idempotent. Tampered payload/envelope, unknown/retired approval key, expiry, delegation-key substitution, wrong purpose/version/algorithm/context, agent or SoD identity fail closed; the PO remains `to approve` and no final business effect occurs.
+Validation: Run focused Go approval-capability/config/server tests, generated Go/Python compatibility checks, Python protocol/canonical tests and addon compilation first. Then run the fresh-database Odoo/PostgreSQL/mTLS E2E with positive issuance, idempotent retry and negative persistent-state assertions plus the two-session nonce gate. Finish with `go test` on changed packages, generated-contract diff checks and `git diff --check`.
+Files: `internal/security/` AC v1 implementation/tests, security config, `proto/v1/policy.proto` and regenerated clients, focused `internal/server/` handlers/tests, Odoo PDP client and approval model/tests, testbed key/policy configuration, and task/evidence documents.
+Plan: docs/thesis-proposal/THESIS_V2_MASTER_PLAN.md
+Task board: docs/thesis-proposal/THESIS_V2_TASK_BOARD.md
+Next task: V2-APP-04
+Status: VERIFIED
+Blocker: None. V2-APP-04 invalidation and the later final current-authority revalidation/atomic capability-command consumption remain intentionally out of scope.

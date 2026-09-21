@@ -1,44 +1,27 @@
 ---
 name: agent-authorization
-description: Expert rules for Unified AI Agent Authorization, Delegation Chains, HMAC Canonical String, and Deterministic Guardrails.
+description: Design or implement one-hop delegated AI-agent authorization, canonical intent, approval capability, SoD, proof and revocation for the bounded Odoo ERP workflow.
 ---
 
-# AI Agent Authorization & Guardrails Skill
+# Agent Authorization — V2
 
-## 🎯 Mission
-Provide deterministic authorization guardrails for Autonomous AI Agents calling ERP tools, mitigating OWASP LLM06 and prompt injection in $< 600$ns with Zero GC allocations.
+Use this skill only for delegated identity, proof, canonical business intent, exact-action approval, revocation or SoD work. Do not use it for model safety, general IAM, benchmark tuning or multi-agent design.
 
-## 🔑 Critical Invariants & Rules
-1. **Delegation Tuple ($\Delta$)**:
-   $\Delta = \langle \mathcal{U}_{\text{root}}, \mathcal{A}_{\text{exec}}, \Sigma_{\text{scope}}, \Omega_{\text{constraints}}, \mathcal{C}_{\text{chain}} \rangle$
-   - $\mathcal{U}_{\text{root}}$: Human delegator (e.g. `user:bob`).
-   - $\mathcal{A}_{\text{exec}}$: Executing agent (e.g. `agent:procurement_copilot`).
-   - $\Omega_{\text{constraints}}$: Autonomous spending ceiling ($\le \$2,000$, TTL, `tool:auto_confirm_po`).
-   - $\mathcal{C}_{\text{chain}}$: Delegation trace (`user:bob,agent:procurement_copilot`). Depth = 1.
+## Authority and status
 
-2. **HMAC Canonical String & TTL Check**:
-   $\text{Payload} = \text{grant\_id} \parallel \text{delegator} \parallel \text{agent} \parallel \text{amount} \parallel \text{valid\_until}$
-   - Formula: `fmt.Sprintf("%s|%s|%s|%s|%s", grantID, delegator, agent, amount, validUntil)`
-   - TTL Expiration: `time.Now().Unix() > expTimestamp` evaluates to `false` (Fail-Closed, 403).
-   - Tampered payload or mismatch signature fails via `hmac.Equal` (403 PermissionDenied).
+Read [`CURRENT_STATE_AUDIT.md`](../../../docs/technical-spec/CURRENT_STATE_AUDIT.md), then the active task and the directly relevant V2 schema. The current CBI/proof V2, mTLS/JWT boundary, bounded revocation, initial AC v1 issue/verify and non-rollback approval route have bounded implementation evidence. Final commit-time revalidation and atomic capability/command consumption remain design requirements until later tasks pass.
 
-3. **In-Memory RevocationMap $O(1)$ (Anti-TOCTOU)**:
-   - Managed via `sync.Map` in `internal/security/delegation.go`.
-   - RPC `RevokeDelegation` stores `grant_id -> revoked_at` in RAM in $< 50$ns.
-   - Interceptor rejects subsequent requests immediately with `Decision_DENY` (`POL-REVOCATION-BLACK-LIST`).
+## Non-negotiable rules
 
-4. **Generalized SoD Preservation**:
-   - `context.delegation_chain contains resource.creator_id` triggers `forbid` via `evaluator.go`.
-   - Neither the creator nor delegator can self-approve, directly or via delegated AI agents.
+- Authenticate the caller and bind tenant, human delegator, one agent and active grant. Treat signed identity attributes as authoritative; never trust request-body identity.
+- Construct protected business fields from locked Odoo/PostgreSQL records. Bind the V2 proof to the CBI hash, grant, agent, validity and key metadata; reject unknown/downgraded versions.
+- Use deterministic, length-delimited canonical bytes. Authorization money is integer minor units; reject floats, malformed decimal/currency values and ambiguous encoding.
+- Recheck current policy and revocation before final mutation. Durable revocation has bounded recorded evidence; do not claim instant or universal propagation.
+- When approval is required, bind capability to one pending intent hash/state witness, independent authorized approver, expiry and one-time ID. Activity notification is not approval evidence.
+- Enforce SoD for agent, creator, delegator, wrong-role and cross-tenant approvers at issuance and final execution.
+- Keep approval and delegation key rings/domain separators separate. HMAC provides configured-key-holder integrity, not non-repudiation.
+- Consume command/approval atomically with the in-scope mutation. No lock is held while waiting for a human; final execution locks and re-reads state.
 
-5. **Non-Rollback PEP Pattern (Odoo 17)**:
-   - When decision is `DENY` with obligation `REQUIRE_HUMAN_APPROVAL`, Odoo PEP writes PO `state = 'to approve'`, schedules Activity, and returns `True` (zero DB rollback).
+## Validation
 
-## 🧪 7 E2E Vectors ([`tests/e2e_delegation_test.go`](file:///e:/Projects/Project_TN/standalone-policy-engine/tests/e2e_delegation_test.go))
-- `TC-01`: Self-approval $\to$ DENY (SoD).
-- `TC-02`: Agent approves Delegator's PO $\to$ DENY (SoD Chain).
-- `TC-03`: Agent autonomous PO $\le \$2,000 \to$ ALLOW.
-- `TC-04`: Agent PO $> \$2,000 \to$ DENY (`REQUIRE_HUMAN_APPROVAL`).
-- `TC-05`: Tampered HMAC amount $\to$ 403 PermissionDenied.
-- `TC-06`: Revoked Grant on RAM $\to$ DENY (Anti-TOCTOU).
-- `TC-07`: Expired TTL Proof $\to$ 403 PermissionDenied.
+Map changes to named cases in [`EVALUATION_MATRIX.md`](../../../docs/technical-spec/EVALUATION_MATRIX.md). Start with focused Go/Python/Odoo tests named by `ACTIVE_TASK.md`; negative ERP cases must prove no unauthorized persistent business mutation. Record new implementation claims only after boundary evidence passes.

@@ -10,6 +10,93 @@ Phân loại thay đổi:
 
 ---
 
+## [Unreleased] - 2026-09-21: Purpose-Separated ApprovalCapability v1 Issuance
+
+### Added
+- Typed generated-Protobuf `IssueApprovalCapability` and `VerifyApprovalCapability` RPCs backed by deterministic AC v1 canonical encoding, a dedicated approval key ring/domain, bounded TTL and constant-time HMAC verification.
+- PDP-side issuance checks for authenticated human tenant/company identity, approval policy, SoD, live revocation state and grant expiry; detectable approval/delegation/JWT/audit key-material reuse now fails configuration validation.
+- Odoo issuance that locks and reconstructs the exact pending CBI, reruns the APP-02 guard, persists one unique capability and `approved` state, verifies the returned binding through the PDP and returns the same capability on an identical retry without confirming the PO.
+- V2 canonical-intent fixtures for the retained seven delegation vectors, aligning the legacy regression with the protected `CONFIRM_PURCHASE_ORDER` route.
+
+### Verification
+- Focused approval/config/server tests, all repository Go tests, `go vet ./...`, Buf lint, Python protocol/canonical/golden tests and addon compilation pass.
+- The fresh-database Odoo 17/generated-client/mTLS/PDP/PostgreSQL gate passes 11 post-tests / 15 test methods with 0 failures or errors, negative TLS probes and the two-session single-nonce concurrency check.
+- Tampered intent binding and key substitution are rejected while the persisted approval remains non-final; the PO remains `to approve` throughout issuance and verification.
+
+### Remaining scope
+- V2-APP-04 invalidation and final commit-time authority revalidation, capability/command consumption and purchase-order mutation are not implemented by this task.
+
+## [Unreleased] - 2026-09-21: Authenticated Human Approver Authority and SoD Guard
+
+### Added
+- A non-mutating approval guard that derives the human only from Odoo `env.user`, requires an active internal purchase manager in the pending intent's tenant/company, rejects creator/delegator/agent identities, and requires a current live-PDP ALLOW for `action:APPROVE_PURCHASE_ORDER`.
+- Same-company approval-row read access for purchase managers and deterministic Activity routing to an independently eligible non-system manager; Activity remains notification rather than approval evidence.
+- Real Odoo positive/negative coverage for an independent approver, creator, delegator, agent, wrong role, PDP-denied manager, cross-tenant/company manager and PDP outage.
+
+### Verification
+- Python protocol/canonical/golden tests and addon compilation pass.
+- The fresh-database Odoo 17/generated-client/mTLS/PDP/PostgreSQL gate passes all 10 post-tests, negative TLS probes and the two-session single-nonce concurrency check.
+- The guard leaves the approval `pending` and PO `to approve`; ApprovalCapability v1, the `approved` transition and final mutation/consumption remain outside this task.
+
+## [Unreleased] - 2026-09-21: Exact Pending Intent Persistence for Approval Routing
+
+### Added
+- A dedicated `pdp.approval.request` model that stores one CSPRNG approval ID and the exact post-transition CBI JSON, canonical bytes, hash and state witness for one authorization attempt.
+- Database uniqueness for approval ID and authorization attempt, plus an explicit link from the pending approval row to its single notification Activity.
+- Real Odoo assertions that decode and recompute the stored canonical intent and prove an identical retry creates neither a second approval row nor a second Activity.
+
+### Changed
+- The approval-obligation route now writes `to approve`, reconstructs the locked persisted CBI in that state, stores the pending record, then marks the attempt complete without applying the protected purchase-order effect.
+
+### Verification
+- Python protocol/canonical/golden tests and addon compilation pass.
+- The fresh-database Odoo 17/generated-client/mTLS/PDP/PostgreSQL gate passes all 9 post-tests, negative TLS probes and the two-session single-nonce concurrency check.
+- The new row remains `pending`; no approver authorization, SoD issuance check, ApprovalCapability v1 or final mutation/consumption is implemented by this task.
+
+## [Unreleased] - 2026-09-21: High-Impact Odoo Route Requires Delegation Proof V2
+
+### Added
+- Trusted, locked PostgreSQL reconstruction of the purchase-order CBI from persisted order, exact `NUMERIC` money, line, grant and nonce state.
+- Handler-side V2 canonical-field validation and cross-checking against authenticated tenant, subject, route, grant, delegator and command context before policy evaluation.
+- Negative coverage for missing, unknown, V1-downgraded and material-field-tampered proofs, plus direct-request and explicitly bounded nonnumeric V1 legacy regressions.
+
+### Changed
+- The protected Odoo/policy action is now `CONFIRM_PURCHASE_ORDER` and engine context is derived from verified CBI/route values.
+- Odoo proof V2 requests carry the complete canonical intent while preserving V1 only at the named legacy boundary.
+
+### Verification
+- Focused and package-wide Go security/server tests, Python protocol/canonical/golden tests, addon compilation, Go vet and diff hygiene pass.
+- A fresh-database Odoo 17/generated-client/mTLS/PDP/PostgreSQL run passes negative TLS probes, all nine Odoo tests and the two-session single-nonce concurrency gate.
+- Approval capability, post-approval revalidation and atomic final mutation/consumption remain open in Phases 3–4.
+
+## [Unreleased] - 2026-09-20: Canonical Intent and Delegation Proof V2
+
+### Added
+- Strict Go `CanonicalBusinessIntent v1` validation, deterministic length-delimited encoding, material-state witness verification and SHA-256 intent hashing.
+- A matching Python CBI module with exact decimal-to-minor-unit conversion that rejects binary floats, exponent notation, excess precision and signed-64-bit overflow.
+- Matching Go/Python canonical purchase-order line serializers with deterministic `(sequence, line_id)` and tax ordering, NFC/LF description normalization and strict canonical decimal/timestamp validation.
+- A separate `v2.<kid>.<hmac>` delegation proof binding the CBI hash, grant, agent, validity window and key ID while preserving V1 behavior.
+- Focused negative tests for malformed canonical values, stale witness, changed material fields, invalid validity, key confusion and V1/V2 downgrade confusion.
+
+### Verification
+- One shared multi-line fixture produces identical Go/Python line bytes/digest, witness, CBI bytes/hash and V2 proof; focused tamper tests, full `internal/security`, legacy Python protocol tests, addon compileall and Go vet pass.
+- Trusted ORM reconstruction and protected-route V2 enforcement remain open under V2-PROOF-04 and the later transaction phases.
+
+## [Unreleased] - 2026-09-20: V2 Thesis Governance Alignment
+
+### Changed
+- Root `AGENTS.md` now defines the V2 thesis boundary, evidence hierarchy, canonical-intent/approval design status, claim limits and task-first execution policy.
+- Agent guidance now treats Odoo 17 as the sole empirical platform, keeps SAP as applicability discussion only, and retires historical fixed-latency and 44,000x speedup framing from active instructions.
+- The `grpc-dataplane` skill now follows the real generated-Protobuf boundary: trace-only interceptor ownership, mandatory handler-side JWT/tenant/subject binding, mTLS and deadline semantics, structured fail-closed errors, bounded V1 compatibility and V2 no-downgrade routing for the high-impact path.
+
+### Verification
+- `.agents/AGENTS.md`, `agent-authorization`, `erp-testing` and `grpc-dataplane` were aligned with the V2 policy; all three rewritten skills pass `quick_validate.py`.
+- `grpc-dataplane` link/path checks and repository diff hygiene pass; its behavioral forward-test remains V2-PROOF-04 because this governance task changes no runtime code.
+
+### Remaining scope
+- Other repository-local skills retain the remediation status in [`SKILL_CATALOG_AUDIT.md`](docs/technical-spec/SKILL_CATALOG_AUDIT.md) and must be updated before their respective subsystem work.
+- This governance entry changes no production behavior and does not verify CBI v1 or AC v1.
+
 ## [Unreleased] - 2026-09-14: Full PDP Application-Path Evidence
 
 ### Added

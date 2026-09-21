@@ -1,4 +1,18 @@
-# Standalone Policy Engine (PDP) — Master Context Guide
+# Standalone Policy Engine — Agent Guide Mirror
+
+> **V2 supersession (2026-09-20):** This mirror follows the root [`AGENTS.md`](../AGENTS.md). For implementation facts use, in order: current source/tests, [`CURRENT_STATE_AUDIT.md`](../docs/technical-spec/CURRENT_STATE_AUDIT.md), [`ACTIVE_TASK.md`](../ACTIVE_TASK.md), the V2 task board and V2 design documents. The legacy architecture and metric text below is historical context only; it is not a claim, target or implementation invariant.
+
+## Active V2 rules
+
+- The thesis studies one Odoo 17 purchase-order confirmation path. SAP is applicability discussion only.
+- The repository is not production ready. Do not claim general ERP security, compliance, non-repudiation, instant revocation or exactly-once external effects.
+- `CanonicalBusinessIntent v1` and `ApprovalCapability v1` are normative contracts with initial V2 implementation evidence: CBI/proof V2 protects the high-impact route and AC v1 issue/verify persists `approved` without final mutation. Final commit-time revalidation and atomic consumption remain open.
+- Execute one dependency-complete active task at a time. Keep `VERIFIED BASELINE`, `DESIGNED V2`, `PLANNED V2` and `VERIFIED V2` distinct.
+- Reconstruct protected fields from locked Odoo/PostgreSQL records. Do not use prompt/tool/request data as authoritative business input; do not canonicalize floating-point money.
+- A final protected mutation requires current identity/grant/proof, exact intent/state, current policy/revocation, any valid independent-human approval and atomic one-time consumption.
+- Read [`SKILL_CATALOG_AUDIT.md`](../docs/technical-spec/SKILL_CATALOG_AUDIT.md) before using a local skill for implementation claims. Historical 44,000x and fixed nanosecond framing is retired unless the current audit supports the exact measurement boundary.
+
+## Legacy reference material
 
 > **AI Directive**: This file is the **single source of truth** for project context, invariants, and architecture. Read **ONLY** this file for general tasks. Do **NOT** scan whole folders or pre-load skill files unless specifically implementing deep changes in those subsystems.
 

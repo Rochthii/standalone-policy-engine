@@ -1,88 +1,75 @@
-# SECURITY_INVARIANTS.md — Mathematical Model & Security Invariants
+# Security Invariants — Transaction-Bound Authorization V2
 
-## 1. Formal Model of Constrained Delegation ($\Delta$)
+> **Status:** V2 design invariants, 2026-09-19.
+> **Evidence authority:** [`CURRENT_STATE_AUDIT.md`](./CURRENT_STATE_AUDIT.md).
+> **Threat source:** [`THREAT_MODEL.md`](./THREAT_MODEL.md).
 
-The delegation of authority from an authenticated human principal to an autonomous AI agent is formally modeled as a 5-tuple:
+## 1. Central invariant
 
-$$\Delta = \langle \mathcal{U}_{\text{root}}, \mathcal{A}_{\text{exec}}, \Sigma_{\text{scope}}, \Omega_{\text{constraints}}, \mathcal{C}_{\text{chain}} \rangle$$
+For the tested Odoo 17 purchase-order confirmation path, no high-impact ERP mutation may commit unless all of the following hold:
 
-| Symbol | Element | Definition | Enterprise Example |
-|---|---|---|---|
-| $\mathcal{U}_{\text{root}}$ | Root Delegator | The authoritative human principal delegating power | `user:manager_bob` |
-| $\mathcal{A}_{\text{exec}}$ | Delegatee Agent | The autonomous workload or AI execution identity | `agent:procurement_copilot` |
-| $\Sigma_{\text{scope}}$ | Functional Scope | Permitted set of actions, tools, and resource classes | `action:APPROVE_PO` on `resource:purchase_order` |
-| $\Omega_{\text{constraints}}$ | Guardrail Boundaries | Operational limits: budget ceilings, TTL, IP whitelists | $\text{amount} \le 2000$, $\text{valid\_until} \le t_{\text{exp}}$ |
-| $\mathcal{C}_{\text{chain}}$ | Delegation Lineage | Directed delegation graph: $\mathcal{U}_{\text{root}} \to \mathcal{A}_{\text{exec}}$ ($\text{Depth} = 1$) | `"user:manager_bob,agent:procurement_copilot"` |
-
----
-
-## 2. Core Security Invariants
-
-### Invariant 1: Time-Aware Monotonic Attenuation
-An agent's effective permissions $\mathcal{P}_{\text{effective}}$ at time $t$ can **never** exceed the delegator's active rights, bounded strictly by delegation scope and deterministic guardrails:
-
-$$\mathcal{P}_{\text{effective}}(\mathcal{A} \mid \mathcal{U}, t) = \mathcal{P}_{\text{active}}(\mathcal{U}, t) \cap \mathcal{S}_{\text{delegation}} \cap \Omega_{\text{guardrails}}$$
-
-- **Implemented attenuation (VERIFIED within the stated boundary):** the Odoo PEP requires an active 1-hop grant, and the PDP verifies a tenant-bound, TTL-bounded full tuple before policy evaluation. A revoked grant is denied before the evaluator; policy guardrails and SoD can further deny the call.
-- **Dynamic collapse (NOT VERIFIED):** suspension, departure, or a daily approval limit would require a trusted, current source for the delegator's status/limit. The current request builder, PDP tuple and tests do not supply or evaluate `delegator_status` or `delegator_limit`. This remains a future design property, not a thesis result.
-
----
-
-### Invariant 2: Generalized Separation of Duties (SoD)
-The resource creator is prohibited from appearing anywhere within the approval delegation chain:
-
-$$\mathcal{U}_{\text{creator}} \notin \mathcal{C}_{\text{chain}}(\text{Approver})$$
-
-- **Threat Vector**: A malicious user creates a fraudulent purchase order, then triggers an AI Copilot (either their own or an AI acting under delegation from their manager) to approve the order.
-- **Engine Enforcement (VERIFIED):** the evaluator's `BinOpContains` applies the policy predicate to the proof-bound `delegation_chain` and `resource.creator_id`. The in-process seven-vector suite covers self-approval and the delegator-created-order chain collision; the Odoo mTLS suite covers the self-approval rollback path:
-  ```cedar
-  forbid(
-      principal == any,
-      action    == action:APPROVE_PURCHASE_ORDER,
-      resource  == any
-  )
-  when {
-      context.delegation_chain contains resource.creator_id
-  };
-  ```
-
----
-
-### Invariant 3: Enforcement Point Integrity & Proof Authenticity
-Contextual attributes self-reported across process boundaries must be cryptographically verifiable:
-
-$$\text{Proof} = \text{HMAC-SHA256}\Big(K_{kid}, \; \text{versioned length-prefixed full decision tuple}\Big)$$
-
-The current tuple binds tenant, grant, delegator, agent, action, resource, amount/constraints, delegation chain, creator, tool context, execution mode, nonce and validity window. HMAC provides integrity and authenticity for key holders; it is not non-repudiation.
-
-- **Threat Vector**: A rogue actor crafts arbitrary JSON requests with forged `delegation_chain: "user:cfo_john,agent:copilot"`.
-- **Architectural Boundary (VERIFIED):** [`GRPCServer.CheckAccess`](../../internal/server/grpc_server.go) binds the JWT identity, checks revocation readiness/revocation, then calls [`validateDelegation`](../../internal/server/delegation_auth.go) before `Engine.CheckPermission`. This is the implemented Go PDP security boundary; it is not a separate gRPC unary interceptor. The evaluator therefore receives the server-normalized request after the delegated-request checks pass. Latency is reported separately for the measured evaluator, local application path and Odoo boundary.
-
----
-
-## 3. Real-Time Revocation & TOCTOU Mitigation
-
-**Time-of-Check to Time-of-Use (TOCTOU)** vulnerability occurs if user revocation in ERP takes seconds to propagate while an agent fires automated tool-calls in milliseconds.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Manager as Manager Bob
-    participant Odoo as Odoo PEP
-    participant Interceptor as PDP Layer 1 (Interceptor)
-    participant RAM_Revoke as In-Memory RevocationMap
-    participant Agent as Rogue AI Agent
-
-    Manager->>Odoo: Click "Revoke AI Delegation"
-    Odoo->>Interceptor: gRPC RevokeDelegation(session_id)
-    Interceptor->>RAM_Revoke: Store(session_id, revoked_at) [< 1 µs]
-    Interceptor-->>Odoo: Revocation ACK
-    
-    Note over Agent,Interceptor: Concurrently, Agent fires approval tool-call:
-    Agent->>Interceptor: gRPC CheckAccess(session_id)
-    Interceptor->>RAM_Revoke: Load(session_id) -> Exists!
-    Interceptor-->>Agent: Immediate fail-closed DENY; propagation and latency use recorded boundary evidence
+```text
+authenticated trusted caller
++ valid one-hop delegated authority
++ exact canonical business intent
++ current material ERP state matches
++ current policy and revocation check passes
++ required exact-action approval is valid
++ command and approval are consumed at most once
 ```
 
-- **Data Structure (VERIFIED):** a tenant-scoped `sync.Map` holds active revocations with TTL for the process-local lookup.
-- **Boundary:** PostgreSQL snapshot-first propagation, delayed delivery and restart are verified only by the local three-replica integration test (108 samples; recorded maximum 38.8256 ms against the 5 s test SLO). The Odoo suite proves a live revoke against one PDP, not cluster behavior. Delegated checks fail closed while synchronization is unavailable. This is neither a universal propagation guarantee nor production evidence.
+This invariant is **PLANNED V2**. Existing behavior is a security baseline, not proof that every condition above currently holds.
+
+## 2. I1 — Delegation authority integrity
+
+The executed agent may act only for the authenticated delegator, tenant, scope and validity window established by one active delegation grant. The agent cannot substitute its own delegator, tenant or grant.
+
+**Current status: VERIFIED BASELINE.** Mandatory tenant-bound JWT, mTLS at the Odoo/PDP boundary, versioned full-tuple HMAC proof, TTL, active-grant checks and revocation are covered within their recorded test boundaries. HMAC is integrity/authenticity for configured key holders, not non-repudiation.
+
+**Negative cases:** missing/forged JWT, cross-tenant call, altered protected proof, expired proof and revoked grant fail closed.
+
+**Evaluation mapping:** positive `AUTH-P01`; negative `AUTH-N01`, `AUTH-N02` in [`EVALUATION_MATRIX.md`](./EVALUATION_MATRIX.md).
+
+## 3. I2 — Intent and state binding
+
+Authorization for a high-impact action is valid only for one `CanonicalBusinessIntent` and one material-state witness. At minimum, the schema must define action, resource, command ID, amount in currency minor units, currency, vendor/payee, line digest, tenant, delegator, agent, policy/proof version and record state/version.
+
+The Odoo PEP must reconstruct the intent from authoritative ORM records and compare it with the protected value immediately before final execution. A changed material field or state witness requires new authorization and, if required, new approval.
+
+**Current status: PARTIAL V2.** Go/Python unit tests agree on canonical multi-line bytes/digest, state witness, CBI bytes/hash and V2 proof for one shared fixture; exact-money rejection and material-field tampering are covered in the pure protocol boundary. Trusted ORM reconstruction, protected-route enforcement and commit-time locked revalidation remain planned; current route evidence does not yet establish I2.
+
+**Negative cases:** changed amount, currency, vendor, line digest, action, resource or record version fails before mutation.
+
+**Evaluation mapping:** positive/interoperability `CBI-P01`; negative `CBI-N01`–`CBI-N05` and final race `TXN-N04`.
+
+## 4. I3 — Exact-action approval and Separation of Duties
+
+An [`ApprovalCapability v1`](./APPROVAL_CAPABILITY.md) is valid only for one approval ID, authorized approver, intent hash, state witness, command/grant, expiry and one-time ID under a purpose-separated approval key. It cannot expand a delegator's scope, be reused for another intent, be verified as a delegation proof, or be exercised by a creator, delegator or agent under the thesis SoD policy.
+
+**Current status: PARTIAL VERIFIED V2 through AC v1 issuance.** The tested Odoo route persists `to approve`, one exact pending CBI and one Activity without rollback. The issuance operation derives the human from `env.user`, locks/reconstructs the unchanged intent, enforces active internal purchase-manager role, same tenant/company, creator/delegator/agent separation and a current live-PDP approval decision, then persists one PDP-issued/verified purpose-separated capability and `approved` state. Tamper, expiry, unknown/key-confused credentials and invalid issuer identity fail closed in focused tests. Invalidation and atomic one-time consumption remain **NOT IMPLEMENTED**.
+
+**Negative cases:** wrong approver/role, creator or delegator self-approval, expired approval, changed intent/state and consumed approval fail closed.
+
+**Evaluation mapping:** positive `APP-P01`, `APP-P02`; negative `APP-N01`–`APP-N05`.
+
+## 5. I4 — Commit-time revalidation and at-most-once scoped effect
+
+The final transition re-locks and re-reads the business record, validates I1-I3 plus current policy/revocation, then atomically consumes the command/approval and applies the in-scope ERP mutation in one Odoo/PostgreSQL transaction. No lock is held while awaiting human review.
+
+**Current status: PLANNED V2.** Existing nonce ledger and two-session retry evidence demonstrate bounded replay behavior, not the final approval/command atomicity required here.
+
+**Negative cases:** concurrent execution, lost-response retry, state change during approval and PDP outage leave no unauthorized persistent mutation; one command yields at most one committed purchase-order effect.
+
+**Evaluation mapping:** positive `TXN-P01`, `TXN-P02`; negative `TXN-N01`–`TXN-N04`.
+
+## 6. I5 — Fail-closed authorization boundary
+
+Missing identity, invalid proof, unavailable/degraded delegated authorization, unsupported canonical field or uncertain approval state denies final high-impact execution. A controlled approval route may persist only a non-final review state, never the protected business effect.
+
+**Current status: VERIFIED BASELINE for tested proof, outage and non-rollback approval paths; PLANNED V2 for final execution semantics.**
+
+**Evaluation mapping:** controlled non-final route `APP-P01`; negative boundary cases `BOUND-N01`–`BOUND-N03`.
+
+## 7. Limits
+
+These invariants do not establish dynamic HR/daily-limit attenuation, instant revocation, exactly-once external side effects, general prompt-injection prevention, general ERP validity, SAP compatibility, production readiness or regulatory compliance. Each implementation claim requires its mapped executable evidence in `THESIS_V2_TASK_BOARD.md`.

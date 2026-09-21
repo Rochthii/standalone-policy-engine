@@ -1,127 +1,70 @@
-# Standalone Policy Engine (PDP) — Master Context Guide
+# Standalone Policy Engine — Agent Guide
 
-> **Implementation status notice (audit 2026-09-11):** The architecture and targets below describe the intended system. The in-memory core is verified for measured cases, but the full PDP/Odoo system is not production-ready. Before making implementation, security, benchmark, E2E, or completion claims, read [`docs/technical-spec/CURRENT_STATE_AUDIT.md`](docs/technical-spec/CURRENT_STATE_AUDIT.md) and apply [`docs/technical-spec/PRODUCTION_READINESS_CHECKLIST.md`](docs/technical-spec/PRODUCTION_READINESS_CHECKLIST.md). Those two documents take precedence for current-state evidence; the invariants in this guide remain mandatory design requirements.
+## Authority and claim discipline
 
-> **AI Directive**: This file is the **single source of truth** for project context, invariants, and architecture. Read **ONLY** this file for general tasks. Do **NOT** scan whole folders or pre-load skill files unless specifically implementing deep changes in those subsystems.
+For implementation facts, use this order of authority:
 
-> **Author**: Chăm Rốch Thi  
-> **Institution**: Posts and Telecommunications Institute of Technology (PTIT)  
-> **Core Mission**: Ultra-high-performance, In-Memory Policy Decision Point (PDP) in Go for Cloud-Native microservices, SaaS, and ERP AI Agent Delegation (Odoo 17).  
-> **Targets**: Latency < 0.35ms (in-memory < 3.5µs, verified 540ns), Throughput > 1,000,000 RPS, Zero GC allocations on evaluation hot path.  
-> **Decision Model**: Deny-by-default, Forbid-overrides, Explicit permit.  
+1. current source, protocol and executable tests;
+2. [`docs/technical-spec/CURRENT_STATE_AUDIT.md`](docs/technical-spec/CURRENT_STATE_AUDIT.md);
+3. [`ACTIVE_TASK.md`](ACTIVE_TASK.md) and [`docs/thesis-proposal/THESIS_V2_TASK_BOARD.md`](docs/thesis-proposal/THESIS_V2_TASK_BOARD.md);
+4. V2 design documents under `docs/technical-spec/`;
+5. historical proposal, benchmark and changelog entries.
 
----
+If sources disagree, do not infer a stronger claim. Label the conflict and follow the higher authority. The repository is **not production ready**; do not claim general ERP security, SAP compatibility, legal non-repudiation, EU AI Act compliance, instant revocation or exactly-once external effects.
 
-## Architecture & Core Data Flow
+## Active thesis direction
 
-```
-Client / AI Agent (Odoo 17 PEP)
-     │
-     ├──► [Standard ORM Transaction] ──► Postgres ERP DB
-     │
-     ▼ (Sync gRPC :50051 CheckAccess / RevokeDelegation)
-PDP Server (Data Plane)
-     │
-     ├──► [Layer 1 Security Interceptor (< 2 µs)]
-     │    ├── Anti-TOCTOU: PostgreSQL-backed, replica-synchronized in-memory RevocationMap O(1)
-     │    ├── Proof Verification: HMAC-SHA256 Canonical String + TTL Check
-     │    ├── Tenant Isolation: claims["tenant_id"] == req.TenantId
-     │    └── [Fail: Tampered / Expired / Revoked] ──► [Fast DENY / 403] ──► Early Return
-     │
-     ├──► [Layer 2 In-Memory Evaluation Engine] (Pass: Valid Proof)
-     │    ├── In-Memory Trie O(log N) (FNV-1a 64-bit uint64 index)
-     │    ├── Role DAG Closure O(1) (Pre-computed Transitive Graph)
-     │    └── AST Evaluator (Zero-Alloc, sync.Pool, Bitmask IP, int64 Unix time)
-     │         └── Operator `contains` for comma-separated SoD checks
-     │
-     ▼
-Decision: ALLOW / DENY (+ Pre-compiled Obligations: REQUIRE_HUMAN_APPROVAL)
-     │
-     ├──► Non-Rollback PEP State Machine in Odoo (state -> 'to approve', no DB rollback)
-     │
-     ▼
-Async Ring Buffer Logger ──► Postgres PDP Audit (pgx.CopyFrom) + AES-GCM Encrypt
-                             (Fallback: Spill-to-Disk ./spill-logs)
-```
+The active contribution is **delegation-aware, transaction-bound authorization for high-impact AI-agent actions in ERP**, evaluated only on one Odoo 17 `purchase.order` confirmation path.
 
+The V2 central invariant is: a protected mutation may commit only after trusted caller identity, valid one-hop delegated authority, exact canonical intent, current ERP state, current policy/revocation, required exact-action approval and atomic one-time consumption all pass.
 
-### Policy Sync & Distributed Resilience
-1. **Cloud-Native 100% Stateless Profile** (`STORAGE_MODE=cloud`): Boots in < 50ms with Zero-Wait Lazy Loading.
-2. **Pure PostgreSQL Sequence (Zero Redis)**: Atomic sequence in `tenants.revision`. Emits `NOTIFY policy_events` (< 120B).
-3. **Monotonic Gap Detection & Catch-Up**: If `event.Revision > current + 1`, triggers instant Catch-Up sync (< 50ms) instead of waiting for polling.
-4. **Edge Embedded Snapshot** (`STORAGE_MODE=edge`): BadgerDB embedded KV store for air-gapped IoT gateways.
+- [`CANONICAL_BUSINESS_INTENT.md`](docs/technical-spec/CANONICAL_BUSINESS_INTENT.md) and [`APPROVAL_CAPABILITY.md`](docs/technical-spec/APPROVAL_CAPABILITY.md) remain normative contracts; the initial CBI/proof V2 and AC v1 issue/verify boundary is implemented and evidenced, while final transaction consumption remains open.
+- The current implementation uses CBI/proof V2 for the high-impact Odoo route, a purpose-separated AC v1 issuance/verification boundary and a non-rollback `to approve` Activity route. None of these proves final commit-time revalidation or atomic business mutation.
+- Odoo 17 is the only implementation/evaluation platform. SAP is an applicability discussion only.
+- The V1 proposal is read-only historical material in `docs/thesis-proposal/archive/`.
 
----
+## Work policy
 
-## Codebase & Component Map
+1. Execute one dependency-complete task from `ACTIVE_TASK.md` per turn.
+2. Read only files named by that task and directly needed code. Preserve unrelated worktree changes.
+3. Keep design, implementation and evidence labels distinct: `VERIFIED BASELINE`, `DESIGNED V2`, `PLANNED V2` and `VERIFIED V2` are not interchangeable.
+4. Do not update `CURRENT_STATE_AUDIT.md` merely because a design document or unit test exists; add a claim only after the stated boundary evidence passes.
+5. Update the task board, active task and changelog when a task materially changes scope, agent guidance or evidence interpretation.
+6. Preserve V1 compatibility until the task board explicitly authorizes a compatibility change. Never silently downgrade a protected V2 path to V1.
 
-| Component | Path | Description |
-|---|---|---|
-| **PDP Data Plane** | `cmd/pdp-server/` | gRPC service (:50051) serving `CheckAccess`, `ExplainDecision`, `RevokeDelegation`. |
-| **Control Plane** | `cmd/control-plane/` | REST API (:8080) for policy CRUD, simulation (`/simulate`), and Prometheus `/metrics`. |
-| **CLI Tool (`pectl`)** | `cmd/pectl/`, `internal/pectl/` | Enterprise CLI for policy management, dry-run simulations, and health checks. |
-| **Trie Index** | `internal/engine/trie.go` | Multi-level FNV-1a uint64 index (`Tenant -> Subject -> Resource -> Action`). Slice pooling. |
-| **Role DAG** | `internal/engine/dag.go` | DFS cycle detection; pre-computed transitive closure for O(1) `IsDescendant()`. |
-| **AST Evaluator** | `internal/engine/evaluator.go` | Zero-alloc evaluator with `sync.Pool`, sentinels (`boolTrue`/`boolFalse`), `contains` SoD. |
-| **Engine State** | `internal/engine/engine.go` | Copy-On-Write (COW) lock-free read path via `atomic.LoadPointer` / `StorePointer`. |
-| **DSL Compiler** | `internal/parser/` | Lexer & Pratt parser for Cedar-like DSL (`permit`/`forbid`). Max AST depth <= 15, constant folding. |
-| **Security & Delegation** | `internal/security/` | JWT tenant isolation, delegation key ring, durable PostgreSQL-backed revocation synchronization and RevocationMap O(1). |
-| **Storage & Sync** | `internal/storage/`, `internal/engine/sync.go` | PostgreSQL (`pgx`), BadgerDB edge cache, Postgres `LISTEN/NOTIFY` Fast Gap Catch-Up. |
-| **Audit Logger** | `internal/audit/` | Redaction -> AES-GCM envelope encryption -> bounded queue -> idempotent PostgreSQL batch merge, with encrypted atomic spill/replay and integrity tags. |
-| **Protobuf Contract** | `proto/v1/policy.proto` | Canonical IDL defining `CheckAccess`, `ExplainDecision`, `RevokeDelegation`; Buf generates standard Go/Python protobuf clients. |
-| **Seed Policies** | `configs/policies.cedar` | 6 standard P2P ruleset with SoD `contains` operator (`delegation_chain contains creator_id`). |
-| **Odoo 17 PEP Addon** | `custom_addons/pdp_authorizer/` | Migration target in this repository. The legacy baseline currently lives in `E:\Projects\ERP_Mastery_Hub\02_Project_2_Odoo_Go_PDP_Approval` and is not contract-compatible or verified yet. |
-| **Frozen Testbed** | `docker-compose.testbed.yml` | Pinned base images (`golang:alpine`, `odoo:17.0`, `postgres:15-alpine`) for 2026–2029. |
-| **Tests & Benchmarks**| `tests/` | 7 E2E vectors (`e2e_delegation_test.go`), Baseline benchmark (`baseline_odoo_orm_benchmark.py`). |
+## V2 security rules
 
----
+- Reconstruct protected business fields from locked Odoo/PostgreSQL records; never trust prompt text, tool arguments or caller context for them.
+- Money is exact integer minor units at the authorization boundary. Do not sign, compare or canonicalize floating-point money.
+- A human approval binds one pending intent hash and state witness. An Odoo Activity is notification only, not approval evidence.
+- Enforce SoD for agent, creator, delegator, wrong-role and cross-tenant approvers at issuance and final execution.
+- Use purpose-separated approval and delegation key domains. HMAC provides integrity for configured key holders, not non-repudiation.
+- Final authorization re-locks/re-reads state and consumes command/approval atomically with the in-scope Odoo/PostgreSQL mutation. Never retain a row lock while waiting for a human.
 
-## Specialized Skills Index (Read On-Demand Only)
+## Skill routing
 
-> **Catalog status:** The current nine local skills are being remediated. Before relying on any of them for implementation claims, consult [`docs/technical-spec/SKILL_CATALOG_AUDIT.md`](docs/technical-spec/SKILL_CATALOG_AUDIT.md), then the current-state audit and release checklist.
+Read [`docs/technical-spec/SKILL_CATALOG_AUDIT.md`](docs/technical-spec/SKILL_CATALOG_AUDIT.md) before relying on any repository-local skill for implementation claims.
 
-Read these skill guides **ONLY** when actively modifying their specific subsystems (< 40 lines each):
-- **`agent-authorization`** (`.agents/skills/agent-authorization/SKILL.md`): Canonical String HMAC, In-Memory RevocationMap O(1), Non-Rollback PEP.
-- **`grpc-dataplane`** (`.agents/skills/grpc-dataplane/SKILL.md`): gRPC server, standard protobuf codec, RevokeDelegation, Layer 1 interceptor, PID-Safe client.
-- **`erp-testing`** (`.agents/skills/erp-testing/SKILL.md`): 7 Delegation vectors, Odoo baseline benchmark (44,000x), 540ns budget.
-- **`docker-standards`** (`.agents/skills/docker-standards/SKILL.md`): Pinned Docker testbed (2026–2029), UTF-8 BOM prevention, testbed runner.
-- **`dsl-compiler`** (`.agents/skills/dsl-compiler/SKILL.md`): Pratt parser, AST depth limit, `contains` SoD operator, constant folding.
-- **`engine-evaluator`** (`.agents/skills/engine-evaluator/SKILL.md`): Trie, DAG Transitive Closure, AST pool, zero-alloc hot path.
-- **`storage-audit`** (`.agents/skills/storage-audit/SKILL.md`): `pgx.CopyFrom`, Spill-to-Disk, Postgres LISTEN/NOTIFY sync, BadgerDB.
-- **`clean-architecture-standards`** (`.agents/skills/clean-architecture-standards/SKILL.md`): File size budgets ($\le 250$ lines), zero hardcoding, centralized config.
-- **`critical-advisor`** (`.agents/skills/critical-advisor/SKILL.md`): Technical stress-testing, blindspot detection, zero sycophancy.
+- Use `agent-authorization` for V2 identity, proof, canonical intent, approval capability, revocation and SoD work.
+- Use `erp-testing` for Odoo/PDP authorization tests and evidence matrices.
+- Use the subsystem skill only when changing that subsystem; do not preload unrelated skills.
+- `grpc-dataplane`, `storage-audit`, `engine-evaluator` and other catalog entries remain subject to their remediation status in the audit.
 
----
+## Validation and documentation
 
-## Absolute Rules & Engineering Invariants (Never Violate)
+- Start with the focused validation named in `ACTIVE_TASK.md`; expand only when a real boundary changes.
+- Every V2 negative ERP case must assert no unauthorized persistent business mutation, not merely an exception.
+- Keep evaluator, proof/capability, gRPC/mTLS, locked state reconstruction and ERP mutation measurements separate.
+- Historical performance values, especially 44,000x comparisons and fixed nanosecond claims, are retired unless the current audit/evidence explicitly supports the exact boundary.
+- [`CHANGELOG.md`](CHANGELOG.md) is chronological history. Add superseding entries; do not rewrite old entries as current evidence.
 
-1. **Production-Real Only**: Zero mocks, zero fake returns, zero hardcoded bypasses in production code paths.
-2. **Zero Linear Scans**: Never iterate over slice of policies. All lookups MUST use Trie O(log N) and DAG Transitive Closure O(1).
-3. **Zero Heap Allocations on Hot Path**:
-   - Use `sync.Pool` for evaluation contexts.
-   - Return sentinel pointers (`boolTrue`, `boolFalse`) instead of allocating new `ValueNode`.
-   - Use uint64 FNV-1a hashes, bitmask IP parsing (`IPNet.Contains`), and pre-parsed int64 Unix nanoseconds.
-4. **Lock-Free Hot-Path**: `CheckPermission` must NEVER acquire Mutexes; reads use atomic pointer swap (COW).
-5. **Fail-Closed Security**: Missing attributes or unhandled syntax evaluate to `false`/`DENY`. AST depth strictly capped at <= 15.
-6. **Multi-Tenant JWT Isolation**: Interceptor strictly enforces `claims["tenant_id"] == req.TenantId`.
+## Key paths
 
----
-
-## Essential Commands Cheat Sheet
-
-```bash
-# 1. Run 7 E2E Delegation Vectors Verification (All 7 PASS)
-go test -v ./tests -run=TestE2E_P2P_Delegation_7Vectors
-
-# 2. Run Evaluator Latency & Zero-Allocation Benchmark (540ns, 0 B/op)
-go test -bench=BenchmarkEvaluatorLatency -benchmem ./tests/... -run=^$
-
-# 3. Run Core Engine & Parser Unit Tests (with Race Detector)
-go test -v -race ./internal/security ./internal/server
-
-# 4. Run Frozen Docker Testbed (Single Command 2026-2029)
-docker compose -f docker-compose.testbed.yml up --abort-on-container-exit
-
-# 5. Run Baseline Odoo ORM Benchmark (44,000x speedup comparison)
-python tests/baseline_odoo_orm_benchmark.py
-```
+| Purpose | Path |
+|---|---|
+| Active task | `ACTIVE_TASK.md` |
+| V2 plan/board | `docs/thesis-proposal/THESIS_V2_MASTER_PLAN.md`, `docs/thesis-proposal/THESIS_V2_TASK_BOARD.md` |
+| Current implementation truth | `docs/technical-spec/CURRENT_STATE_AUDIT.md` |
+| Threats/invariants/evaluation | `docs/technical-spec/THREAT_MODEL.md`, `docs/technical-spec/SECURITY_INVARIANTS.md`, `docs/technical-spec/EVALUATION_MATRIX.md` |
+| Odoo PEP | `custom_addons/pdp_authorizer/` |
+| Go security code | `internal/security/` |

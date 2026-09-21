@@ -1,36 +1,23 @@
 ---
 name: erp-testing
-description: Expert rules and scenarios for ERP ABAC access control, 7 Test Vectors, and Baseline benchmarks.
+description: Design, implement or assess bounded Odoo/PDP authorization tests and evidence for delegated purchase-order confirmation.
 ---
 
-# ERP ABAC Testing & Benchmarking Skill
+# ERP Authorization Testing — V2
 
-## 🎯 Mission
-Validate real-world ERP authorization scenarios, 7 delegation test vectors, and sub-microsecond latency budgets.
+Use this skill for Odoo/PDP proof, approval, transaction, replay, SoD, revocation or evidence work. Do not use it to claim universal ERP behavior, model/prompt safety, SAP compatibility or a performance win from unmatched benchmarks.
 
-## 🔑 Critical Implementation Rules
-1. **7 E2E Delegation Test Vectors ([`tests/e2e_delegation_test.go`](file:///e:/Projects/Project_TN/standalone-policy-engine/tests/e2e_delegation_test.go))**:
-   - `TC-01`: Manager creates PO and self-approves $\to$ `DENY` (SoD Collision).
-   - `TC-02`: AI Agent approves PO created by Delegator $\to$ `DENY` (SoD Chain).
-   - `TC-03`: Agent autonomous PO $\le \$2,000 \to$ `ALLOW`.
-   - `TC-04`: Agent PO $> \$2,000 \to$ `DENY` (`REQUIRE_HUMAN_APPROVAL`).
-   - `TC-05`: Tampered HMAC amount ($50,000) $\to$ `403 PermissionDenied`.
-   - `TC-06`: Revoked Grant on RAM $\to$ `DENY` (`POL-REVOCATION-BLACK-LIST`).
-   - `TC-07`: Expired TTL Proof $\to$ `403 PermissionDenied`.
+## Evidence rules
 
-2. **Benchmark Commands & Budgets**:
-   - Evaluator Latency: `go test -bench=BenchmarkEvaluatorLatency -benchmem ./tests/... -run=^$`
-     - Verified result: **$540.2\ \text{ns/op}$, `0 B/op`, `0 allocs/op`** (Budget: $< 3.5\,\mu\text{s}$).
-   - 7 Vectors Test: `go test -v ./tests -run=TestE2E_P2P_Delegation_7Vectors` (All 7 pass in $\sim 4.5$s).
-   - Race Tests: `go test -v -race ./internal/security ./internal/server`.
+Read [`CURRENT_STATE_AUDIT.md`](../../../docs/technical-spec/CURRENT_STATE_AUDIT.md), [`EVALUATION_MATRIX.md`](../../../docs/technical-spec/EVALUATION_MATRIX.md) and `ACTIVE_TASK.md` first. The seven in-process delegation vectors and real Odoo mTLS cases are retained evidence with their documented boundaries. The current suite verifies the initial CBI/proof V2 and AC v1 issue/verify boundary; it does not verify transaction-bound final approval, invalidation or atomic consumption.
 
-3. **Baseline Comparison vs Odoo Native ORM ([`tests/baseline_odoo_orm_benchmark.py`](file:///e:/Projects/Project_TN/standalone-policy-engine/tests/baseline_odoo_orm_benchmark.py))**:
-   - Odoo Native `ir.rule` + Postgres: **$23.77\ \text{ms}$**, ~24 KB heap allocs.
-   - Standalone Go PDP In-Memory: **$0.00054\ \text{ms}$ ($540\ \text{ns}$)**, 0 B/op.
-   - Go PDP is **$\approx 44,000$x faster**, eliminates TOCTOU, and avoids Odoo Rollback Trap.
+- Each negative ERP case must assert the persistent outcome after the Odoo/PostgreSQL transaction: no unauthorized final business mutation, no false capability/command consumption.
+- Test one real boundary when the change crosses it: Go unit/proof compatibility, generated gRPC client/server, Odoo ORM/PostgreSQL transaction, or the pinned testbed. Do not call an in-process vector E2E.
+- Implement the named V2 cases in the matrix. Preserve `VERIFIED BASELINE`, `DESIGNED V2` and `VERIFIED V2` labels until evidence supports promotion.
+- Test independent-human approval, agent/creator/delegator SoD, wrong role, cross tenant, tampering, expiry/revocation, key confusion, activity-only behavior, stale state, race, rollback, retry, bypass and outage when their owning task is implemented.
 
-## 📂 Source Files
-- [`tests/e2e_delegation_test.go`](file:///e:/Projects/Project_TN/standalone-policy-engine/tests/e2e_delegation_test.go)
-- [`tests/baseline_odoo_orm_benchmark.py`](file:///e:/Projects/Project_TN/standalone-policy-engine/tests/baseline_odoo_orm_benchmark.py)
-- [`docs/technical-spec/EVALUATION_MATRIX.md`](file:///e:/Projects/Project_TN/standalone-policy-engine/docs/technical-spec/EVALUATION_MATRIX.md)
-- [`docs/technical-spec/BENCHMARK_REPRODUCIBILITY.md`](file:///e:/Projects/Project_TN/standalone-policy-engine/docs/technical-spec/BENCHMARK_REPRODUCIBILITY.md)
+## Comparative and performance evidence
+
+For RQ4, variants A (broad service account), B (policy only) and C (proposed mechanism) use the same fixture, action and environment. Measure evaluator, proof/capability verification, gRPC/mTLS, locked state reconstruction and ERP mutation separately; report raw p50/p95/p99/max, errors and environment metadata.
+
+Historical 44,000x and fixed-nanosecond claims are retired. Do not compare an in-memory evaluator with an ERP transaction as a speedup. State the exact measured boundary and limitations.
