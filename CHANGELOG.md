@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased] - 2026-09-28: CI rerun verified
+
+- Workflow run [#83](https://github.com/Rochthii/standalone-policy-engine/actions/runs/36442087221) for commit `a27d0bd` completed successfully: all 10 jobs passed, including Protobuf Contract and Real Odoo PostgreSQL gRPC E2E. The one-off Odoo error from run #82 did not recur; no Odoo code or test was changed. This rerun confirms the gate passed but does not identify the individual exception behind #82.
+
 ## [Unreleased] - 2026-09-28: Protobuf CI download resilience; Odoo failure remains under diagnosis
 
 - The Protobuf Contract job now installs the same pinned Buf CLI once and retries only that installation up to three times for transient module/checksum transport failures. Go checksum verification remains enabled; lint, format, generation and breaking checks still fail normally on contract errors.
