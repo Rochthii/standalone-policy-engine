@@ -191,10 +191,17 @@ def run_concurrency_test():
     )
 
 
+def run_currency_migration_test():
+    subprocess.run(
+        ["python3", os.environ["PDP_E2E_CURRENCY_MIGRATION_RUNNER"]], check=True
+    )
+
+
 if __name__ == "__main__":
     recreate_odoo_database()
     seed_pdp()
     wait_for_pdp()
     verify_mtls_boundary()
     run_odoo_tests()
+    run_currency_migration_test()
     run_concurrency_test()

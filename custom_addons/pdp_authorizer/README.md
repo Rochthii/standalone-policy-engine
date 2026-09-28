@@ -25,6 +25,26 @@ The AI agent is a non-human software principal acting under controlled human del
 - Human AC v1 issuance and a bounded approved `button_confirm` route with locked CBI/current-policy rechecks and same-transaction approval/command consumption with the PO mutation.
 - Fail-closed rollback on hard deny, configuration error or PDP outage.
 
+### Delegation amount and currency scope
+
+Each grant's maximum is denominated in its required `currency_id`; a protected
+purchase order must use that exact currency and its exact minor-unit total must
+not exceed the grant maximum. The check is repeated whenever the protected CBI
+is rebuilt, including final execution. Create a separate grant to delegate a
+different transaction currency; conversion is intentionally not implicit.
+
+On upgrade from a schema that predates grant `currency_id`, each legacy
+maximum is interpreted in the delegator's primary company currency. The
+upgrade aborts if that currency cannot be resolved. This backfill runs only
+when the column is first introduced; later module upgrades preserve explicitly
+configured grant currencies.
+
+Seed policy money thresholds are explicitly USD-only (`USD 2,000` autonomous
+and `USD 5,000` department-manager limit). A currency without an explicit
+matching policy rule receives no permit and is denied. VND/EUR are accepted as
+tool input codes but are not authorized by the seed policies until their own
+threshold rules are configured.
+
 ## Runtime configuration
 
 ### Authority ordering on the protected route

@@ -1,5 +1,29 @@
 # Changelog
 
+## [Unreleased] - 2026-09-28: V2-CURRENCY-MIG-01 company-aware grant migration verified
+
+- The initial populated-schema upgrade test found a real multi-company bug: Odoo populated the newly required `currency_id` for every old grant with the upgrade process's current company currency, assigning USD to a legacy grant whose delegator belonged to an EUR company. Added a conditional `_auto_init` backfill that runs only when an existing grant table lacks the currency column, maps legacy amounts to each delegator's primary company currency, and aborts upgrade if the mapping is unavailable. Subsequent upgrades do not overwrite explicit currency selections.
+- Bumped the addon version from `17.0.5.0.0` to `17.0.6.0.0`; the migration runner simulates the prior version and asserts the upgrade reports the new version.
+- Added `deployments/docker/run-odoo-currency-migration.py` and wired it into the full E2E runner using only dedicated scratch database `odoo_currency_migration`. It seeds active USD and EUR grants under separate companies, simulates the old schema by dropping only the new column, calls Odoo `--update=pdp_authorizer`, then verifies amount/state/currency. It performs a second update after an explicit alternate-currency selection and verifies that choice persists.
+- Final fresh Docker gate: 78 Odoo post-tests, 0 failures/errors; migration initial and repeated upgrades pass; mTLS, two-session concurrency/retry/stale-intent, authority-ordering and 16 material-edit schedules pass. Python AST, Compose config and `git diff --check` pass. The migration fixture is an isolated prior-schema simulation, not a rehearsal on customer backups or all historical addon versions. No commit/push.
+
+## [Unreleased] - 2026-09-28: V2-CURRENCY-MIG-01 migration compatibility check started
+
+- Follow-up authorized to verify the untested upgrade path for existing `pdp.delegation.grant` rows after adding required `currency_id`. Active checkpoint now limits work to an isolated disposable Odoo 17/PostgreSQL database and forbids use of the development/user database. No migration behavior is assumed and no production code changed in this handoff.
+
+## [Unreleased] - 2026-09-28: V2-CURRENCY-01 bounded Odoo evidence complete
+
+- After Docker Engine became available, the fresh Odoo 17/mTLS/PDP/PostgreSQL gate exposed two legacy fixtures whose USD 2,500 approval exceeded their old USD 2,000 grant cap. Raised only those test grant caps to USD 5,000; the production ceiling remains enforced. Full gate then passed: 78 post-tests, zero failures/errors, mTLS probes, baseline/approved concurrency and retry/stale-intent runners, authority-ordering schedules and all 16 material-edit schedules.
+- Verified exact grant-cap acceptance; over-cap, mismatched PO/grant currency, EUR seed-policy and missing-currency seed-policy denials with persistent rollback oracles. Full `go test ./...`, focused policy regression, Python/XML checks and `git diff --check` pass. AUTH-N03 and V2-CURRENCY-01 are now marked complete at this bounded evidence level; current-state audit records the same scope.
+- Existing-database migration for the new required grant currency and external custom policy setup remain unverified. No implicit FX conversion, non-USD seed allowance, commit or push.
+
+## [Unreleased] - 2026-09-28: V2-CURRENCY-01 currency-scoped grant and seed-policy repair (Odoo gate pending)
+
+- Replaced the grant's unqualified amount field semantics with an explicit currency-bound monetary maximum. Activation validates exact currency precision; the protected V2 path compares the locked CBI minor-unit amount against that cap and rejects mismatched PO currency whenever the intent is rebuilt, including final execution.
+- Scoped seed Cedar and Odoo E2E policies to USD explicitly. No VND/EUR threshold was invented: missing/unsupported currencies have no matching seed permit and default-deny. Documented that organizations must configure a separate policy threshold before enabling another currency.
+- Added Go policy cases for configured USD, unconfigured EUR and missing currency; added real Odoo negative/positive cases for exact cap, over-cap, grant/PO currency mismatch and unconfigured EUR. Corrected an existing TC-04 assertion: the >USD 2,000 rule returns `ALLOW` plus `REQUIRE_HUMAN_APPROVAL`, not `DENY`.
+- Validation: targeted Go currency-policy test and full `go test ./...` pass using a task-local temporary GOCACHE; Python AST, Odoo view XML and `git diff --check` pass. Attempted the fresh Odoo gate, but it could not start because Docker Engine is unavailable (`//./pipe/docker_engine` missing); `make` is not installed on this Windows host. Odoo transaction/persistent-state cases remain unverified, the audit is not promoted, and V2-CURRENCY-01 stays in progress. No commit/push.
+
 ## [Unreleased] - 2026-09-28: V2-DOC-04 paired proposal artifact QA closed
 
 - User confirmed the DOCX and PDF are paired outputs of one proposal and accepted the existing PDF visual review as the artifact QA; no additional export was needed.

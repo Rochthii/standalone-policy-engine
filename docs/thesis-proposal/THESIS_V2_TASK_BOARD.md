@@ -1,6 +1,6 @@
 # Thesis V2 Atomic Task Board
 
-> **Status (2026-09-28):** All nine thesis tasks and paired proposal artifact QA are complete. The DOCX matches the shared Markdown source; all five pages of the existing paired PDF passed visual inspection. Per user scope decision, Word-native DOCX rendering is not a separate remaining gate; its lack of independent rendering remains a documented limitation, not a blocker.
+> **Status (2026-09-28):** All nine thesis tasks and paired proposal artifact QA are complete. A separately authorized post-freeze authorization-semantics follow-up is tracked below; it does not reopen or change the thesis-plan completion status. The DOCX matches the shared Markdown source; all five pages of the existing paired PDF passed visual inspection. Per user scope decision, Word-native DOCX rendering is not a separate remaining gate; its lack of independent rendering remains a documented limitation, not a blocker.
 > **Execution policy:** one dependency-complete task at a time; batch related acceptance gaps without nested task IDs or per-case approval turns. Use `ACTIVE_TASK.md` as the resume pointer and its ledger for detailed evidence. Consolidate validation and documentation at the batch boundary; acceptance and authorized Git publication are separate.
 > **Master plan:** [`THESIS_V2_MASTER_PLAN.md`](./THESIS_V2_MASTER_PLAN.md)
 
@@ -170,3 +170,10 @@ The original nine-task order is retained below; all nine tasks are complete. Pai
 | 9 | `V2-WRITE-04` — complete | Regenerated DOCX/PDF, checked exact DOCX source parity, visually inspected all five PDF pages and recorded output provenance. |
 
 **Artifact limitation:** Word-native DOCX pagination was not independently rendered in this environment. The existing paired PDF was rendered and visually inspected, and DOCX content parity with the shared Markdown source is recorded. This limitation is closed as non-blocking under the user's explicit paired-artifact scope decision; do not describe it as Word-rendered evidence.
+
+## Post-freeze follow-up
+
+| ID | Task | Depends | Status | Exit evidence |
+|---|---|---|---|---|
+| V2-CURRENCY-01 | Enforce the delegation grant ceiling and currency-scoped monetary policy for the bounded Odoo PO path. | User-approved review findings after thesis-plan closure | `COMPLETE — BOUNDED V2 EVIDENCE` | Exact CBI minor units are checked against the explicit grant currency/ceiling on every protected intent reconstruction. Exact cap succeeds; excess cap and PO/grant currency mismatch deny without mutation; USD is explicit in seeded Cedar/SQL rules and EUR/omitted currency deny. `go test ./...` and focused currency policy regression pass. Fresh Odoo 17/mTLS/PDP/PostgreSQL gate passes 78 post-tests (0 failures/errors), mTLS boundary, two-session concurrency/retry/stale-intent, authority ordering and 16 material-edit schedules. Existing-database migration and custom policy configuration are not covered. |
+| V2-CURRENCY-MIG-01 | Verify and, if required, safely migrate pre-existing Odoo delegation grants to explicit currency-bound ceilings. | V2-CURRENCY-01 | `COMPLETE — BOUNDED MULTI-COMPANY UPGRADE VERIFIED` | A dedicated disposable Odoo 17/PostgreSQL database simulated the pre-currency schema with existing active USD/EUR grants under separate delegator companies. Actual `--update=pdp_authorizer` retained exact maxima/state and assigned each grant its delegator company's currency; manifest version advanced 17.0.5.0.0→17.0.6.0.0; a second update preserved a deliberately selected alternate currency. The final full gate passes 78 post-tests (0 failures/errors), mTLS and all configured concurrency/authority/material-race runners. This does not rehearse a customer backup or all historical upgrade paths. |

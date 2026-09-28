@@ -57,6 +57,54 @@ class PDPDelegationGrant(models.Model):
     )
     notes = fields.Text()
 
+    def _auto_init(self):
+        cr = self.env.cr
+        cr.execute("SELECT to_regclass('public.pdp_delegation_grant')")
+        table_exists = cr.fetchone()[0] is not None
+        currency_column_missing = False
+        if table_exists:
+            cr.execute(
+                """
+                SELECT NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                     WHERE table_schema = current_schema()
+                       AND table_name = 'pdp_delegation_grant'
+                       AND column_name = 'currency_id'
+                )
+                """
+            )
+            currency_column_missing = cr.fetchone()[0]
+
+        result = super()._auto_init()
+        if currency_column_missing:
+            # Legacy max_amount had no denomination. On upgrade, interpret it
+            # in the delegator's primary company currency, not the upgrader's
+            # current company currency. Never overwrite explicitly configured
+            # currencies on later module updates.
+            cr.execute(
+                """
+                UPDATE pdp_delegation_grant AS legacy_grant
+                   SET currency_id = company.currency_id
+                  FROM res_users AS delegator
+                  JOIN res_company AS company ON company.id = delegator.company_id
+                 WHERE legacy_grant.user_id = delegator.id
+                """
+            )
+            cr.execute(
+                """
+                SELECT COUNT(*)
+                  FROM pdp_delegation_grant AS legacy_grant
+                  LEFT JOIN res_users AS delegator ON delegator.id = legacy_grant.user_id
+                  LEFT JOIN res_company AS company ON company.id = delegator.company_id
+                 WHERE company.currency_id IS NULL
+                """
+            )
+            if cr.fetchone()[0]:
+                raise RuntimeError(
+                    "Cannot migrate delegation grant currency: delegator company currency is unavailable."
+                )
+        return result
+
     @api.depends("user_id", "agent_id")
     def _compute_name(self):
         for grant in self:

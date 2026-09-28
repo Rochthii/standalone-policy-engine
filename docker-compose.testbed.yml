@@ -196,12 +196,14 @@ services:
       PDP_TLS_SERVER_NAME: testbed-pdp-mtls
       PDP_E2E_POLICY_SQL: /opt/pdp-e2e/policies.sql
       PDP_E2E_CONCURRENCY_RUNNER: /opt/pdp-e2e/run-odoo-concurrency.py
+      PDP_E2E_CURRENCY_MIGRATION_RUNNER: /opt/pdp-e2e/run-odoo-currency-migration.py
       PYTHONPATH: /opt/pdp-clients
     volumes:
       - ./custom_addons:/mnt/extra-addons:ro
       - ./clients/python:/opt/pdp-clients:ro
       - ./deployments/docker/run-odoo-e2e.py:/opt/pdp-e2e/run-odoo-e2e.py:ro
       - ./deployments/docker/run-odoo-concurrency.py:/opt/pdp-e2e/run-odoo-concurrency.py:ro
+      - ./deployments/docker/run-odoo-currency-migration.py:/opt/pdp-e2e/run-odoo-currency-migration.py:ro
       - ./deployments/docker/odoo_material_race.py:/opt/pdp-e2e/odoo_material_race.py:ro
       - ./deployments/docker/odoo_authority_race.py:/opt/pdp-e2e/odoo_authority_race.py:ro
       - ./deployments/docker/odoo_authority_changes.py:/opt/pdp-e2e/odoo_authority_changes.py:ro
