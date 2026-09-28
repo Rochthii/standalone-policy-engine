@@ -1,0 +1,389 @@
+{
+  "environment": {
+    "arch": "amd64",
+    "cpu_count": 20,
+    "git_commit": "304c1f5",
+    "go": "go1.26.4",
+    "gomaxprocs": 20,
+    "os": "windows",
+    "timer": "time.Now/time.Since monotonic; overhead retained"
+  },
+  "finished_utc": "2026-09-27T14:58:30.429298Z",
+  "fixture": "single compiled permit, amount=1000; CBI golden intent and derived AC; real-clock validity; setup/signing excluded",
+  "kind": "smoke",
+  "method": "warm sequential per-call Go APIs, result predicate and timer overhead included; no DB/RPC; not ERP policy workload",
+  "planned_per_boundary": {
+    "sample": 3,
+    "warmup": 1
+  },
+  "rows": [
+    {
+      "events": [
+        {
+          "boundary": "timer_control",
+          "elapsed_ns": 0,
+          "error_type": null,
+          "id": 1,
+          "parent_id": null
+        }
+      ],
+      "index": 0,
+      "phase": "warmup",
+      "route": "go_micro",
+      "status": "PASS"
+    },
+    {
+      "events": [
+        {
+          "boundary": "evaluator_single_permit",
+          "elapsed_ns": 0,
+          "error_type": null,
+          "id": 1,
+          "parent_id": null
+        }
+      ],
+      "index": 0,
+      "phase": "warmup",
+      "route": "go_micro",
+      "status": "PASS"
+    },
+    {
+      "events": [
+        {
+          "boundary": "proof_v2_verify",
+          "elapsed_ns": 0,
+          "error_type": null,
+          "id": 1,
+          "parent_id": null
+        }
+      ],
+      "index": 0,
+      "phase": "warmup",
+      "route": "go_micro",
+      "status": "PASS"
+    },
+    {
+      "events": [
+        {
+          "boundary": "capability_v1_verify",
+          "elapsed_ns": 0,
+          "error_type": null,
+          "id": 1,
+          "parent_id": null
+        }
+      ],
+      "index": 0,
+      "phase": "warmup",
+      "route": "go_micro",
+      "status": "PASS"
+    },
+    {
+      "events": [
+        {
+          "boundary": "timer_control",
+          "elapsed_ns": 0,
+          "error_type": null,
+          "id": 1,
+          "parent_id": null
+        }
+      ],
+      "index": 0,
+      "phase": "sample",
+      "route": "go_micro",
+      "status": "PASS"
+    },
+    {
+      "events": [
+        {
+          "boundary": "evaluator_single_permit",
+          "elapsed_ns": 0,
+          "error_type": null,
+          "id": 1,
+          "parent_id": null
+        }
+      ],
+      "index": 0,
+      "phase": "sample",
+      "route": "go_micro",
+      "status": "PASS"
+    },
+    {
+      "events": [
+        {
+          "boundary": "proof_v2_verify",
+          "elapsed_ns": 0,
+          "error_type": null,
+          "id": 1,
+          "parent_id": null
+        }
+      ],
+      "index": 0,
+      "phase": "sample",
+      "route": "go_micro",
+      "status": "PASS"
+    },
+    {
+      "events": [
+        {
+          "boundary": "capability_v1_verify",
+          "elapsed_ns": 0,
+          "error_type": null,
+          "id": 1,
+          "parent_id": null
+        }
+      ],
+      "index": 0,
+      "phase": "sample",
+      "route": "go_micro",
+      "status": "PASS"
+    },
+    {
+      "events": [
+        {
+          "boundary": "evaluator_single_permit",
+          "elapsed_ns": 0,
+          "error_type": null,
+          "id": 1,
+          "parent_id": null
+        }
+      ],
+      "index": 1,
+      "phase": "sample",
+      "route": "go_micro",
+      "status": "PASS"
+    },
+    {
+      "events": [
+        {
+          "boundary": "proof_v2_verify",
+          "elapsed_ns": 0,
+          "error_type": null,
+          "id": 1,
+          "parent_id": null
+        }
+      ],
+      "index": 1,
+      "phase": "sample",
+      "route": "go_micro",
+      "status": "PASS"
+    },
+    {
+      "events": [
+        {
+          "boundary": "capability_v1_verify",
+          "elapsed_ns": 0,
+          "error_type": null,
+          "id": 1,
+          "parent_id": null
+        }
+      ],
+      "index": 1,
+      "phase": "sample",
+      "route": "go_micro",
+      "status": "PASS"
+    },
+    {
+      "events": [
+        {
+          "boundary": "timer_control",
+          "elapsed_ns": 0,
+          "error_type": null,
+          "id": 1,
+          "parent_id": null
+        }
+      ],
+      "index": 1,
+      "phase": "sample",
+      "route": "go_micro",
+      "status": "PASS"
+    },
+    {
+      "events": [
+        {
+          "boundary": "proof_v2_verify",
+          "elapsed_ns": 0,
+          "error_type": null,
+          "id": 1,
+          "parent_id": null
+        }
+      ],
+      "index": 2,
+      "phase": "sample",
+      "route": "go_micro",
+      "status": "PASS"
+    },
+    {
+      "events": [
+        {
+          "boundary": "capability_v1_verify",
+          "elapsed_ns": 0,
+          "error_type": null,
+          "id": 1,
+          "parent_id": null
+        }
+      ],
+      "index": 2,
+      "phase": "sample",
+      "route": "go_micro",
+      "status": "PASS"
+    },
+    {
+      "events": [
+        {
+          "boundary": "timer_control",
+          "elapsed_ns": 0,
+          "error_type": null,
+          "id": 1,
+          "parent_id": null
+        }
+      ],
+      "index": 2,
+      "phase": "sample",
+      "route": "go_micro",
+      "status": "PASS"
+    },
+    {
+      "events": [
+        {
+          "boundary": "evaluator_single_permit",
+          "elapsed_ns": 0,
+          "error_type": null,
+          "id": 1,
+          "parent_id": null
+        }
+      ],
+      "index": 2,
+      "phase": "sample",
+      "route": "go_micro",
+      "status": "PASS"
+    }
+  ],
+  "schema": "eval03.v1",
+  "source_sha256": {
+    "go.mod": "7a6a41eaa5743534aab07c3c803020eacb8fa4963c9ce6d1b4934778ece41837",
+    "go.sum": "be78ecaaeacb1795e8c0fccd0865a2bbb31c4084b54130f069517f061e1f3302",
+    "internal/audit/archive.go": "44e9398719ec33c53a28f0005fe9ad06a05a420f7b69a3aa0ebff835f939d0c4",
+    "internal/audit/archive_test.go": "4fd15d022ac9946e687b0076e77db74dfb02d404029d1d37c5e40ae4fdce1eee",
+    "internal/audit/batch.go": "9e6c852a0123601b02b4727567ab421eb1c25fab8541a56c4d251e36c864f0f1",
+    "internal/audit/batch_test.go": "1a4bc209a9ed21b65b89248d65014bafb5da491361702de9a552a2b55c7451a6",
+    "internal/audit/logger.go": "13a776a5fd49242cbbaf3d898e12982d262a58ecc6d97d5551486f71643c7fd0",
+    "internal/audit/logger_test.go": "3cd2e31a5999de0a0b1a98157cbfca3f8beee949010cf7659e62c624f295a950",
+    "internal/audit/redaction.go": "c0fcb7adb940b7332c55293d8194812a8b102d29422b677bcde8b2e4b6f4b131",
+    "internal/audit/secure.go": "634db7c4f0de5986baa20651e1982c968495f89b2d9049ef2946e1803f142213",
+    "internal/audit/spill.go": "34b106cdd1d693309e2b776692003ea7ac500affb8b282458e89a1d53407fa2b",
+    "internal/audit/stream_codec.go": "534588d6f46534ccdbbb8d72b9100d16ab5360b7f9a56a89caa952b9cdef151c",
+    "internal/config/config.go": "4beb3f960cd7062f7a8562c6a50015c3b2199007342c0381db927bee8fe8f580",
+    "internal/config/config_test.go": "dff444bff744bf915aa057c67cfb794732c7787f91fc9178bdccbffd41dcb55d",
+    "internal/config/security.go": "255d42843bf1b8a01f31e6e0dc82f4f170ba02765edb4fd25d8b32b222cd6c3b",
+    "internal/engine/agent_guardrails_test.go": "08336bea5759ebee746b2e08362bac9edd0578ca5cce7f202aed5503cfeb6982",
+    "internal/engine/dag.go": "a5275d3b17e90a3125fbcfd261c7d3a0964ac0fe18550e27346d6e59af151ac6",
+    "internal/engine/decision.go": "120cb16ec2415f8ad53b048f8b3d876add258fcb6c1b4ddb879dbf7dd6c615b0",
+    "internal/engine/decision_revision_test.go": "a99647835c8c64399fd4c627dc848c544ed80915d8e3beb3fff4240bcd1c0b1e",
+    "internal/engine/edge_restore.go": "2e89371a64072905c80dcfa38168f331bbd0485fec4eb40374a70fa3bc7c4fd5",
+    "internal/engine/edge_restore_test.go": "88513446e3a3de660506a3eb1d569b45fdf64b3291f5bada636892180d5a2b6e",
+    "internal/engine/engine.go": "15fde49230c384cdbdc7ac8806459456fd05fddc723133dfbef81d580c1d2cee",
+    "internal/engine/engine_gc.go": "e204418d4cdc08acfcb240d2ed04a61b405f2b1f34de3d844349f925dc5a2fbe",
+    "internal/engine/engine_gc_test.go": "e2f437df829eeb8536b39760162fc5af33d95ea74cb52695cb87c79596bd73ca",
+    "internal/engine/engine_test.go": "82bfde8a578f81f0131e4db5b8f9c4de2941825281fa09aea643afaeb10a96af",
+    "internal/engine/evaluator.go": "ef69c8c73471abf3fdea2f6700ffcb4d4ffa1e6a8ee8ab9dbd4736e85542fe91",
+    "internal/engine/evaluator_test.go": "fd44c3f5e4e46d2eaf1a57cae63120988b114a492bb0379811645a04dc6301fd",
+    "internal/engine/state_writer.go": "4fc57bbcaf72f68c8ba5f79ce57c25db685824c1f4f31300b116f71b04f42edd",
+    "internal/engine/state_writer_test.go": "9e9a6d687947cad3a5ea27ca31632ae4e3ff168386866a49a18b5eeb217f69e7",
+    "internal/engine/sync.go": "12596af1d6af7ba1b9d39205740f9e412999000cf1b152ace580e9f14238039d",
+    "internal/engine/sync_lifecycle_test.go": "c0a62262bc8b5b7e5293bf248bb3cca1895e24a1048ef18e351cb9ea732d387d",
+    "internal/engine/trie.go": "7e8f3a7185b3726bc9c979c9d8799555a0bd763f22e88dbcb3c6d71feb1f0ce5",
+    "internal/engine/trie_test.go": "b2f26c19172e643ac77a728d1c1eed8018762304bef05985c9508a1380d4bfb1",
+    "internal/metrics/metrics.go": "4b5b48ee69ea59864cb7d6ffd329aa9093de589411c94af2ba2d3e0753d77b14",
+    "internal/parser/ast.go": "0b72b29012256521ffd5ea7155d4269d6784f5362cc970b96840a445030dd9a1",
+    "internal/parser/compiler.go": "2334c913084dd3ca9616ea7e9eb7dfa610b922b148ca2b9eb77c39bf1699386d",
+    "internal/parser/lexer.go": "06ddc05127ff3b8d31d45c4c6439da4566d1b58f16a01865c881d08d5901a6eb",
+    "internal/parser/obligation.go": "80d11b33e3776dfeb19adb47f7df0a6a70b9b3a2089ad4bfa72c80abdfdd202a",
+    "internal/parser/obligation_test.go": "8cc02e9afd3650cb824e90a6765dd781ade493539395168f1c062a0e945c99cf",
+    "internal/parser/parser.go": "ac89c37a255c267f67671e81bb24c9a418a4e7a098a74aea05794bd9d5ebcd9c",
+    "internal/parser/parser_test.go": "cd895281029fdb9ce9ef89571e11178398f0d1b8e8cc11a92d03ebf5d169d834",
+    "internal/parser/policy_set.go": "7b2bdd6832937bd75bf9e62e110beb500bce2eb60b5e8e8414c6a0d770f30eea",
+    "internal/parser/policy_set_test.go": "f96da7d0bdf3b515dca9fbd89b31b66641477ce12f27cd82e3ca5f683c102e32",
+    "internal/pectl/client.go": "7ae91667d656ccd56e56ac5098c1113403347161abd6143186e9a6d6cc1f86c5",
+    "internal/pectl/client_test.go": "748000041c2116ae842195dbeb4db2dffa0c05d454168a4d3d74e0d89d42ade2",
+    "internal/pectl/commands/check.go": "b1d52592a4835bb8c952b9220f5b6a0472da51c6778956ebd759f5cf5d663f33",
+    "internal/pectl/commands/explain.go": "b0f4b37f6cc85a90ede139e78fdd9ecf74bb8741c1f9285e52437a6d347c5430",
+    "internal/pectl/commands/health.go": "861c854159580444e8405215c75455d2655d3716cb87c7c7cd6ec3dc57051c57",
+    "internal/pectl/commands/metrics.go": "1e0e887880bae3003a7ff80ff57b596d5ad1b20a8f6430a6cea156898d785d15",
+    "internal/pectl/commands/policy.go": "c118c98dbc68279e1711e69b99b658e2c183324bc0aeee797b21a583cd9ac5f4",
+    "internal/pectl/commands/root.go": "3887a6f87bdd475f9955834732be71b0d351c84d7487fd1d0cf2494393cfe7ea",
+    "internal/pectl/commands/simulate.go": "a12a8ed8479005a6fdf4365468e89f2617eeed99f182fc5d49f7994236eea7c6",
+    "internal/pectl/commands/tenant.go": "d15f6ef28c8beb9b7d3c79dc819f9588be439e0f727919d7fe228e6f0082288b",
+    "internal/pectl/commands/version.go": "545951731ce86687f0caf155162a1281ed2deb2e0f301ad59868488bbd8074f5",
+    "internal/pectl/config.go": "03d50a48a5fadbd40f529ad32e4bc5e2d5a3587f7f175b7531538a5a5d766c2c",
+    "internal/pectl/config_test.go": "4a57d344615664a50a4a98539b8e16594487913bdd4c760ef338a2c53fa9592b",
+    "internal/pectl/output.go": "2bd2644f09a7cafd121fee71b0660b891915f168f311e418cb76de907ad6782d",
+    "internal/pectl/printer/json.go": "cbfc19a2e40681b3087662646e92c24b0fc62ae63ca37ca2b1af20caa20c1137",
+    "internal/pectl/printer/printer_test.go": "49aaa1e23875981738e2104858f9ac4c106b306c434de85f69bdb227d2d09853",
+    "internal/pectl/printer/table.go": "e14f70d4d9314bb0a62ea65d56e335ba99351fbfe6ab9f4d601b8c1f0e6c2432",
+    "internal/pectl/types.go": "ce74c079926857b10c24aa87853c6d64d72bc67ac2e29efab5b65ac4e0a66535",
+    "internal/security/approval_capability.go": "5d2174dacf5b64fe7f4406707719156ca52e7dfc0adc9aa7d3ae7c3120285751",
+    "internal/security/approval_capability_test.go": "90df5d17b8c783abf8272894f25c877c72547ccb5c889c186383f0be068c4e5e",
+    "internal/security/canonical_business_intent.go": "54e578de1f5f84c5a6d04809ce8a38d12d5757f7445466eed50ff90923572b5d",
+    "internal/security/canonical_business_intent_test.go": "40d265872729994a324b596e343bac64bbf911010ceddc58c45e0b03b8ce1b3d",
+    "internal/security/canonical_encoding.go": "d9f2c385792d4c66be53a2d489f7e064d7f5aa955d385eb0af278711e9782c48",
+    "internal/security/canonical_purchase_order_lines.go": "fdeb00f10cc5bd99a54ed515d5b4bc3afadd8560a93b02db9dea5fa6aad4350b",
+    "internal/security/cbi_v2_golden_test.go": "91b91e6e05991690f68412b590cfc717a4874082cc70ecb873ae5ebc2b595315",
+    "internal/security/crypto.go": "4cf265ef148fee67f729cc214b533d278750303b6802678590ff2e1cb0fb2b66",
+    "internal/security/crypto_test.go": "c657d4f3668a9f3bd7e50deaac7cb90bb9a921b6fc34d33939f65ad9b37d9148",
+    "internal/security/delegation.go": "00bac9172a9688924ef765cfc849a736573cdd5f36cd63810dd489d6eb50cf46",
+    "internal/security/delegation_proof.go": "5545359c3eddaf54fbbb9429aa6da1a37e6a91b260511fe65e8fc0509eb63e6b",
+    "internal/security/delegation_proof_v2.go": "3235feab196c2a17c08cb481b691a322e94a74a9723a5dbeb7d7b13086ed9ed4",
+    "internal/security/delegation_proof_v2_test.go": "685b37c9dc9db770dd82c88fdf9fd42f36ac6d5b55a6b7c8d131f87498cc087e",
+    "internal/security/delegation_python_compat_test.go": "bc8879644100e9ec118afd308be18c5ebb50898443539b699a695960005a7040",
+    "internal/security/delegation_test.go": "c0b7538a0eae66fa18e9abc3fbb7312f28b32e4e1265acedbfbb414d43498247",
+    "internal/security/eval_latency_test.go": "f5453afbaa2aee63523eb7e06105c92e093105b30e9ab37091b73a4357f09b99",
+    "internal/security/jwt.go": "c446dcea1eeb2f24da98766db88ab4723401566268da99b2a41271c107a4c82c",
+    "internal/security/jwt_test.go": "69934708f045c6db595573b6a771773248209379a8997bcc1b56fca666c31812",
+    "internal/security/revocation_sync.go": "eb47f1095e43252a78c4a1452bd5e883666b93c6f194049ec1f324d512fec6c4",
+    "internal/security/revocation_sync_test.go": "77aeff25984313d84757d2f97cbbd46897206957d9fea0e3c9c09c29752bc0b4",
+    "internal/security/testdata/cbi_v1_golden.json": "28d1fd2c86d3821c3204c879f167d55de8e4201240811aee4716fd13489222e9",
+    "internal/server/delegation_auth.go": "6c5009dbf1eeed4dd5ea6f1dbe8c3ceb29435c43454efe51608a9315d344175a",
+    "internal/server/delegation_auth_v2.go": "84dcb5132b959a7dd907e3cd0f55590f4f311cb49c345df9125a51ef5d94c986",
+    "internal/server/delegation_auth_v2_test.go": "2e9996546b3f96e79bcbba9d585ffb4456f16f7de8b3ef8f75be9fe704d5868d",
+    "internal/server/grpc_approval.go": "299c19233fea0ed003cff181ad051f3342891ee55a271204b0d317b313e29056",
+    "internal/server/grpc_approval_test.go": "9c3f9123cc62a382c2b01d36841068ce016213bb143e01bc2abe15201d3567c0",
+    "internal/server/grpc_auth.go": "d753613a263d84eaf69041758430dda9a1ae38de745edda915a9825d54588b47",
+    "internal/server/grpc_erp_fence_test.go": "e3493769235e559fda3091b081ae620a90fcfc0807172435c4b94c15f267d26b",
+    "internal/server/grpc_explain.go": "c9cb0e27ab986a255726d4068636bb4b7c35e781bf89aea42ed749c10c8662fd",
+    "internal/server/grpc_revoke.go": "ad828d3c2f11a34371d5f4dabfb3ef6d02dab14db95c089e79accd6badb537bd",
+    "internal/server/grpc_revoke_auth_test.go": "3ac3553f91136a285e0b37c7844b19e73221aebfd6645cc2266e717b6e9257a9",
+    "internal/server/grpc_runtime_test.go": "b5e45f731e79639971a1adb812330180c735ee8a876300088d458b302e084226",
+    "internal/server/grpc_server.go": "6a9cd3c2e43edab4250c9360c26726b0fc3de1c428d5c8b6304bb6d57d6cd9a2",
+    "internal/server/grpc_server_test.go": "6779ad74b72aad9e324cf7d6225d08c20c0595153a1b47e58b0fa069c3cf3c64",
+    "internal/server/grpc_test_auth_test.go": "6c250f54676f24d15cb22d603891a399bfc4c83b35394e28c949e7dc6f2b12aa",
+    "internal/server/grpc_transport.go": "f67563fc00353a1860926341e8399ad1bc492b40938fbb87b5841e54bd9aa062",
+    "internal/server/handlers_decision.go": "ae1cc308b7e2a3704ade2a522f6c0a9d35d50534b5edeff1a7c9eb4acba16060",
+    "internal/server/handlers_policy.go": "bfddb668b179e18618f79303f9510314188b2a36d9005783808ae58cd03db401",
+    "internal/server/handlers_tenant.go": "c68e07efa12cb14ab692be03e65162f14da6f713630379d29e876b93023bddf6",
+    "internal/server/health.go": "0136bfe731eb2aa4eae8d7aefff34153c494bc0a55d9feb34aef8c11f467f3b6",
+    "internal/server/health_test.go": "6247fa86c336f38cff2add77bdb3b15e1c74955d5d9e12d69facfdfb488a76b5",
+    "internal/server/http_server.go": "810693bb39a2b6c1985c3fdf716648f8945df121a92263c7bb5ca7137f6ad1a1",
+    "internal/server/http_server_test.go": "a2141a3d0a9f9bf3aab68e6f4a299ba35d422cb1c21d22db81e90f8f5ec82180",
+    "internal/server/middleware.go": "3c0af1e88d8392f67e631fc15ef880fe9691a17b59dece20e75b0e10687cb082",
+    "internal/server/middleware_test.go": "1153f78517fb8df30ac392d300b755812690d83efcb5a097ef84faea13dc6650",
+    "internal/server/replay_buffer.go": "9a5037b1a0105ff2c268598e206998401858095e72deadda1defa9d68f05865e",
+    "internal/server/replay_buffer_test.go": "eeb7818c67ee59a7ebb6c50313a72edeff7868dc59a4e441cb2006c935b7a465",
+    "internal/server/rest_decision_auth_test.go": "26ce53b9167b50688e977b7d8f9f869f49192b599e84d08219cf1436d7bfc32f",
+    "internal/storage/badger.go": "91c86ace53a27d519a85a6a0d704bfbf35b7dc8d449e86cdb55c4fc3aa8fec54",
+    "internal/storage/badger_test.go": "57691953e5be08071b952122e54a2edda0dd5ae9ca36698aecfd83fb0c576c5e",
+    "internal/storage/erp_policy_fence.go": "cac9250c347b0c013078ebe6ae685ada4c7f294aeccae1afd299dd8a27387aad",
+    "internal/storage/erp_policy_fence_test.go": "8520bfba3439d65a74e5623d246ba0374df2335169977c8df55cd9c75b4db801",
+    "internal/storage/erp_revocation_fence.go": "bdd4225c01d5ed1ae3266ab609a2c7548bd666c6e3c6780374d43f34162775fa",
+    "internal/storage/erp_revocation_fence_test.go": "cef605cabdb3e5dc165e1cd770dc7d4114729ae58232d4282595da195c2c6204",
+    "internal/storage/policy_bundle.go": "7f3fed088424973fb0ab37d4d00dd06de917b639853ded2b0f3cea45d6a79020",
+    "internal/storage/policy_bundle_test.go": "6e5d3de290da895c8afa0b300f1eaa66e8cfa2bef35a0fe87ec87a5dde366b1a",
+    "internal/storage/policy_transaction_integration_test.go": "8f54cb000f762994f03dbe0c3b4737eaee0fca8d323e65cbc2b830b2764b551d",
+    "internal/storage/postgres.go": "83f14e2b4e1a964aafae467db4238145bfb2300f98fa8b5f661cd6a46ce73044",
+    "internal/storage/postgres_test.go": "4b83a150771eabc488da8c8bd0b93bc4f62670c60f808138d9e25fc13a429bda",
+    "internal/storage/revocation.go": "419c0bcfea656540afa9687c12261680bcf5a8a2ba40ca72f7b14aa10360e6c0",
+    "internal/storage/revocation_integration_test.go": "ca48b75770dd40e7e541fe79987f3a1d390aa6b206403d500cdb29b5324ee625",
+    "internal/testutil/postgres.go": "ca970d2e373a0df2d9733b202be5c39c302a41eecd134d6a4ad4d898bc16853d"
+  },
+  "started_utc": "2026-09-27T14:58:30.429298Z",
+  "status": "PASS"
+}

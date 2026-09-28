@@ -1,0 +1,361 @@
+{
+  "schema": "eval03-summary.v1",
+  "runs": [
+    {
+      "source": "docs\\technical-spec\\evidence\\V2_EVAL_03_GO_SMOKE_20260927T1458279269811Z.json",
+      "sha256": "4754aa36e42d659386b48666b3d0e311cd3613ae2be87a01d6654d18bdd1df2a",
+      "kind": "smoke",
+      "summary": {
+        "go_micro/capability_v1_verify": {
+          "attempts": 3,
+          "errors": 0,
+          "successful": {
+            "count": 3,
+            "p50_ns": 0.0,
+            "p95_ns": 0.0,
+            "p99_ns": 0.0,
+            "max_ns": 0
+          },
+          "unsuccessful": {
+            "count": 0,
+            "p50_ns": null,
+            "p95_ns": null,
+            "p99_ns": null,
+            "max_ns": null
+          }
+        },
+        "go_micro/evaluator_single_permit": {
+          "attempts": 3,
+          "errors": 0,
+          "successful": {
+            "count": 3,
+            "p50_ns": 0.0,
+            "p95_ns": 0.0,
+            "p99_ns": 0.0,
+            "max_ns": 0
+          },
+          "unsuccessful": {
+            "count": 0,
+            "p50_ns": null,
+            "p95_ns": null,
+            "p99_ns": null,
+            "max_ns": null
+          }
+        },
+        "go_micro/proof_v2_verify": {
+          "attempts": 3,
+          "errors": 0,
+          "successful": {
+            "count": 3,
+            "p50_ns": 0.0,
+            "p95_ns": 0.0,
+            "p99_ns": 0.0,
+            "max_ns": 0
+          },
+          "unsuccessful": {
+            "count": 0,
+            "p50_ns": null,
+            "p95_ns": null,
+            "p99_ns": null,
+            "max_ns": null
+          }
+        },
+        "go_micro/timer_control": {
+          "attempts": 3,
+          "errors": 0,
+          "successful": {
+            "count": 3,
+            "p50_ns": 0.0,
+            "p95_ns": 0.0,
+            "p99_ns": 0.0,
+            "max_ns": 0
+          },
+          "unsuccessful": {
+            "count": 0,
+            "p50_ns": null,
+            "p95_ns": null,
+            "p99_ns": null,
+            "max_ns": null
+          }
+        }
+      }
+    },
+    {
+      "source": "docs\\technical-spec\\evidence\\V2_EVAL_03_ODOO_20260927T145507072127Z.json",
+      "sha256": "cce0a8380595731ae80c6822135089a3aaf4968012b6338a47a3e4d79352f811",
+      "kind": "smoke",
+      "summary": {
+        "approved/commit": {
+          "attempts": 2,
+          "errors": 0,
+          "successful": {
+            "count": 2,
+            "p50_ns": 20216609.0,
+            "p95_ns": 20746305.8,
+            "p99_ns": 20793389.96,
+            "max_ns": 20805161
+          },
+          "unsuccessful": {
+            "count": 0,
+            "p50_ns": null,
+            "p95_ns": null,
+            "p99_ns": null,
+            "max_ns": null
+          }
+        },
+        "approved/confirm_through_commit": {
+          "attempts": 2,
+          "errors": 0,
+          "successful": {
+            "count": 2,
+            "p50_ns": 54917845.0,
+            "p95_ns": 54964905.1,
+            "p99_ns": 54969088.22,
+            "max_ns": 54970134
+          },
+          "unsuccessful": {
+            "count": 0,
+            "p50_ns": null,
+            "p95_ns": null,
+            "p99_ns": null,
+            "max_ns": null
+          }
+        },
+        "approved/locked_cbi": {
+          "attempts": 6,
+          "errors": 0,
+          "successful": {
+            "count": 6,
+            "p50_ns": 3025407.5,
+            "p95_ns": 3753114.75,
+            "p99_ns": 3818182.95,
+            "max_ns": 3834450
+          },
+          "unsuccessful": {
+            "count": 0,
+            "p50_ns": null,
+            "p95_ns": null,
+            "p99_ns": null,
+            "max_ns": null
+          }
+        },
+        "approved/native_button_approve": {
+          "attempts": 2,
+          "errors": 0,
+          "successful": {
+            "count": 2,
+            "p50_ns": 446944.5,
+            "p95_ns": 465508.35,
+            "p99_ns": 467158.47,
+            "max_ns": 467571
+          },
+          "unsuccessful": {
+            "count": 0,
+            "p50_ns": null,
+            "p95_ns": null,
+            "p99_ns": null,
+            "max_ns": null
+          }
+        },
+        "approved/protected_button_confirm": {
+          "attempts": 2,
+          "errors": 0,
+          "successful": {
+            "count": 2,
+            "p50_ns": 34685909.0,
+            "p95_ns": 35262957.5,
+            "p99_ns": 35314250.7,
+            "max_ns": 35327074
+          },
+          "unsuccessful": {
+            "count": 0,
+            "p50_ns": null,
+            "p95_ns": null,
+            "p99_ns": null,
+            "max_ns": null
+          }
+        },
+        "approved/python_proof_sign": {
+          "attempts": 2,
+          "errors": 0,
+          "successful": {
+            "count": 2,
+            "p50_ns": 73820.5,
+            "p95_ns": 76540.75,
+            "p99_ns": 76782.55,
+            "max_ns": 76843
+          },
+          "unsuccessful": {
+            "count": 0,
+            "p50_ns": null,
+            "p95_ns": null,
+            "p99_ns": null,
+            "max_ns": null
+          }
+        },
+        "approved/rpc_check_access": {
+          "attempts": 4,
+          "errors": 0,
+          "successful": {
+            "count": 4,
+            "p50_ns": 1070531.5,
+            "p95_ns": 1328596.35,
+            "p99_ns": 1332617.67,
+            "max_ns": 1333623
+          },
+          "unsuccessful": {
+            "count": 0,
+            "p50_ns": null,
+            "p95_ns": null,
+            "p99_ns": null,
+            "max_ns": null
+          }
+        },
+        "approved/rpc_verify_capability": {
+          "attempts": 2,
+          "errors": 0,
+          "successful": {
+            "count": 2,
+            "p50_ns": 1018662.5,
+            "p95_ns": 1046464.85,
+            "p99_ns": 1048936.17,
+            "max_ns": 1049554
+          },
+          "unsuccessful": {
+            "count": 0,
+            "p50_ns": null,
+            "p95_ns": null,
+            "p99_ns": null,
+            "max_ns": null
+          }
+        },
+        "direct/commit": {
+          "attempts": 2,
+          "errors": 0,
+          "successful": {
+            "count": 2,
+            "p50_ns": 17694307.5,
+            "p95_ns": 19132902.15,
+            "p99_ns": 19260777.23,
+            "max_ns": 19292746
+          },
+          "unsuccessful": {
+            "count": 0,
+            "p50_ns": null,
+            "p95_ns": null,
+            "p99_ns": null,
+            "max_ns": null
+          }
+        },
+        "direct/confirm_through_commit": {
+          "attempts": 2,
+          "errors": 0,
+          "successful": {
+            "count": 2,
+            "p50_ns": 50795287.0,
+            "p95_ns": 52052598.7,
+            "p99_ns": 52164359.74,
+            "max_ns": 52192300
+          },
+          "unsuccessful": {
+            "count": 0,
+            "p50_ns": null,
+            "p95_ns": null,
+            "p99_ns": null,
+            "max_ns": null
+          }
+        },
+        "direct/locked_cbi": {
+          "attempts": 2,
+          "errors": 0,
+          "successful": {
+            "count": 2,
+            "p50_ns": 3572080.5,
+            "p95_ns": 3816348.15,
+            "p99_ns": 3838060.83,
+            "max_ns": 3843489
+          },
+          "unsuccessful": {
+            "count": 0,
+            "p50_ns": null,
+            "p95_ns": null,
+            "p99_ns": null,
+            "max_ns": null
+          }
+        },
+        "direct/native_button_approve": {
+          "attempts": 2,
+          "errors": 0,
+          "successful": {
+            "count": 2,
+            "p50_ns": 412909.0,
+            "p95_ns": 433911.4,
+            "p99_ns": 435778.28,
+            "max_ns": 436245
+          },
+          "unsuccessful": {
+            "count": 0,
+            "p50_ns": null,
+            "p95_ns": null,
+            "p99_ns": null,
+            "max_ns": null
+          }
+        },
+        "direct/protected_button_confirm": {
+          "attempts": 2,
+          "errors": 0,
+          "successful": {
+            "count": 2,
+            "p50_ns": 33084336.0,
+            "p95_ns": 33267928.8,
+            "p99_ns": 33284248.16,
+            "max_ns": 33288328
+          },
+          "unsuccessful": {
+            "count": 0,
+            "p50_ns": null,
+            "p95_ns": null,
+            "p99_ns": null,
+            "max_ns": null
+          }
+        },
+        "direct/python_proof_sign": {
+          "attempts": 2,
+          "errors": 0,
+          "successful": {
+            "count": 2,
+            "p50_ns": 70208.5,
+            "p95_ns": 72122.35,
+            "p99_ns": 72292.47,
+            "max_ns": 72335
+          },
+          "unsuccessful": {
+            "count": 0,
+            "p50_ns": null,
+            "p95_ns": null,
+            "p99_ns": null,
+            "max_ns": null
+          }
+        },
+        "direct/rpc_check_access": {
+          "attempts": 2,
+          "errors": 0,
+          "successful": {
+            "count": 2,
+            "p50_ns": 1603424.0,
+            "p95_ns": 1758674.0,
+            "p99_ns": 1772474.0,
+            "max_ns": 1775924
+          },
+          "unsuccessful": {
+            "count": 0,
+            "p50_ns": null,
+            "p95_ns": null,
+            "p99_ns": null,
+            "max_ns": null
+          }
+        }
+      }
+    }
+  ]
+}

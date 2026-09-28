@@ -1,5 +1,7 @@
 # BENCHMARK_REPRODUCIBILITY.md — Đặc Tả Tái Lập Thực Nghiệm & Test Vectors
 
+> **EVAL-03 status (2026-09-27):** [Bounded measurements and accepted raw artifacts](evidence/V2_EVAL_03_MEASUREMENT_2026_09_27.md) are complete. The corrected Go run and retained Odoo run pass their stated checks. Include the timer-control distribution and QPC overhead/quantization caveat beside Go metrics; no intrinsic engine latency, causal approval overhead or speedup claim follows.
+
 > **Audit notice (updated 2026-09-19):** Các số liệu core evaluator phải được diễn giải đúng phạm vi in-memory. Mô hình Odoo `time.sleep`/PDP hardcoded đã bị loại bỏ; phép đo hiện hành là Odoo purchase-confirmation so với Odoo-to-PDP mTLS gRPC trên commit `e243db5`. Đây chỉ là một workload cấp quyền ấm, không phải tuyên bố speedup chung cho ERP. Xem [`ODOO_ORM_COMPARISON_2026_09_15.md`](./evidence/ODOO_ORM_COMPARISON_2026_09_15.md), [`CURRENT_STATE_AUDIT.md`](./CURRENT_STATE_AUDIT.md) và gate G0/G9 trong [`PRODUCTION_READINESS_CHECKLIST.md`](./PRODUCTION_READINESS_CHECKLIST.md).
 
 > **Cách dùng:** `CURRENT_STATE_AUDIT.md` là nguồn claim hiện hành; các phần bên dưới giữ test vector và output lịch sử để tái lập/phân tích, không phải bảng kết quả luận văn mới nhất.
