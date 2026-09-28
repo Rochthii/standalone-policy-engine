@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"log"
+	"strconv"
 	"time"
 
 	"standalone-policy-engine/internal/audit"
@@ -117,6 +118,13 @@ func (s *GRPCServer) CheckAccess(ctx context.Context, req *policyv1.CheckAccessR
 	}
 	req.Subject = sub
 	req.Context = trustedContext
+	fenceScope := req.Context["erp.revocation_fence"]
+	if fenceScope != "" {
+		fence, ok := s.revocationStore.(interface{ ERPRevocationFenceScope() string })
+		if !ok || fence.ERPRevocationFenceScope() != fenceScope {
+			return nil, status.Error(codes.FailedPrecondition, "required ERP revocation fence is not configured")
+		}
+	}
 
 	if grantID := req.Context["delegation_grant_id"]; grantID != "" {
 		if s.delegationMgr != nil && !s.delegationMgr.RevocationReady() {
@@ -133,6 +141,17 @@ func (s *GRPCServer) CheckAccess(ctx context.Context, req *policyv1.CheckAccessR
 	}
 
 	result := s.engine.CheckPermission(ctx, req.TenantId, req.Subject, req.Action, req.Resource, req.Context)
+	if fenceScope != "" {
+		fence, ok := s.revocationStore.(interface {
+			EnsureERPPolicyRevision(context.Context, string, uint64) error
+		})
+		if !ok {
+			return nil, status.Error(codes.FailedPrecondition, "ERP policy fence is not configured")
+		}
+		if err := fence.EnsureERPPolicyRevision(ctx, req.TenantId, result.PolicyRevision); err != nil {
+			return nil, status.Error(codes.Unavailable, "ERP policy fence is unavailable")
+		}
+	}
 	if err := ctx.Err(); err != nil {
 		if err == context.DeadlineExceeded {
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded: %v", err)
@@ -149,7 +168,7 @@ func (s *GRPCServer) CheckAccess(ctx context.Context, req *policyv1.CheckAccessR
 	}
 	if s.auditLogger != nil {
 		s.auditLogger.Log(
-			s.engine.GetTenantRevision(req.TenantId),
+			result.PolicyRevision,
 			req.TenantId,
 			req.Subject,
 			req.Action,
@@ -168,6 +187,10 @@ func (s *GRPCServer) CheckAccess(ctx context.Context, req *policyv1.CheckAccessR
 		Decision:        decisionValue,
 		MatchedPolicyId: matchedPolicyID,
 		Obligations:     protocolObligations(result.Obligations),
+		Advice: map[string]string{
+			"erp.revocation_fence": fenceScope,
+			"erp.policy_revision":  strconv.FormatUint(result.PolicyRevision, 10),
+		},
 	}, nil
 }
 

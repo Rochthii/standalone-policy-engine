@@ -28,6 +28,14 @@ func main() {
 		log.Fatalf("[Control-Plane] Khởi tạo DB Storage thất bại: %v", err)
 	}
 	defer store.Close()
+	if cfg.Database.ERPRevocationURL != "" {
+		fence, err := storage.NewERPRevocationStore(store, cfg.Database.ERPRevocationURL)
+		if err != nil {
+			log.Fatalf("[Control-Plane] ERP authority fence configuration failed: %v", err)
+		}
+		defer fence.Close()
+		store.SetERPPolicyFence(fence)
+	}
 	log.Println("[Control-Plane] Kết nối PostgreSQL thành công.")
 
 	// 2. Khởi tạo Engine có GC để phục vụ cho API REST Fallback /decisions

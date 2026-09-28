@@ -49,15 +49,17 @@ when {
     context.execution_mode == "autonomous_run"
 };
 
-// RULE 5: Rào chắn cấm AI tự động duyệt PO vượt trần tự hành (> $2,000)
-// (Chống Prompt Injection & Kích hoạt Human-in-the-Loop)
-forbid(
+// RULE 5: Cho phép xem xét PO cao tiền nhưng bắt buộc AC trước khi thực thi.
+// Hard FORBID khác vẫn ưu tiên và không thể bị AC vượt qua.
+permit(
     principal == agent:procurement_copilot,
     action    == action:CONFIRM_PURCHASE_ORDER,
     resource  == any
 )
 when {
-    context.amount > 2000
+    context.amount > 2000 &&
+    context.tool_context == "tool:auto_confirm_po" &&
+    context.execution_mode == "autonomous_run"
 }
 obligation REQUIRE_HUMAN_APPROVAL "Autonomous agent spending requires human approval"
 ;
@@ -82,6 +84,7 @@ permit(
     resource  == any
 )
 when {
-    context.approval_state == "pending" &&
+    (context.approval_state == "pending" ||
+     context.approval_state == "approved") &&
     principal.department == resource.department
 };

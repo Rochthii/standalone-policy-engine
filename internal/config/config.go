@@ -32,7 +32,8 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	URL string
+	URL              string
+	ERPRevocationURL string
 }
 
 type EngineConfig struct {
@@ -168,7 +169,8 @@ func Load() (*Config, error) {
 			GRPCMaxSendBytes:    grpcMaxSendBytes,
 		},
 		Database: DatabaseConfig{
-			URL: dbURL,
+			URL:              dbURL,
+			ERPRevocationURL: strings.TrimSpace(getEnv("PDP_ERP_REVOCATION_DATABASE_URL", "")),
 		},
 		Engine: EngineConfig{
 			StorageMode:       strings.ToLower(getEnv("STORAGE_MODE", "cloud")),

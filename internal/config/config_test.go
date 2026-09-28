@@ -79,6 +79,7 @@ func TestConfigRuntimeEnvironmentBindings(t *testing.T) {
 		"ZITI_IDENTITY_PATH":                  "/run/ziti/pdp.json",
 		"ZITI_SERVICE_NAME":                   "pdp-private-service",
 		"DATABASE_URL":                        "postgres://test:secret@db.internal:5432/pdp?sslmode=require",
+		"PDP_ERP_REVOCATION_DATABASE_URL":     "postgres://test:secret@db.internal:5432/odoo?sslmode=require",
 		"STORAGE_MODE":                        "edge",
 		"BADGER_DATA_DIR":                     "/var/lib/pdp/badger",
 		"DISABLE_GC":                          "true",
@@ -119,6 +120,7 @@ func TestConfigRuntimeEnvironmentBindings(t *testing.T) {
 		t.Fatal(err)
 	}
 	if cfg.AppEnv != "test" || cfg.Database.URL != values["DATABASE_URL"] ||
+		cfg.Database.ERPRevocationURL != values["PDP_ERP_REVOCATION_DATABASE_URL"] ||
 		cfg.Server.HTTPPort != 18080 || cfg.Server.GRPCPort != 15051 ||
 		cfg.Server.EvaluationTimeout != 250*time.Millisecond ||
 		cfg.Server.GRPCMaxReceiveBytes != 4096 || cfg.Server.GRPCMaxSendBytes != 8192 ||

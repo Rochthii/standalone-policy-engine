@@ -158,7 +158,9 @@ func (e *EngineWithGC) CheckPermission(ctx context.Context, tenantID, subject, a
 	}
 
 	// Delegate sang decision engine core
-	return CheckPermission(ctx, trie, subject, action, resource, ctxMap)
+	result := CheckPermission(ctx, trie, subject, action, resource, ctxMap)
+	result.PolicyRevision = trie.Revision
+	return result
 }
 
 // GetTenantRevision lấy số hiệu phiên bản (Revision ID) hiện tại của một Tenant.

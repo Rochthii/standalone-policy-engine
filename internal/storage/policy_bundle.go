@@ -77,7 +77,7 @@ func (s *Storage) GetTenantPolicyBundle(ctx context.Context, tenantID string) (*
 
 // ReplaceRoleInheritances atomically replaces one tenant's role graph and
 // advances the same revision/event stream used by policy changes.
-func (s *Storage) ReplaceRoleInheritances(ctx context.Context, tenantID string, inheritances [][2]string) error {
+func (s *Storage) replaceRoleInheritances(ctx context.Context, tenantID string, inheritances [][2]string) error {
 	if err := validateRoleInheritances(inheritances); err != nil {
 		return err
 	}

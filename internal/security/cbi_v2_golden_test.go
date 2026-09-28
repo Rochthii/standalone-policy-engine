@@ -135,6 +135,8 @@ func TestDelegationProofV2RejectsMaterialTamperMatrix(t *testing.T) {
 	}
 
 	intentCases := map[string]func(*CanonicalBusinessIntent){
+		"tenant":         func(v *CanonicalBusinessIntent) { v.TenantID = "other-tenant" },
+		"company":        func(v *CanonicalBusinessIntent) { v.CompanyID++ },
 		"amount":         func(v *CanonicalBusinessIntent) { v.AmountMinor++ },
 		"currency":       func(v *CanonicalBusinessIntent) { v.CurrencyCode = "EUR" },
 		"vendor":         func(v *CanonicalBusinessIntent) { v.VendorID++ },

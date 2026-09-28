@@ -1,6 +1,7 @@
 package security
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
 	"time"
@@ -99,6 +100,26 @@ func TestDelegationManagerV2RejectsDowngradeAndKeyConfusion(t *testing.T) {
 	}
 	if err := manager.VerifyProof(v1Input, v2Proof); err == nil {
 		t.Fatal("V2 proof was accepted by V1 verifier")
+	}
+}
+
+func TestApprovalCapabilitySignatureCannotAuthorizeDelegationProof(t *testing.T) {
+	approvalManager := testApprovalManager(t)
+	capability, envelope, err := approvalManager.Issue(
+		testApprovalCapability(), approvalManager.now().Unix()+3600,
+	)
+	if err != nil {
+		t.Fatalf("issue approval capability: %v", err)
+	}
+	if err := approvalManager.Verify(capability, envelope); err != nil {
+		t.Fatalf("issued capability was not valid: %v", err)
+	}
+	delegationManager := NewDelegationManagerWithSecret("test-delegation-secret-at-least-32-characters")
+	input := validDelegationV2Input(t)
+	approvalSignature := ApprovalCapabilityVersion + "." + envelope.KeyID + "." +
+		base64.RawURLEncoding.EncodeToString(envelope.Signature)
+	if err := delegationManager.VerifyProofV2(input, approvalSignature); err == nil {
+		t.Fatal("approval capability signature authorized a delegation proof")
 	}
 }
 

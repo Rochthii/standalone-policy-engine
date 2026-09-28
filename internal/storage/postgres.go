@@ -37,6 +37,7 @@ type DBPolicy struct {
 type Storage struct {
 	pool           *pgxpool.Pool
 	policyNotifier policyNotifier
+	erpPolicyFence *ERPRevocationStore
 }
 
 type policyNotifier func(context.Context, pgx.Tx, string) error
@@ -153,7 +154,7 @@ func (s *Storage) CreatePolicy(ctx context.Context, tenantID, effect, policyText
 }
 
 // UpdatePolicy cập nhật nội dung văn bản thô của một chính sách (reset về DRAFT).
-func (s *Storage) UpdatePolicy(ctx context.Context, tenantID, policyID, policyText string) error {
+func (s *Storage) updatePolicy(ctx context.Context, tenantID, policyID, policyText string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -192,7 +193,7 @@ type DBPolicyUpdateEvent struct {
 }
 
 // PublishPolicy xuất bản một chính sách: đổi status sang ACTIVE, lưu AST JSON, tăng version và tăng revision của Tenant nguyên tử trong Transaction.
-func (s *Storage) PublishPolicy(ctx context.Context, tenantID, policyID string, astJSON []byte) (int, error) {
+func (s *Storage) publishPolicy(ctx context.Context, tenantID, policyID string, astJSON []byte) (int, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return 0, err
@@ -240,7 +241,7 @@ func (s *Storage) GetPolicy(ctx context.Context, tenantID, policyID string) (*DB
 }
 
 // DeletePolicy xóa bỏ một chính sách và tăng revision của Tenant nguyên tử trong Transaction.
-func (s *Storage) DeletePolicy(ctx context.Context, tenantID, policyID string) error {
+func (s *Storage) deletePolicy(ctx context.Context, tenantID, policyID string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err

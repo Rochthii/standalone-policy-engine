@@ -164,6 +164,15 @@ func main() {
 	if store != nil {
 		revocationStore = store
 	}
+	if cfg.Database.ERPRevocationURL != "" {
+		fencedStore, err := storage.NewERPRevocationStore(revocationStore, cfg.Database.ERPRevocationURL)
+		if err != nil {
+			log.Fatalf("[PDP-Server] ERP revocation fence configuration failed: %v", err)
+		}
+		defer fencedStore.Close()
+		store.SetERPPolicyFence(fencedStore)
+		revocationStore = fencedStore
+	}
 	grpcServer, revocationSyncer, err := server.StartGRPCServerWithRevocations(ctxServer, listener, eng, auditLogger, cfg.Security, cfg.Server, revocationStore)
 	if err != nil {
 		log.Fatalf("[PDP-Server] Không thể chạy gRPC server: %v", err)

@@ -33,8 +33,10 @@ const (
 
 // DecisionResult chứa thông tin quyết định phân quyền cuối cùng.
 type DecisionResult struct {
-	Decision Decision
-	Reason   string
+	// PolicyRevision identifies the immutable tenant snapshot actually evaluated.
+	PolicyRevision uint64
+	Decision       Decision
+	Reason         string
 	// Explanations chứa danh sách ID các chính sách trực tiếp dẫn đến quyết định này.
 	Explanations []string
 	// Obligations chứa danh sách các nghĩa vụ/rào chắn đính kèm (chuẩn NIST/OWASP cho AI Guardrails).

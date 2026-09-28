@@ -29,14 +29,18 @@ $policy$,
 (
     '10000000-0000-0000-0000-000000000002',
     (SELECT id FROM tenants WHERE name = 'odoo-e2e'),
-    'FORBID',
+    'PERMIT',
     $policy$
-forbid(
+permit(
     principal == agent:procurement_copilot,
     action == action:CONFIRM_PURCHASE_ORDER,
     resource == any
 )
-when { context.amount > 2000 }
+when {
+    context.amount > 2000 &&
+    context.tool_context == "tool:auto_confirm_po" &&
+    context.execution_mode == "autonomous_run"
+}
 obligation REQUIRE_HUMAN_APPROVAL "Autonomous spending requires human approval";
 $policy$,
     'ACTIVE',
@@ -68,7 +72,8 @@ permit(
     resource == any
 )
 when {
-    context.approval_state == "pending" &&
+    (context.approval_state == "pending" ||
+     context.approval_state == "approved") &&
     principal.department == resource.department
 };
 $policy$,

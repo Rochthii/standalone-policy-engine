@@ -53,6 +53,7 @@ services:
       JWT_SECRET: testbed-jwt-secret-at-least-32-characters
       JWT_ISSUER: standalone-policy-engine-testbed
       JWT_AUDIENCE: standalone-policy-engine-pdp
+      PDP_ERP_REVOCATION_DATABASE_URL: postgres://pdp_admin:pdp_secret_password_2026@testbed-db:5432/odoo?sslmode=disable
       PDP_DELEGATION_ACTIVE_KID: testbed-2026
       PDP_DELEGATION_KEYS_JSON: '{"testbed-2026":"testbed-delegation-secret-at-least-32-characters"}'
       PDP_APPROVAL_ACTIVE_KID: approval-testbed-2026
@@ -103,6 +104,7 @@ services:
       APP_ENV: test
       STORAGE_MODE: cloud
       DATABASE_URL: postgres://pdp_admin:pdp_secret_password_2026@testbed-db:5432/policy_engine?sslmode=disable
+      PDP_ERP_REVOCATION_DATABASE_URL: postgres://pdp_admin:pdp_secret_password_2026@testbed-db:5432/${PDP_TESTBED_ERP_DATABASE:-odoo_e2e}?sslmode=disable
       JWT_SECRET: testbed-jwt-secret-at-least-32-characters
       JWT_ISSUER: standalone-policy-engine-testbed
       JWT_AUDIENCE: standalone-policy-engine-testbed-pdp
@@ -200,6 +202,10 @@ services:
       - ./clients/python:/opt/pdp-clients:ro
       - ./deployments/docker/run-odoo-e2e.py:/opt/pdp-e2e/run-odoo-e2e.py:ro
       - ./deployments/docker/run-odoo-concurrency.py:/opt/pdp-e2e/run-odoo-concurrency.py:ro
+      - ./deployments/docker/odoo_material_race.py:/opt/pdp-e2e/odoo_material_race.py:ro
+      - ./deployments/docker/odoo_authority_race.py:/opt/pdp-e2e/odoo_authority_race.py:ro
+      - ./deployments/docker/odoo_authority_changes.py:/opt/pdp-e2e/odoo_authority_changes.py:ro
+      - ./deployments/docker/odoo_commit_authority_race.py:/opt/pdp-e2e/odoo_commit_authority_race.py:ro
       - ./deployments/docker/odoo-e2e-policies.sql:/opt/pdp-e2e/policies.sql:ro
       - testbed_tls:/run/pdp-tls:ro
     depends_on:
