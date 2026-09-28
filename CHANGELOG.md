@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased] - 2026-09-28: clean research-baseline gate verified
+
+- Reran the full isolated Odoo 17/mTLS/PDP/PostgreSQL testbed gate on clean `main` revision `29afd70550645a8ba780345dbb4531fe7638b38a`: 78 post-tests, 0 failures/errors; currency migration, mTLS, concurrency/retry, authority-ordering and all 16 material-edit schedules pass. See `docs/technical-spec/evidence/CLEAN_BASELINE_GATE_2026_09_28.md`.
+- Updated README, master index, current-state audit, task board and active checkpoint to link the clean-run evidence. EVAL-01/02/03/04 retain their earlier `304c1f5` plus dirty-worktree provenance; this gate does not rewrite those studies. No code changed; no commit, tag or push.
+
 ## [Unreleased] - 2026-09-28: V2-CURRENCY-MIG-01 company-aware grant migration verified
 
 - The initial populated-schema upgrade test found a real multi-company bug: Odoo populated the newly required `currency_id` for every old grant with the upgrade process's current company currency, assigning USD to a legacy grant whose delegator belonged to an EUR company. Added a conditional `_auto_init` backfill that runs only when an existing grant table lacks the currency column, maps legacy amounts to each delegator's primary company currency, and aborts upgrade if the mapping is unavailable. Subsequent upgrades do not overwrite explicit currency selections.

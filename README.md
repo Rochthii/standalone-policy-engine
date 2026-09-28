@@ -38,7 +38,7 @@ An ALLOW without an approval obligation follows the direct route. `REQUIRE_HUMAN
 
 ## Evidence and limits
 
-**Latest bounded gate (2026-09-28):** the fresh Odoo 17/mTLS/PDP/PostgreSQL run passed **78 Odoo post-tests with zero failures/errors**. The integrated testbed also passed the isolated legacy-currency migration rehearsal, mTLS probe, concurrency/retry checks, authority-ordering checks and 16 material-edit schedules. The 25 retained evaluation IDs are supported across composed boundaries; they are not 25 independent full-stack proofs.
+**Latest bounded gate (2026-09-28):** clean revision [`29afd70`](docs/technical-spec/evidence/CLEAN_BASELINE_GATE_2026_09_28.md) passed the fresh Odoo 17/mTLS/PDP/PostgreSQL testbed: **78 Odoo post-tests, zero failures/errors**, plus the isolated legacy-currency migration, mTLS probe, concurrency/retry, authority-ordering and 16 material-edit schedules. Earlier EVAL-01/02/03/04 evidence keeps its own recorded source revision and provenance. The 25 retained evaluation IDs are supported across composed boundaries; they are not 25 independent full-stack proofs.
 
 See the [current-state audit](docs/technical-spec/CURRENT_STATE_AUDIT.md), [EVAL-01 case ledger](docs/technical-spec/evidence/V2_EVAL_01_CASE_LEDGER_2026_09_24.md), [EVAL-02 comparison](docs/technical-spec/evidence/V2_EVAL_02_COMPARISON_2026_09_27.md), [EVAL-03 measurements](docs/technical-spec/evidence/V2_EVAL_03_MEASUREMENT_2026_09_27.md) and [EVAL-04 claim limits](docs/technical-spec/evidence/V2_EVAL_04_CLAIM_EVIDENCE_2026_09_28.md) for exact procedures, evidence and assumptions.
 
