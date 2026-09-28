@@ -161,7 +161,6 @@ jobs:
             awk -v coverage="$coverage" -v floor="$floor" 'BEGIN { exit coverage < floor }'
           }
           check_coverage ./internal/server 45
-          check_coverage ./internal/storage 20
           check_coverage ./internal/security 70
 
   # ── Job 4: Isolated PostgreSQL integration ────────────────────────────
@@ -192,10 +191,16 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
-      - name: Run storage migrations, rollback and revocation tests
+      - name: Run storage integration tests and enforce coverage floor
         env:
           TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
-        run: go test -v -count=1 ./internal/storage -run='^(TestStorage_MigrationsIntegration|TestStoragePolicyMutationsRollbackOnPostgresFaults|TestRevocationPropagationThreeReplicasAndRestart)$'
+        run: |
+          profile="$(mktemp)"
+          trap 'rm -f "$profile"' EXIT
+          go test -v -count=1 -coverprofile="$profile" ./internal/storage
+          coverage="$(go tool cover -func="$profile" | awk '$1 == "total:" { sub(/%$/, "", $3); print $3 }')"
+          echo "./internal/storage coverage: $coverage% (floor: 20%)"
+          awk -v coverage="$coverage" 'BEGIN { exit coverage < 20 }'
 
   control-plane-e2e:
     name: Combined Control Plane PostgreSQL PDP E2E
