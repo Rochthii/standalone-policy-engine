@@ -20,6 +20,20 @@ except ImportError:
 
 _logger = logging.getLogger(__name__)
 
+_TRANSIENT_GRPC_CODES = frozenset(
+    {
+        grpc.StatusCode.CANCELLED,
+        grpc.StatusCode.DEADLINE_EXCEEDED,
+        grpc.StatusCode.INTERNAL,
+        grpc.StatusCode.RESOURCE_EXHAUSTED,
+        grpc.StatusCode.UNAVAILABLE,
+    }
+)
+
+
+class PDPUnavailableError(AccessError):
+    """A transient PDP failure that must not become permanent business evidence."""
+
 
 def _read_binary(path):
     with open(path, "rb") as source:
@@ -108,12 +122,21 @@ class SafePDPClient:
             )
         except grpc.RpcError as exc:
             _logger.error("PDP CheckAccess failed closed with status %s", exc.code())
+            if exc.code() in _TRANSIENT_GRPC_CODES:
+                raise PDPUnavailableError(
+                    _("PDP authorization is unavailable; transaction denied.")
+                ) from exc
             raise AccessError(_("PDP authorization is unavailable; transaction denied.")) from exc
         decision = (
             "ALLOW"
             if response.decision == policy_pb2.CheckAccessResponse.ALLOW
             else "DENY"
         )
+        fence_scope = (context or {}).get("erp.revocation_fence")
+        if decision == "ALLOW" and fence_scope and (
+            response.advice.get("erp.revocation_fence") != fence_scope
+        ):
+            raise AccessError(_("PDP did not confirm the required ERP revocation fence."))
         obligations = [
             {
                 "type": item.type,
@@ -181,6 +204,10 @@ class SafePDPClient:
             )
         except grpc.RpcError as exc:
             _logger.error("PDP approval verification failed closed with status %s", exc.code())
+            if exc.code() in _TRANSIENT_GRPC_CODES:
+                raise PDPUnavailableError(
+                    _("PDP approval verifier is unavailable; transaction denied.")
+                ) from exc
             raise AccessError(_("PDP approval capability verification failed.")) from exc
         if not response.valid:
             raise AccessError(_("PDP rejected the approval capability."))

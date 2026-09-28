@@ -2,8 +2,12 @@ import base64
 import json
 import os
 from datetime import timedelta
+from unittest.mock import patch
+
+import grpc
 
 from odoo import Command, fields
+from odoo.api import call_kw
 from odoo.exceptions import AccessError
 from odoo.tests import TransactionCase, tagged
 
@@ -207,6 +211,7 @@ class TestOdooPDPRealBoundary(TransactionCase):
         self.assertTrue(order.button_confirm())
         self.assertEqual(order.state, "to approve")
         self.assertEqual(self._attempts(order).state, "approval_required")
+        self.assertEqual(self._attempts(order).decision, "allow")
         activities = order.activity_ids
         self.assertEqual(len(activities), 1)
         approvals = self._approvals(order)
@@ -292,6 +297,67 @@ class TestOdooPDPRealBoundary(TransactionCase):
         self.assertEqual(len(self._approvals(order)), 1)
         self.assertEqual(len(order.activity_ids), 1)
 
+    def test_public_issuance_rejects_wrong_authority_without_capability(self):
+        order = self._order(2500)
+        self.assertTrue(order.button_confirm())
+        pending = self._approvals(order).ensure_one()
+        for user in (self.env.user, self.creator, self.wrong_role,
+                     self.unlisted_manager, self.cross_tenant_manager):
+            with self.subTest(user=user.login):
+                with self.assertRaises(AccessError):
+                    with self.env.cr.savepoint():
+                        call_kw(self.env["pdp.approval.request"].with_user(user),
+                                "action_issue_capability", [[pending.id]], {})
+                self._assert_pending_without_capability(order, pending)
+        # Same tenant but different company is a distinct authority mismatch.
+        self.other_company.pdp_tenant_id = self.env.company.pdp_tenant_id
+        with self.assertRaises(AccessError):
+            with self.env.cr.savepoint():
+                call_kw(self.env["pdp.approval.request"].with_user(self.cross_tenant_manager),
+                        "action_issue_capability", [[pending.id]], {})
+        self._assert_pending_without_capability(order, pending)
+
+    def test_missing_jwt_at_live_issuance_rpc_preserves_pending_state(self):
+        order = self._order(2500)
+        self.assertTrue(order.button_confirm())
+        pending = self._approvals(order).ensure_one()
+        stub = pdp_client.get_pdp_client()._get_stub()
+        issue = stub.IssueApprovalCapability
+        observed = []
+
+        def without_metadata(request, **kwargs):
+            kwargs["metadata"] = ()
+            try:
+                return issue(request, **kwargs)
+            except grpc.RpcError as exc:
+                observed.append(exc.code())
+                raise
+
+        with patch.object(stub, "IssueApprovalCapability", side_effect=without_metadata):
+            with self.assertRaises(AccessError):
+                with self.env.cr.savepoint():
+                    call_kw(self.env["pdp.approval.request"].with_user(self.approver),
+                            "action_issue_capability", [[pending.id]], {})
+        self.assertEqual(observed, [grpc.StatusCode.UNAUTHENTICATED])
+        self._assert_pending_without_capability(order, pending)
+        # The same valid payload succeeds once authentication is restored.
+        self.assertTrue(pending.with_user(self.approver).action_issue_capability())
+
+    def _assert_pending_without_capability(self, order, pending):
+        self.env.flush_all()
+        order.invalidate_recordset()
+        pending.invalidate_recordset()
+        attempt = self._attempts(order).ensure_one()
+        attempt.invalidate_recordset()
+        self.assertEqual(order.state, "to approve")
+        self.assertEqual(pending.state, "pending")
+        self.assertFalse(pending.one_time_id)
+        self.assertFalse(pending.capability_payload_b64)
+        self.assertFalse(pending.capability_signature_b64)
+        self.assertEqual(attempt.state, "approval_required")
+        self.assertNotEqual(attempt.result_state, "purchase")
+        self.assertEqual(len(self._approvals(order)), 1)
+
     def test_approval_capability_is_issued_verified_and_idempotent(self):
         order = self._order(2500)
         self.assertTrue(order.button_confirm())
@@ -359,11 +425,14 @@ class TestOdooPDPRealBoundary(TransactionCase):
         self.assertEqual(len(self._approvals(order)), 1)
 
     def test_sod_hard_deny_rolls_back_attempt_and_nonce(self):
-        order = self._order(1000, self.env.user)
-        with self.assertRaises(AccessError):
-            with self.env.cr.savepoint():
-                order.button_confirm()
-        self._assert_rolled_back_deny(order)
+        for amount in (1000, 2500):
+            with self.subTest(amount=amount):
+                order = self._order(amount, self.env.user)
+                with self.assertRaises(AccessError):
+                    with self.env.cr.savepoint():
+                        order.button_confirm()
+                self._assert_rolled_back_deny(order)
+                self.assertFalse(self._approvals(order))
 
     def test_tampered_signing_secret_fails_closed(self):
         order = self._order(1000)
@@ -421,6 +490,17 @@ class TestOdooPDPRealBoundary(TransactionCase):
             tenant_id, str(self.grant.id), revoked_by, token, "Odoo E2E revoke"
         )
         with self.assertRaises(AccessError):
+            with self.env.cr.savepoint():
+                order.button_confirm()
+        self._assert_rolled_back_deny(order)
+
+    def test_erp_tombstone_blocks_initial_allow_without_pdp_cache(self):
+        order = self._order(1000)
+        self.env.cr.execute(
+            "INSERT INTO pdp_delegation_fence_v1 VALUES (%s, %s, true)",
+            [self.env.company.pdp_tenant_id, str(self.grant.id)],
+        )
+        with self.assertRaisesRegex(AccessError, "revoked before final execution"):
             with self.env.cr.savepoint():
                 order.button_confirm()
         self._assert_rolled_back_deny(order)

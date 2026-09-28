@@ -40,6 +40,37 @@ class PDPAuthorizationAttempt(models.Model):
         )
     ]
 
+    def init(self):
+        super().init()
+        self.env.cr.execute("""
+            CREATE OR REPLACE FUNCTION pdp_check_execution_deadline_v1()
+            RETURNS trigger LANGUAGE plpgsql AS $$
+            DECLARE checked_at timestamp := clock_timestamp() AT TIME ZONE 'UTC';
+            BEGIN
+                IF NEW.state = 'executed' THEN
+                    IF NEW.valid_until <= checked_at OR NOT EXISTS (
+                        SELECT 1 FROM pdp_delegation_grant g
+                        WHERE g.id = NEW.delegation_grant_id AND g.state = 'active'
+                          AND g.valid_from <= checked_at AND g.valid_until > checked_at
+                    ) OR EXISTS (
+                        SELECT 1 FROM pdp_approval_request a
+                        WHERE a.authorization_attempt_id = NEW.id
+                          AND (a.state <> 'consumed' OR a.expires_at IS NULL
+                               OR a.expires_at <= checked_at)
+                    ) THEN
+                        RAISE EXCEPTION 'Protected authority expired at deferred commit validation'
+                            USING ERRCODE = '23514';
+                    END IF;
+                END IF;
+                RETURN NULL;
+            END $$;
+            DROP TRIGGER IF EXISTS pdp_execution_deadline ON pdp_authorization_attempt;
+            CREATE CONSTRAINT TRIGGER pdp_execution_deadline
+            AFTER INSERT OR UPDATE ON pdp_authorization_attempt
+            DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+            EXECUTE FUNCTION pdp_check_execution_deadline_v1();
+        """)
+
     def mark_completed(self, state, decision, result_state):
         self.ensure_one()
         if self.state != "pending":

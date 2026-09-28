@@ -51,7 +51,14 @@ class PDPApprovalRequest(models.Model):
     intent_hash = fields.Char(required=True, index=True, readonly=True)
     state_witness = fields.Char(required=True, readonly=True)
     state = fields.Selection(
-        [("pending", "Pending"), ("approved", "Approved")],
+        [
+            ("pending", "Pending"),
+            ("approved", "Approved"),
+            ("rejected", "Rejected"),
+            ("invalidated", "Invalidated"),
+            ("expired", "Expired"),
+            ("consumed", "Consumed"),
+        ],
         required=True,
         default="pending",
         index=True,

@@ -172,6 +172,16 @@ class PDPApprovalCapability(models.Model):
         }
 
     def _stored_capability(self):
+        self.ensure_one()
+        required_text = (
+            "capability_version", "capability_purpose", "capability_algorithm",
+            "capability_key_id", "one_time_id", "required_permission",
+        )
+        if any(
+            not isinstance(self[field], str) or not self[field]
+            for field in required_text
+        ):
+            raise AccessError("Stored approval capability metadata is missing.")
         intent = self._stored_intent()
         return {
             "capability_version": self.capability_version,
@@ -219,4 +229,6 @@ def _base64url(value):
 
 
 def _decode_base64url(value):
+    if not isinstance(value, str) or not value:
+        raise AccessError("Stored approval capability encoding is missing.")
     return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))

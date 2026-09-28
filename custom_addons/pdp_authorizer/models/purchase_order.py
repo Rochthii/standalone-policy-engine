@@ -6,10 +6,13 @@ from psycopg2 import IntegrityError
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 
-from ..cbi_protocol import canonical_business_intent_context, minor_units_to_decimal
 from ..pdp_protocol import issue_jwt_from_environment
 from .cbi_builder import build_purchase_order_intent
 from .pdp_client import get_pdp_client
+
+
+_FINAL_TRANSITION_CONTEXT_KEY = "_pdp_authorized_final_transition"
+_FINAL_TRANSITION_SENTINEL = object()
 
 
 class PurchaseOrder(models.Model):
@@ -143,28 +146,9 @@ class PurchaseOrder(models.Model):
             self, nonce
         )
         attempt, created = self._authorization_attempt(grant, nonce, fingerprint)
-        request = self._base_request(intent["agent_subject"])
-        request["action"] = intent["action"]
-        request["resource"] = "purchase_order:%s" % intent["resource_id"]
-        request["context"].update(
-            {
-                "amount": minor_units_to_decimal(
-                    intent["amount_minor"], intent["currency_scale"]
-                ),
-                "delegation_grant_id": str(intent["delegation_grant_id"]),
-                "delegated_by": intent["delegator_subject"],
-                "delegation_issued_at": str(issued_at),
-                "delegation_valid_until": str(valid_until),
-                "delegation_nonce": intent["command_id"],
-                "delegation_chain": "%s,%s"
-                % (intent["delegator_subject"], intent["agent_subject"]),
-                "delegation_proof": proof,
-                "resource.creator_id": intent["creator_subject"],
-                "tool_context": "tool:auto_confirm_po",
-                "execution_mode": "autonomous_run",
-            }
+        request = self._protected_delegated_request(
+            intent, proof, issued_at, valid_until
         )
-        request["context"].update(canonical_business_intent_context(intent))
         return request, attempt, created
 
     def _locked_delegation_nonce(self):
@@ -203,6 +187,8 @@ class PurchaseOrder(models.Model):
         if self.delegation_grant_id:
             request, attempt, created = self._delegated_request()
             if not created:
+                if attempt.state == "approval_required":
+                    return self._execute_approved_confirmation(attempt)
                 return True
         else:
             subject = "user:%s" % self.env.user.login
@@ -230,9 +216,16 @@ class PurchaseOrder(models.Model):
         ]
         if unsupported:
             raise AccessError(_("The PDP returned an obligation unsupported by this PEP."))
-        if decision == "ALLOW":
+        if decision == "ALLOW" and not obligations:
+            if attempt and not self._lock_delegation_revocation_fence():
+                raise AccessError(_("Delegation was revoked before final execution."))
+            if attempt:
+                self._lock_current_authority([advice.get("erp.policy_revision")])
             self.write({"pdp_status": "allow"})
-            result = super(PurchaseOrder, self).button_confirm()
+            authorized = self.with_context(
+                **{_FINAL_TRANSITION_CONTEXT_KEY: _FINAL_TRANSITION_SENTINEL}
+            )
+            result = super(PurchaseOrder, authorized).button_confirm()
             if attempt:
                 attempt.mark_completed("executed", "allow", self.state)
             return result
@@ -241,7 +234,9 @@ class PurchaseOrder(models.Model):
             (item for item in obligations if item["type"] == "REQUIRE_HUMAN_APPROVAL"),
             None,
         )
-        if approval:
+        if approval and len(obligations) == 1 and (
+            decision == "ALLOW" or not self.delegation_grant_id
+        ):
             self.write({"state": "to approve", "pdp_status": "require_approval"})
             if attempt:
                 pending_intent = build_purchase_order_intent(
@@ -256,7 +251,9 @@ class PurchaseOrder(models.Model):
             activity = self._schedule_pdp_activity(approval, advice, approver)
             if attempt:
                 pending_approval.attach_activity(activity, approver)
-                attempt.mark_completed("approval_required", "deny", self.state)
+                attempt.mark_completed(
+                    "approval_required", decision.lower(), self.state
+                )
             return True
 
         self.write({"pdp_status": "deny"})

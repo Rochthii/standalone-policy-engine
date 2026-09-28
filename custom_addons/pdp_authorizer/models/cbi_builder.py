@@ -33,19 +33,10 @@ def build_purchase_order_intent(order, grant, command_id):
             "pdp_delegation_nonce",
         ]
     )
-    order.order_line.flush_recordset(
-        [
-            "sequence",
-            "display_type",
-            "product_id",
-            "name",
-            "product_uom",
-            "product_qty",
-            "price_unit",
-            "taxes_id",
-            "date_planned",
-        ]
-    )
+    # Stored related/computed fields (notably line.state) may be recomputed at
+    # commit and update line.write_date. Drain them before signing the digest,
+    # otherwise an unchanged pending order becomes stale across transactions.
+    order.order_line.flush_recordset()
     order.env.cr.execute(
         """
         SELECT po.company_id,
@@ -133,9 +124,10 @@ def _persisted_lines(order):
                price_unit::text,
                date_planned,
                write_date
-          FROM purchase_order_line
+         FROM purchase_order_line
          WHERE order_id = %s
          ORDER BY sequence, id
+         FOR UPDATE
         """,
         [order.id],
     )
