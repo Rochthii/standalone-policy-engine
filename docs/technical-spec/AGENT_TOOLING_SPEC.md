@@ -35,6 +35,11 @@
 }
 ```
 
+The schema's currency enum only describes accepted input syntax; it does not
+enable authorization in every currency. Policy thresholds are currency-scoped.
+The current seed policy explicitly configures USD only, so VND/EUR requests are
+denied until policy rules with separately chosen thresholds are added.
+
 ---
 
 ## 2. ToolExecutionContext Packaging Protocol

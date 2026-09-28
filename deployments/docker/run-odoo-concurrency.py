@@ -80,7 +80,7 @@ def create_command(registry, approved=False):
             {
                 "user_id": env.user.id,
                 "agent_id": "agent:procurement_copilot",
-                "max_amount": 2000,
+                "max_amount": 5000,
                 "valid_from": now - timedelta(minutes=1),
                 "valid_until": now + timedelta(minutes=10),
             }

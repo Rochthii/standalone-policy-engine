@@ -143,9 +143,9 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 	})
 
 	// ========================================================================
-	// TC-04: AI Agent duyệt PO vượt trần tự hành (> 2,000 USD) -> DENY (Forbid Override)
+	// TC-04: AI Agent đề xuất PO > 2,000 USD -> ALLOW with approval obligation.
 	// ========================================================================
-	t.Run("TC-04: AI Agent approves PO > $2,000 -> DENY (Guardrail Limit)", func(t *testing.T) {
+	t.Run("TC-04: AI Agent PO > $2,000 requires human approval", func(t *testing.T) {
 		grantID := "104"
 		delegator := "user:manager_bob"
 		agent := "agent:procurement_copilot"
@@ -162,8 +162,11 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
-		if res.Decision != policyv1.CheckAccessResponse_DENY {
-			t.Fatalf("TC-04 FAILED: Expected DENY for amount > 2000, got: %v", res.Decision)
+		if res.Decision != policyv1.CheckAccessResponse_ALLOW {
+			t.Fatalf("TC-04 FAILED: Expected ALLOW with obligation for amount > 2000, got: %v", res.Decision)
+		}
+		if len(res.Obligations) != 1 || res.Obligations[0].GetType() != "REQUIRE_HUMAN_APPROVAL" {
+			t.Fatalf("TC-04 FAILED: Expected one approval obligation, got: %v", res.Obligations)
 		}
 	})
 
@@ -262,4 +265,41 @@ func TestE2E_P2P_Delegation_7Vectors(t *testing.T) {
 			t.Fatalf("TC-07 FAILED: Expected PermissionDenied (403), got: %v", st.Code())
 		}
 	})
+}
+
+func TestE2E_SeedMoneyPolicyRequiresConfiguredCurrency(t *testing.T) {
+	srv, _ := setupE2ETestEngine(t)
+	for _, tc := range []struct {
+		name     string
+		currency string
+		want     policyv1.CheckAccessResponse_Decision
+	}{
+		{name: "USD configured", currency: "USD", want: policyv1.CheckAccessResponse_ALLOW},
+		{name: "EUR unconfigured", currency: "EUR", want: policyv1.CheckAccessResponse_DENY},
+		{name: "missing currency", want: policyv1.CheckAccessResponse_DENY},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &policyv1.CheckAccessRequest{
+				TenantId: "tenant-odoo",
+				Subject:  "agent:procurement_copilot",
+				Action:   "action:CONFIRM_PURCHASE_ORDER",
+				Resource: "purchase_order:currency-scope",
+				Context: map[string]string{
+					"amount":         "1500",
+					"currency":       tc.currency,
+					"tool_context":   "tool:auto_confirm_po",
+					"execution_mode": "autonomous_run",
+				},
+			}
+			res, err := srv.CheckAccess(
+				authenticatedIncomingContext(t, "tenant-odoo", req.Subject), req,
+			)
+			if err != nil {
+				t.Fatalf("CheckAccess returned error: %v", err)
+			}
+			if res.Decision != tc.want {
+				t.Fatalf("currency %s: want %s, got %s", tc.currency, tc.want, res.Decision)
+			}
+		})
+	}
 }

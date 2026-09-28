@@ -19,6 +19,7 @@ permit(
 )
 when {
     context.tool_context == "tool:auto_confirm_po" &&
+    context.currency == "USD" &&
     context.amount <= 2000 &&
     context.execution_mode == "autonomous_run"
 };
@@ -38,6 +39,7 @@ permit(
 )
 when {
     context.amount > 2000 &&
+    context.currency == "USD" &&
     context.tool_context == "tool:auto_confirm_po" &&
     context.execution_mode == "autonomous_run"
 }

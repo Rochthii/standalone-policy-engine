@@ -73,7 +73,8 @@ class TestApprovalInvalidation(TransactionCase):
             {
                 "user_id": self.env.user.id,
                 "agent_id": "agent:procurement_copilot",
-                "max_amount": 2000,
+                "currency_id": self.env.company.currency_id.id,
+                "max_amount": 5000,
                 "valid_from": now - timedelta(minutes=1),
                 "valid_until": now + timedelta(minutes=10),
             }

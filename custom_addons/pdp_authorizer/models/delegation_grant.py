@@ -1,8 +1,9 @@
 import calendar
 import math
+from decimal import Decimal
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 
 from ..pdp_protocol import (
     MAX_DELEGATION_TTL_SECONDS,
@@ -11,7 +12,7 @@ from ..pdp_protocol import (
     load_delegation_keyring,
     sign_delegation_tuple,
 )
-from ..cbi_protocol import canonical_business_intent_hash
+from ..cbi_protocol import amount_to_minor_units, canonical_business_intent_hash
 from ..delegation_proof_v2 import sign_delegation_proof_v2
 from .cbi_builder import build_purchase_order_intent
 from .pdp_client import get_pdp_client
@@ -32,7 +33,14 @@ class PDPDelegationGrant(models.Model):
         "res.users", required=True, default=lambda self: self.env.user, index=True
     )
     agent_id = fields.Char(required=True, default="agent:procurement_copilot", index=True)
-    max_amount = fields.Float(required=True, default=2000.0)
+    currency_id = fields.Many2one(
+        "res.currency",
+        required=True,
+        default=lambda self: self.env.company.currency_id,
+    )
+    max_amount = fields.Monetary(
+        required=True, default=2000.0, currency_field="currency_id"
+    )
     valid_from = fields.Datetime(required=True, default=fields.Datetime.now)
     valid_until = fields.Datetime(required=True)
     state = fields.Selection(
@@ -63,6 +71,7 @@ class PDPDelegationGrant(models.Model):
 
     def action_activate(self):
         for grant in self:
+            grant._max_amount_minor_units()
             issued_at = _unix_seconds(grant.valid_from)
             valid_until = _unix_seconds(grant.valid_until)
             if valid_until <= issued_at:
@@ -71,6 +80,19 @@ class PDPDelegationGrant(models.Model):
                 raise UserError(_("Delegation validity cannot exceed 24 hours."))
             load_delegation_keyring()
             grant.write({"state": "active"})
+
+    def _max_amount_minor_units(self):
+        self.ensure_one()
+        if not self.currency_id or not self.currency_id.active:
+            raise UserError(_("Delegation grant currency must be active and configured."))
+        try:
+            return amount_to_minor_units(
+                Decimal(str(self.max_amount)), self.currency_id.decimal_places
+            )
+        except (ValueError, TypeError) as exc:
+            raise UserError(
+                _("Delegation maximum must be exact at the selected currency precision.")
+            ) from exc
 
     def action_revoke(self):
         for grant in self:
@@ -121,6 +143,17 @@ class PDPDelegationGrant(models.Model):
         if not order.ai_agent_id or order.ai_agent_id != self.agent_id:
             raise UserError(_("The purchase order agent does not match the delegation grant."))
         intent = build_purchase_order_intent(order, self, command_id)
+        if (
+            intent["currency_code"] != self.currency_id.name
+            or intent["currency_scale"] != self.currency_id.decimal_places
+        ):
+            raise AccessError(
+                _("Purchase-order currency is outside this delegation grant's currency scope.")
+            )
+        if intent["amount_minor"] > self._max_amount_minor_units():
+            raise AccessError(
+                _("Purchase-order amount exceeds this delegation grant's maximum.")
+            )
         issued_at = _unix_seconds(self.valid_from)
         valid_until = _unix_seconds(self.valid_until)
         key_id, keys = load_delegation_keyring()

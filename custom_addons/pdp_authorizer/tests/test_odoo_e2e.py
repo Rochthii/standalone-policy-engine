@@ -121,7 +121,8 @@ class TestOdooPDPRealBoundary(TransactionCase):
             {
                 "user_id": self.env.user.id,
                 "agent_id": "agent:procurement_copilot",
-                "max_amount": 2000,
+                "currency_id": self.env.company.currency_id.id,
+                "max_amount": 5000,
                 "valid_from": now - timedelta(minutes=1),
                 "valid_until": now + timedelta(minutes=10),
             }
@@ -205,6 +206,45 @@ class TestOdooPDPRealBoundary(TransactionCase):
 
         self.assertTrue(order.button_confirm())
         self.assertEqual(len(self._attempts(order)), 1)
+
+    def test_grant_ceiling_allows_exact_cap_and_denies_excess(self):
+        self.product.supplier_taxes_id = [Command.clear()]
+        self.grant.write({"max_amount": 1000})
+        exact = self._order(1000)
+        self.assertTrue(exact.button_confirm())
+        self.assertEqual(exact.state, "purchase")
+
+        self.grant.write({"max_amount": 999.99})
+        excess = self._order(1000)
+        with self.assertRaises(AccessError):
+            with self.env.cr.savepoint():
+                excess.button_confirm()
+        self._assert_rolled_back_deny(excess)
+
+    def test_grant_rejects_a_purchase_order_in_another_currency(self):
+        order = self._order(1000)
+        eur = self.env.ref("base.EUR")
+        eur.active = True
+        order.write({"currency_id": eur.id})
+
+        with self.assertRaises(AccessError):
+            with self.env.cr.savepoint():
+                order.button_confirm()
+
+        self._assert_rolled_back_deny(order)
+
+    def test_seed_policy_denies_currency_without_explicit_threshold(self):
+        eur = self.env.ref("base.EUR")
+        eur.active = True
+        self.grant.write({"currency_id": eur.id, "max_amount": 5000})
+        order = self._order(1000)
+        order.write({"currency_id": eur.id})
+
+        with self.assertRaises(AccessError):
+            with self.env.cr.savepoint():
+                order.button_confirm()
+
+        self._assert_rolled_back_deny(order)
 
     def test_approval_obligation_commits_once_without_rollback(self):
         order = self._order(2500)

@@ -20,6 +20,7 @@
                         <group>
                             <field name="user_id" readonly="state != 'draft'"/>
                             <field name="agent_id" readonly="state != 'draft'"/>
+                            <field name="currency_id" readonly="state != 'draft'"/>
                             <field name="max_amount" readonly="state != 'draft'"/>
                         </group>
                         <group>
@@ -43,6 +44,7 @@
                 <field name="name"/>
                 <field name="user_id"/>
                 <field name="agent_id"/>
+                <field name="currency_id"/>
                 <field name="max_amount"/>
                 <field name="valid_until"/>
                 <field name="state" widget="badge"/>
