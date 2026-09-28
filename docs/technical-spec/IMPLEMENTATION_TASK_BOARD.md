@@ -18,13 +18,14 @@
 
 ## Remaining thesis priority (2026–2029)
 
-The completed Waves remain as evidence history. Only these three tasks are active for the thesis:
+The completed Waves remain evidence history. The active thesis direction is now decomposed in:
 
-1. `THESIS-RQ4-FREEZE-01` — freeze one current-HEAD evidence package and reconcile thesis claims. **Model: Terra Medium.**
-2. `THESIS-DELEGATION-SEC-02` — consolidate the delegation security contribution and its evidence matrix. **Model: Terra High.**
-3. `THESIS-WRITEUP-03` — write and cross-reference Chapters 3–5 from the frozen evidence. **Model: Terra Medium.**
+- [`THESIS_V2_MASTER_PLAN.md`](../thesis-proposal/THESIS_V2_MASTER_PLAN.md)
+- [`THESIS_V2_TASK_BOARD.md`](../thesis-proposal/THESIS_V2_TASK_BOARD.md)
 
-`AUD-ARCHIVE-03` remains **DEFERRED UNTIL 2029** as a production-release task, not a thesis task.
+Execute one atomic v2 task at a time, starting with `V2-DOC-01`. The historical `THESIS-2029-FINAL-FREEZE-04` remains a final rerun gate after the v2 work, not the current next task. `AUD-ARCHIVE-03` remains a production-release task and is outside the v2 thesis core.
+
+Career/platform boundary: Odoo 17 is the implementation and thesis evidence platform; SAP is a post-thesis transfer target and bounded applicability discussion. See [`SE_ERP_CAREER_ROADMAP.md`](../thesis-proposal/SE_ERP_CAREER_ROADMAP.md).
 
 ## Wave 0 — Evidence baseline
 
@@ -103,4 +104,4 @@ The completed Waves remain as evidence history. Only these three tasks are activ
 
 ## Next task
 
-Next: `THESIS-2029-FINAL-FREEZE-04` is **DEFERRED UNTIL 2029**. Keep `AUD-ARCHIVE-03` explicitly deferred; it is a production-release gate, not a current thesis blocker.
+Next: `V2-DOC-01` from the v2 task board. Keep `AUD-ARCHIVE-03` deferred; it is a production-release gate, not a current thesis blocker.

@@ -1,6 +1,6 @@
 # ApprovalCapability v1 — Exact-Action Human Approval
 
-> **Status:** V2 normative design with APP-P01/APP-P02 issuance evidence. Pending-record creation, the authenticated-human authority/SoD guard, purpose-separated AC v1 issuance/verification and the `pending -> approved` transition are verified for the initial Odoo/PostgreSQL/mTLS boundary. Invalidation, final revalidation and atomic consumption remain unimplemented.
+> **Status:** V2 normative design with bounded Odoo/PostgreSQL/mTLS evidence for pending intent, authenticated-human SoD, AC v1 issue/verify, deterministic invalidation and approved final consumption/mutation, including two-session execution, rollback, retry and outage. EVAL-01 verifies the 16 enumerated material-edit schedules plus configured authority ordering; see the ledger, not an arbitrary concurrency guarantee.
 > **Scope:** Human approval for one pending Odoo 17 purchase-order confirmation.
 > **Intent contract:** [`CANONICAL_BUSINESS_INTENT.md`](./CANONICAL_BUSINESS_INTENT.md).
 > **Evidence authority:** [`CURRENT_STATE_AUDIT.md`](./CURRENT_STATE_AUDIT.md).
@@ -121,7 +121,7 @@ approved -> consumed
 
 State transitions use a locked row or conditional update. A check-then-write sequence without database serialization is invalid because two sessions could consume one approval.
 
-**Implemented transition:** `pending -> approved` is verified for one unchanged intent, and an identical retry returns the already-verified capability without issuing a second one. `rejected`, `invalidated`, `expired` and `consumed` transitions remain APP-04 or transaction-phase work.
+**Implemented transitions:** `pending -> approved` is verified for one unchanged intent, and an identical issuance retry returns the same capability. A locked revalidation operation moves an approved row to `invalidated` for deterministic intent, grant or approver-authority failure, or to `expired` for capability expiry. The bounded public final route writes `approved -> consumed` in the same Odoo transaction as the purchase-order transition and command completion. `rejected`, `invalidated`, `expired` and `consumed` are terminal; two-session consumption, rollback and retry pass for one PO.
 
 ## 8. Issuance algorithm
 
@@ -139,12 +139,12 @@ An Activity may notify or navigate the human to this operation, but completing a
 
 ## 9. Final verification and atomic consumption
 
-> **Implementation status:** Not implemented. AC v1 issuance-time verification does not authorize a final purchase-order mutation.
+> **Implementation status:** The bounded public `button_confirm` final route locks PO/approval/attempt, reconstructs exact CBI, checks local grant lifecycle and approver role/tenant/company/SoD, verifies the stored AC through the PDP and rechecks current approver and agent-confirm policy. It writes approval `consumed`, applies the guarded PO transition and marks the command `executed` in one Odoo transaction. The typed AC verifier authenticates the envelope and binding; current policy and revocation are checked by separate Odoo/PDP calls, not by that verifier alone. V2-TXN-04 verifies bounded two-session execution, rollback, retry and outage; concurrent business-field edit races remain open.
 
 1. Authenticate the final route and lock the purchase order, command row and approval row in a documented consistent order.
 2. Require the approval record state to be `approved`, then reconstruct current CBI from locked ERP data and compare `intent_hash`, `state_witness`, `command_id`, grant and subjects byte-for-byte.
 3. Submit the opaque capability and reconstructed context to the typed PDP-side AC verifier; Odoo does not verify HMAC locally or receive approval key material.
-4. The PDP verifier requires a known approval key, valid signature, unexpired time and matching tenant/company/approval identifiers, then re-evaluates current delegation, approver permission/SoD, policy and revocation. `issuance_policy_revision` is not a stale-policy exemption.
+4. The PDP verifier requires a known approval key, valid signature, unexpired time and matching tenant/company/approval identifiers. The final Odoo route separately rechecks current local grant lifecycle and approver permission/SoD, live PDP approval policy and a fresh V2 proof-bound agent-confirm decision (including PDP revocation). Only `ALLOW` may carry a satisfiable approval obligation; `DENY` is never overridden by AC v1. `issuance_policy_revision` is not a stale-policy exemption.
 5. Conditionally transition the approval from `approved` to `consumed` and consume the command ID in the same Odoo/PostgreSQL transaction as `button_confirm`/final mutation.
 6. If any validation or business mutation fails, roll back capability/command consumption and the mutation together.
 7. A lost-response retry reads the committed terminal result. It never replays the mutation or resets a consumed capability.

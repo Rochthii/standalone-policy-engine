@@ -1,7 +1,7 @@
 # Odoo 17 PEP Integration
 
-> **Updated:** 2026-09-12
-> **Status:** Addon is repository-owned; seven real Odoo transaction cases and the two-session concurrency/retry boundary pass over mTLS.
+> **Updated:** 2026-09-27
+> **Status:** EVAL-01 bounded gate passes: 75 post-tests, zero failures/errors, existing retry/rollback/outage checks, 16 enumerated material-edit schedules and grant/policy/role/deferred-expiry ordering. [Exact evidence](./evidence/V2_EVAL_01_CASE_LEDGER_2026_09_24.md). All authority writers must share the configured ERP fence; see the addon README for fail-closed publication recovery and precise deadline semantics. This is not general distributed atomicity.
 
 The authoritative addon is
 [`custom_addons/pdp_authorizer`](../../custom_addons/pdp_authorizer). The external
@@ -15,14 +15,14 @@ security and Protobuf contract.
 1. resolves the exact PDP tenant configured on `res.company`;
 2. derives the subject, resource and trusted Odoo resource attributes;
 3. creates a short-lived tenant-bound JWT for the effective user or AI agent;
-4. for delegated execution, signs the complete tuple with the active delegation key;
+4. for protected delegated execution, reconstructs CBI and signs its V2 proof with the active delegation key;
 5. inserts the nonce ledger row before `CheckAccess`;
-6. executes the Odoo mutation only after `ALLOW`;
-7. commits `to approve` without raising on `REQUIRE_HUMAN_APPROVAL`; and
+6. executes directly only on `ALLOW` without obligations, or on a later approved call after locked CBI/AC/current-authority rechecks and a fresh agent `ALLOW`;
+7. commits `to approve` without raising when the delegated `ALLOW` carries `REQUIRE_HUMAN_APPROVAL`; and
 8. raises `AccessError` on hard deny or PDP failure so the transaction rolls back.
 
-The PDP remains an idempotent decision service. Exactly-once ERP execution is
-owned by the Odoo transaction, as specified in
+The PDP remains a decision service. Scoped ERP at-most-once behavior depends on
+the Odoo transaction and ledger; approved-final race/retry evidence is bounded to one PO and does not cover external effects. See
 [`DELEGATION_REPLAY_IDEMPOTENCY.md`](./DELEGATION_REPLAY_IDEMPOTENCY.md).
 
 ## 2. Replay-safe transaction state
@@ -41,7 +41,7 @@ The row also stores a SHA-256 fingerprint of the canonical business tuple,
 business model/record identity, validity deadline and one terminal state:
 
 - `executed`: the protected ORM mutation completed in the same transaction;
-- `approval_required`: the non-rollback approval state and Activity were written.
+- `approval_required`: the non-rollback approval state and Activity were written; `decision` records the actual PDP `ALLOW` on the protected delegated high-value route, not a fabricated denial.
 
 A retry with the same tuple returns the recorded outcome without re-executing
 the mutation or scheduling a duplicate Activity. Reusing the nonce with a
@@ -58,8 +58,8 @@ rolled back with a hard deny, PDP outage or ORM failure.
 - JWT tenant, issuer and audience must match the PDP configuration.
 - Delegated calls include every field required by
   [`PROTOCOL_CONTRACT.md`](./PROTOCOL_CONTRACT.md), including nonce and validity window.
-- The proof is `v1.<kid>.<hex-hmac>` and uses the same length-prefixed canonical
-  bytes as `internal/security/delegation_proof.go`.
+- The protected numeric Odoo PO route requires CBI-bound proof `v2.<kid>.<hmac>`;
+  V1 is retained only for the tested legacy non-numeric resource boundary.
 - The client recreates its channel after a PID change and uses a 350 ms deadline.
 - Development/test may use insecure transport. Production startup rejects a
   client configuration without CA, certificate and private key.
@@ -72,9 +72,11 @@ that path in `PYTHONPATH`.
 
 | PDP result | Odoo behavior | Transaction outcome |
 |---|---|---|
-| `ALLOW` | call the native `button_confirm()` and mark attempt `executed` | commit together |
-| `DENY` + `REQUIRE_HUMAN_APPROVAL` | write `state=to approve`, schedule Activity, mark `approval_required` | commit; no exception |
-| hard `DENY` | raise `AccessError` | rollback |
+| `ALLOW` without obligations | call the native confirmation and mark attempt `executed` | commit together |
+| `ALLOW` + `REQUIRE_HUMAN_APPROVAL` | write `state=to approve`, persist exact pending intent and Activity, mark `approval_required` | commit non-final; no exception |
+| Approved retry + fresh agent `ALLOW` | lock/recheck CBI and AC/current authority; consume AC and command with the guarded PO final transition | one Odoo transaction; bounded two-session race/rollback/retry evidence passes |
+| Any delegated `DENY`, even with approval obligation | raise `AccessError`; AC cannot override a hard forbid | rollback |
+| Legacy non-delegated `DENY` + approval obligation | retain non-final `to approve` routing only | commit non-final; no protected agent final effect |
 | RPC/auth/config failure | fail closed | rollback |
 | repeated completed nonce | return recorded outcome | no duplicate mutation |
 

@@ -18,7 +18,7 @@ authenticated trusted caller
 + command and approval are consumed at most once
 ```
 
-This invariant is **PLANNED V2**. Existing behavior is a security baseline, not proof that every condition above currently holds.
+This invariant is **PARTIAL VERIFIED V2** for one bounded approved Odoo final route, including two-session execution, rollback, retry and outage checks. Concurrent business-field edits, ambiguous-state cases and cross-system policy-snapshot atomicity still prevent a full invariant claim.
 
 ## 2. I1 — Delegation authority integrity
 
@@ -36,7 +36,7 @@ Authorization for a high-impact action is valid only for one `CanonicalBusinessI
 
 The Odoo PEP must reconstruct the intent from authoritative ORM records and compare it with the protected value immediately before final execution. A changed material field or state witness requires new authorization and, if required, new approval.
 
-**Current status: PARTIAL V2.** Go/Python unit tests agree on canonical multi-line bytes/digest, state witness, CBI bytes/hash and V2 proof for one shared fixture; exact-money rejection and material-field tampering are covered in the pure protocol boundary. Trusted ORM reconstruction, protected-route enforcement and commit-time locked revalidation remain planned; current route evidence does not yet establish I2.
+**Current status: VERIFIED V2 FOR ENUMERATED ORM PATHS.** Go/Python vectors agree on canonical bytes/digest, witness, CBI hash and V2 proof. Exact one-minor-unit ERP changes invalidate old approval. A reproduced line-membership phantom is repaired by parent locking/version updates before protected line CRUD. Sixteen independent-session schedules cover description/price, insert/delete, tax relation, vendor/currency/state in both orderings with fresh commit oracles. Other scalar line fields use the same guarded write path and sequential tamper evidence. This is not arbitrary SQL/extension coverage, a proof for cross-order moves or a full Cartesian race matrix; see the EVAL-01 ledger. The separately bounded I4 authority-ordering evidence and time semantics are recorded below.
 
 **Negative cases:** changed amount, currency, vendor, line digest, action, resource or record version fails before mutation.
 
@@ -46,7 +46,7 @@ The Odoo PEP must reconstruct the intent from authoritative ORM records and comp
 
 An [`ApprovalCapability v1`](./APPROVAL_CAPABILITY.md) is valid only for one approval ID, authorized approver, intent hash, state witness, command/grant, expiry and one-time ID under a purpose-separated approval key. It cannot expand a delegator's scope, be reused for another intent, be verified as a delegation proof, or be exercised by a creator, delegator or agent under the thesis SoD policy.
 
-**Current status: PARTIAL VERIFIED V2 through AC v1 issuance.** The tested Odoo route persists `to approve`, one exact pending CBI and one Activity without rollback. The issuance operation derives the human from `env.user`, locks/reconstructs the unchanged intent, enforces active internal purchase-manager role, same tenant/company, creator/delegator/agent separation and a current live-PDP approval decision, then persists one PDP-issued/verified purpose-separated capability and `approved` state. Tamper, expiry, unknown/key-confused credentials and invalid issuer identity fail closed in focused tests. Invalidation and atomic one-time consumption remain **NOT IMPLEMENTED**.
+**Current status: PARTIAL VERIFIED V2 through bounded final execution.** The tested Odoo route persists `to approve`, one exact pending CBI and one Activity. Authenticated-human issuance enforces role, tenant/company and SoD before persisting a PDP-issued AC. The public approved final route revalidates AC/current authority and consumes it in the PO mutation transaction; tampered/expired AC and stale authority leave the PO non-final. Two-session consumption, rollback and retry pass for one PO; broader state-edit races remain open.
 
 **Negative cases:** wrong approver/role, creator or delegator self-approval, expired approval, changed intent/state and consumed approval fail closed.
 
@@ -54,9 +54,13 @@ An [`ApprovalCapability v1`](./APPROVAL_CAPABILITY.md) is valid only for one app
 
 ## 5. I4 — Commit-time revalidation and at-most-once scoped effect
 
+**Authority ordering update (2026-09-27):** Protected initial-ALLOW and approved-final transactions hold grant, local-authority epoch and policy-revision locks through commit. Configured policy writers commit an unavailable barrier before touching PDP storage and publish its committed revision afterward; failure leaves it unavailable. Both evaluated approver/agent revisions must match the locked ready row. Local user/group/company/grant writes advance the epoch, including membership relation changes. Three grant schedules, four after-ALLOW policy/role schedules and two real-clock expiry rollback cases pass; see the [case ledger](./evidence/V2_EVAL_01_CASE_LEDGER_2026_09_24.md). Every external authority writer must share the configured ERP fence. Validity is checked at PostgreSQL deferred commit validation using the database clock, not at a later WAL flush or response instant. No distributed transaction or unconfigured-writer guarantee is asserted.
+
 The final transition re-locks and re-reads the business record, validates I1-I3 plus current policy/revocation, then atomically consumes the command/approval and applies the in-scope ERP mutation in one Odoo/PostgreSQL transaction. No lock is held while awaiting human review.
 
-**Current status: PLANNED V2.** Existing nonce ledger and two-session retry evidence demonstrate bounded replay behavior, not the final approval/command atomicity required here.
+A current PDP `DENY` is final even if it carries `REQUIRE_HUMAN_APPROVAL`; only an `ALLOW` with that obligation can be satisfied by AC v1. Otherwise an unrelated hard forbid could be bypassed.
+
+**Current status: VERIFIED V2 FOR THE CONFIGURED BOUNDED ROUTE.** The approved final route checks locked CBI/current authority and writes approval `consumed`, PO final state and command `executed` in one Odoo/PostgreSQL transaction. Approved two-session execution, rollback, retry, outage, 16 enumerated material schedules and the authority schedules above pass in the fresh EVAL-01 gate. Atomic consumption is local to ERP; cross-database authority ordering relies on the publication barrier, not a shared snapshot. All prior SQL/extension, recovery, clock and external-effect exclusions remain.
 
 **Negative cases:** concurrent execution, lost-response retry, state change during approval and PDP outage leave no unauthorized persistent mutation; one command yields at most one committed purchase-order effect.
 
@@ -66,7 +70,7 @@ The final transition re-locks and re-reads the business record, validates I1-I3 
 
 Missing identity, invalid proof, unavailable/degraded delegated authorization, unsupported canonical field or uncertain approval state denies final high-impact execution. A controlled approval route may persist only a non-final review state, never the protected business effect.
 
-**Current status: VERIFIED BASELINE for tested proof, outage and non-rollback approval paths; PLANNED V2 for final execution semantics.**
+**Current status: PARTIAL VERIFIED V2** for initial proof/outage and bounded approved-final execution, including AC-verifier transport and late agent-decision outages with retry. Ambiguous-state coverage remains open.
 
 **Evaluation mapping:** controlled non-final route `APP-P01`; negative boundary cases `BOUND-N01`–`BOUND-N03`.
 

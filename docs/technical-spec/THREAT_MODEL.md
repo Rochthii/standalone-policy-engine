@@ -1,6 +1,6 @@
 # Threat Model — Transaction-Bound AI-Agent Authorization V2
 
-> **Status:** V2 design model, 2026-09-19.
+> **Status:** V2 model reconciled to bounded executable evidence, 2026-09-28. See [EVAL-04 claim analysis](./evidence/V2_EVAL_04_CLAIM_EVIDENCE_2026_09_28.md).
 > **Implementation truth:** [`CURRENT_STATE_AUDIT.md`](./CURRENT_STATE_AUDIT.md).
 > **Scope:** One human-to-agent delegation hop and one Odoo 17 `purchase-order confirmation` path.
 
@@ -29,6 +29,8 @@ This is a bounded transaction-integrity claim for the tested Odoo/PostgreSQL bou
 3. The final protected mutation and authorization/approval consumption can share one Odoo/PostgreSQL transaction only for the selected workflow.
 4. Human approval may take time. The system must not keep a row lock while waiting for a person; it must re-read and revalidate before the final action.
 5. Dynamic HR status and daily-limit attributes are not trusted inputs in the current implementation and remain out of any V2 claim until implemented and tested.
+6. Every in-scope policy/revocation writer uses the configured ERP fence database; local-authority triggers remain enabled and the PostgreSQL UTC clock is trusted.
+7. The guarantee ends at the Odoo/PostgreSQL transaction. Publication recovery, external effects, WAL durability time and network delivery are separate boundaries.
 
 ## 4. Adversary model
 
@@ -40,22 +42,22 @@ Compromise of Odoo/PDP code, signing keys, PostgreSQL superuser access, host OS,
 
 | ID | Threat | Required V2 control | Current status | Required negative evidence |
 |---|---|---|---|---|
-| T1 | Caller or tenant spoofing | Mandatory JWT/mTLS, tenant binding and trusted signed principal attributes. | **VERIFIED BASELINE** | Missing/forged JWT and cross-tenant requests fail. |
-| T2 | Delegation/proof tampering | Versioned full-tuple proof and active-grant/TTL/revocation validation. | **VERIFIED BASELINE** for implemented tuple | Altered protected tuple, expired proof and revoked grant fail. |
-| T3 | Parameter substitution | [`CanonicalBusinessIntent v1`](./CANONICAL_BUSINESS_INTENT.md) binds action, record, tenant/company, amount in minor units, currency, vendor, line digest, state witness and command ID. | **VERIFIED V2** for the initial proof and pending-intent boundary; final revalidation remains planned | Every material-field modification invalidates proof/authorization. |
-| T4 | Stale ERP state / TOCTOU | Material-state witness, final row lock/re-read and policy/revocation recheck immediately before mutation. | **PLANNED V2** | Changed PO state/version requires fresh authorization or approval. |
-| T5 | Approval substitution or reuse | [`ApprovalCapability v1`](./APPROVAL_CAPABILITY.md) binds approval ID, intent hash, state witness, command/grant, authorized approver, expiry and one-time ID under a purpose-separated key. | **PARTIAL VERIFIED V2** for issue/verify, tamper, expiry, unknown-key and key-separation boundaries; invalidation/reuse at final execution remain planned | Wrong intent/approver, expiry, change, key confusion and reuse fail closed. |
-| T6 | Delegated self-approval / SoD bypass | Evaluate creator/delegator/agent separation and current approver authority at capability issuance and final action. | **VERIFIED V2** at authenticated-human AC issuance; final current-authority recheck remains designed | Creator, delegator, agent, wrong-role and cross-tenant approver cases fail. |
-| T7 | Replay, lost response or concurrent execution | Idempotent command ID and atomic consumption with business mutation. | **VERIFIED BASELINE** for nonce/retry path; **PLANNED V2** for final atomic approval/command semantics | Concurrent/retried command creates at most one committed effect. |
-| T8 | Direct PEP/workflow bypass | Inventory and protect every final transition entry point in scope. | **PLANNED V2** | UI, API and supported approval routes cannot reach final mutation without PEP. |
-| T9 | PDP outage or revocation-sync degradation | Fail closed for delegated high-impact actions; preserve only controlled non-final approval state where specified. | **VERIFIED BASELINE** for tested PDP outage and bounded revocation behavior | No unauthorized persistent mutation during outage/degraded state. |
-| T10 | Prompt injection or hallucinated tool selection | Treat the model as untrusted; constrain its authority with T1-T9 controls. | **PARTIAL** | Out-of-scope tool/action/intent is rejected or requires valid human approval. |
+| T1 | Caller or tenant spoofing | Mandatory JWT/mTLS, tenant binding and trusted signed principal attributes. | **VERIFIED V2 — BOUNDED COMPOSED PATHS**; no frontend or agent-JWT company claim | Missing/forged JWT and cross-tenant requests fail. |
+| T2 | Delegation/proof tampering | Versioned full-tuple proof and active-grant/TTL/revocation validation. | **VERIFIED V2 — BOUNDED** for listed initial/final, lifecycle and expiry cases | Altered protected tuple, expired proof and revoked grant fail. |
+| T3 | Parameter substitution | [`CanonicalBusinessIntent v1`](./CANONICAL_BUSINESS_INTENT.md) binds action, record, tenant/company, amount in minor units, currency, vendor, line digest, state witness and command ID. | **VERIFIED V2 — ENUMERATED FIELDS/FAULTS** at final execution | Every listed material-field modification invalidates proof/authorization. |
+| T4 | Stale ERP state / TOCTOU | Material-state witness, final row lock/re-read and policy/revocation recheck immediately before mutation. | **VERIFIED V2 — BOUNDED SCHEDULES** under configured writers/triggers/clock | Listed state, material-edit and authority schedules serialize or fail closed. |
+| T5 | Approval substitution or reuse | [`ApprovalCapability v1`](./APPROVAL_CAPABILITY.md) binds approval ID, intent hash, state witness, command/grant, authorized approver, expiry and one-time ID under a purpose-separated key. | **VERIFIED V2 — RETAINED VARIANTS**; no supersession protocol | Wrong intent/approver, expiry, change, key confusion and reuse fail closed. |
+| T6 | Delegated self-approval / SoD bypass | Evaluate creator/delegator/agent separation and current approver authority at capability issuance and final action. | **VERIFIED V2 — BOUNDED ISSUANCE/FINAL PATHS** | Creator, delegator, agent, wrong-role and cross-tenant approver cases fail. |
+| T7 | Replay, lost response or concurrent execution | Idempotent command ID and atomic consumption with business mutation. | **VERIFIED V2 — SCOPED DATABASE EFFECT**; no external-effect claim | Concurrent/retried command creates at most one committed in-scope database effect. |
+| T8 | Direct PEP/workflow bypass | Inventory and protect every final transition entry point in scope. | **VERIFIED V2 — LISTED ODOO ENTRY POINTS** | Tested UI/API/model routes cannot reach final mutation without the guard. |
+| T9 | PDP outage or revocation-sync degradation | Fail closed for delegated high-impact actions; preserve only controlled non-final approval state where specified. | **VERIFIED V2 — TESTED OUTAGES/WRITER FAILURES**; recovery/availability remains limited | No unauthorized persistent mutation in listed outage/degraded schedules. |
+| T10 | Prompt injection or hallucinated tool selection | Treat the model as untrusted; constrain its authority with T1-T9 controls. | **PARTIAL — AUTHORIZATION BOUNDARY ONLY**; no LLM/prompt experiment | Enumerated invalid tool action/intent is rejected; model behavior itself is not evaluated. |
 
 ## 6. Design invariants and test mapping
 
-Named executable cases and persistent-state oracles are defined in [`EVALUATION_MATRIX.md`](./EVALUATION_MATRIX.md). `DESIGNED V2` is not implementation evidence.
+Named executable cases and persistent-state oracles are defined in [`EVALUATION_MATRIX.md`](./EVALUATION_MATRIX.md). Their bounded interpretation and validity threats are reconciled in [EVAL-04](./evidence/V2_EVAL_04_CLAIM_EVIDENCE_2026_09_28.md). `DESIGNED V2` is not implementation evidence.
 
-| Threats | V2 invariant | Planned task |
+| Threats | V2 invariant | Executable mapping |
 |---|---|---|
 | T1-T2 | Caller and delegation authority are authenticated, tenant-bound, valid and non-revoked. | `AUTH-P01`, `AUTH-N01`, `AUTH-N02`; V2-PROOF-01 to V2-PROOF-04. |
 | T3-T4 | Every material intent field and current state witness are validated at final execution. CBI v1 defines the normative field/source contract. | `CBI-P01`, `CBI-N01`–`CBI-N05`, `TXN-N04`; V2-PROOF-01 to V2-PROOF-04, V2-TXN-02. |
@@ -65,4 +67,4 @@ Named executable cases and persistent-state oracles are defined in [`EVALUATION_
 
 ## 7. Non-goals and evidence rule
 
-Do not claim instant revocation, general prompt-injection prevention, dynamic HR/limit attenuation, non-repudiation, exactly-once external effects, SAP compatibility or production readiness from this model. Each V2 control becomes a thesis result only after its matching executable evidence passes.
+Do not claim instant/global revocation, general prompt-injection prevention, dynamic HR/limit attenuation, non-repudiation, exactly-once external effects, SAP compatibility or production readiness from this model. “Verified” in this file always means the exact composed boundary and assumptions in EVAL-01/04, never a universal security proof.
