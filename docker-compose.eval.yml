@@ -1,0 +1,18 @@
+# Test-only overlay. Always use the isolated project: -p pdp-eval-abc.
+services:
+  testbed-db:
+    container_name: pdp_eval_abc_postgres
+    ports: !reset []
+  testbed-pdp-mtls:
+    container_name: pdp_eval_abc_pdp
+    ports: !reset []
+    environment:
+      PDP_ERP_REVOCATION_DATABASE_URL: postgres://pdp_admin:pdp_secret_password_2026@testbed-db:5432/odoo_eval_abc?sslmode=disable
+  testbed-odoo-benchmark:
+    container_name: pdp_eval_abc_odoo
+    entrypoint: ["python3", "/opt/pdp-eval/run-odoo-abc.py"]
+    environment:
+      PDP_EVAL_ONLY: odoo_eval_abc
+      PDP_EVAL_OUTPUT_DIR: /results
+    volumes:
+      - ./deployments/docker:/opt/pdp-eval:ro

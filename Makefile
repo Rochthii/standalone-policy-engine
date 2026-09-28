@@ -1,4 +1,4 @@
-.PHONY: test bench lint build tidy generate-proto proto-check build-pectl install-pectl test-pectl test-odoo-e2e benchmark-odoo-orm run-pdp run-control pdp control-plane migrate docker
+.PHONY: test bench lint build tidy generate-proto proto-check build-pectl install-pectl test-pectl test-odoo-e2e benchmark-odoo-orm evaluate-odoo-abc run-pdp run-control pdp control-plane migrate docker
 
 test:
 	go test -v ./...
@@ -38,14 +38,20 @@ test-pectl:
 
 test-odoo-e2e:
 	docker compose -f docker-compose.testbed.yml --profile e2e run --build --rm testbed-certgen
-	docker compose -f docker-compose.testbed.yml --profile e2e up --build --abort-on-container-exit --exit-code-from testbed-odoo-e2e testbed-odoo-e2e
+	PDP_TESTBED_ERP_DATABASE=odoo_e2e docker compose -f docker-compose.testbed.yml --profile e2e up --build --abort-on-container-exit --exit-code-from testbed-odoo-e2e testbed-odoo-e2e
 
 benchmark-odoo-orm:
 	PDP_GIT_COMMIT=$$(git rev-parse --short HEAD) docker compose -f docker-compose.testbed.yml --profile benchmark run --build --rm testbed-certgen
-	PDP_GIT_COMMIT=$$(git rev-parse --short HEAD) docker compose -f docker-compose.testbed.yml --profile benchmark up --build --abort-on-container-exit --exit-code-from testbed-odoo-benchmark testbed-odoo-benchmark
+	PDP_TESTBED_ERP_DATABASE=odoo_orm_benchmark PDP_GIT_COMMIT=$$(git rev-parse --short HEAD) docker compose -f docker-compose.testbed.yml --profile benchmark up --build --abort-on-container-exit --exit-code-from testbed-odoo-benchmark testbed-odoo-benchmark
 
 run-pdp:
 	go run ./cmd/pdp-server/main.go
+
+# Creates odoo_eval_abc only if absent; see EVAL-02 ledger for explicit --reuse.
+evaluate-odoo-abc:
+	docker compose -f docker-compose.testbed.yml -f docker-compose.eval.yml -p pdp-eval-abc --profile benchmark run --build --rm testbed-certgen
+	docker compose -f docker-compose.testbed.yml -f docker-compose.eval.yml -p pdp-eval-abc --profile benchmark up --build -d --wait testbed-pdp-mtls
+	PDP_GIT_COMMIT=$$(git rev-parse --short HEAD) docker compose -f docker-compose.testbed.yml -f docker-compose.eval.yml -p pdp-eval-abc --profile benchmark run --build --rm --no-deps testbed-odoo-benchmark
 
 pdp: run-pdp
 
