@@ -1,5 +1,141 @@
 # Changelog
 
+## [Unreleased] - 2026-09-28: V2-DOC-04 paired proposal artifact QA closed
+
+- User confirmed the DOCX and PDF are paired outputs of one proposal and accepted the existing PDF visual review as the artifact QA; no additional export was needed.
+- Re-rendered the existing five-page A4 PDF with bundled Poppler 26.07.0 at 180 dpi using `pdftoppm.exe -png -r 180 <proposal.pdf> <temp-prefix>`; inspected all pages with no clipping, overlap, missing glyphs or broken tables. Existing DOCX source parity is 80 Markdown blocks and three tables.
+- Closed the separate V2-DOC-04 gate as `VERIFIED — PAIRED ARTIFACT QA` and reconciled ACTIVE_TASK.md, task board and master-plan checkpoint. Word-native DOCX pagination was not independently rendered and remains explicitly unverified; it is non-blocking per the user's scope decision, not Word-rendered evidence.
+- No content/export change, runtime tests, commit or push.
+
+## [Unreleased] - 2026-09-28: V2-WRITE-04 proposal exports regenerated
+
+- Regenerated `docs/thesis-proposal/DE_CUONG_CHI_TIET_DO_AN_TOT_NGHIEP_CHUAN_KHOA_HOC.docx` and `.pdf` from the active Markdown using `python scripts/generate_master_thesis_proposal.py`; the source check passed with 80 shared blocks and locked Vietnamese/English titles. Corrected the DOCX subject property to remove a stale V2-DOC-05 label. Bundled Python: 3.12.14. Source revision: `304c1f5774cdb4dcc4e644f3b050a437c5989a23`, with a dirty worktree; this is not release provenance.
+- DOCX structural comparison passed exactly: 80 source blocks and all three tables match the Markdown. Bundled Poppler 26.07.0 rendered the five-page A4 PDF at 140 dpi; every page was inspected and showed no clipping, overlap or missing glyphs. DOCX image rendering remains open: the packaged `render_docx.py <proposal.docx> --output_dir <temp-dir> --verbose` attempt failed with `FileNotFoundError: LibreOffice soffice.exe was not found on PATH`; the workspace dependency bundle contains no LibreOffice binary. The bundled PDF renderer does not provide DOCX visual evidence.
+- SHA-256 DOCX: `226D694A4D592F5D2AC7786044A94A1D288BAB45B9A07A860DA60415DD005A4E`. SHA-256 PDF: `73BB44B3967C175EEB02C01F531DF538833878D2D4BCFEB315B3B997BFE42590`.
+- Closed V2-WRITE-04 at its bounded acceptance and recorded the separate DOCX visual gate as open. No runtime tests, commit or push.
+
+## [Unreleased] - 2026-09-28: V2-WRITE-03 cross-document reconciliation complete
+
+- Reconciled the active proposal, Chapters 3–5 draft, chapter map, scope alignment, career roadmap, README, master index, master plan and task-board status with EVAL-04's bounded claim wording. Fixed stale statements that boundary-separated performance/results were still planned and replaced obsolete next-work instructions.
+- Confirmed title, RQ1–RQ4, three contributions, Odoo 17 `purchase.order` runtime scope, SAP discussion-only boundary, 75-post-test/25-ID distinction, 11 × 3 comparison denominator and EVAL-03 sample-unit caveats. Checked the seven proposal references against their linked primary publication pages.
+- Marked WRITE-03 complete and routed WRITE-04 to artifact generation/visual QA. Documentation/link/status checks pass; no runtime evidence, generated export, commit or push was added.
+
+## [Unreleased] - 2026-09-28: V2-WRITE-02 Chapters 3–5 draft complete
+
+- Added one Markdown manuscript for Chapters 3–5, covering the delegated authorization model, CBI/AC/SoD contracts, Odoo/Go enforcement path, authority ordering, rollback/retry, evaluation and bounded RQ1–RQ4 answers.
+- Kept EVAL-01/02/03 denominators and EVAL-04 claim boundaries adjacent to results. Cross-checked all 13 Odoo and four Go reported metric rows plus the 11 A/B/C scenarios against accepted sources; all draft relative links resolve.
+- Linked the draft from the chapter map and moved the task board/checkpoint to WRITE-03. No runtime/protocol changes, DOCX/PDF export, commit or push.
+
+## [Unreleased] - 2026-09-28: V2-WRITE-01 current-state audit reconciliation
+
+- Added a concise superseding EVAL-03/04 evidence entry to `CURRENT_STATE_AUDIT.md`, with sample denominators, dirty-worktree/source boundary, trusted-writer/trigger/clock assumptions and prohibited generalization.
+- Marked WRITE-01 complete and advanced the checkpoint to WRITE-02. The detailed claim ledger remains the source for wording and validity threats; older audit entries remain as chronology.
+- Scoped relative-link, task-status and `git diff --check` validation passed. Documentation-only change; no tests or runtime measurements rerun. No commit/push.
+
+## [Unreleased] - 2026-09-28: EVAL-04 bounded claim analysis complete
+
+- Added one claim-to-evidence ledger mapping nine permitted thesis claim families and RQ1–RQ4 answers to accepted EVAL-01/02/03 evidence, each with its required wording boundary.
+- Recorded construct, internal, external, conclusion and reproducibility threats, including the trusted-runner/dirty-worktree/configured-writer assumptions, finite Odoo scope, selected ablations, sequential measurements and unverified recovery/load/SAP boundaries.
+- Reconciled the threat model, evaluation matrix, scope alignment, proposal Markdown and chapter map from planned EVAL-03/04 wording to bounded verified evidence. No runtime claim, source code, raw evidence or generated export changed.
+- Closed V2-EVAL-04 and routed V2-WRITE-01 to Luna for a fixed current-state-audit update. No commit/push.
+
+## [Unreleased] - 2026-09-27: EVAL-03 bounded measurement accepted
+
+- Corrected Go QPC collection passed with 4,400 rows: 3,000 measured API calls, 1,000 measured controls and 400 warm-ups. All API samples and operation results are valid; zero is retained only where the empty timer control completes within a QPC tick.
+- Aggregated the exact new Go measurement with the previously reviewed 440-row Odoo measurement. Recorded per-boundary percentiles, raw SHA-256 values and measurement limits; rejected historical runs remain unchanged and excluded.
+- Closed V2-EVAL-03 as bounded evidence and moved the active checkpoint to V2-EVAL-04. No production runtime changed; no broad ERP, causal approval-overhead, production SLA or speedup claim is made. No commit/push.
+
+## [Unreleased] - 2026-09-27: EVAL-03 zero control exception fixed
+
+- Permit 0 ns only for the Go empty timer_control; retain rejection of negative times, zero API/Odoo timings, invalid numeric types and operation failures. Summary validation limits the exception to go_micro with a Go per-boundary plan and retains zero controls in distributions. Failed historical JSON is never reclassified.
+- Six Python tests pass, including accepted zero control, retained count/percentile, rejected zero in each API, invalid control values, wrong route and failed status. A new 100-row Go smoke and summary against retained full Odoo JSON pass. Full corrected Go collection remains pending manual switch to Luna; no Odoo rerun or production-code change.
+- Count correction superseding the previous entry: 4,000 measured rows comprise 3,000 API calls and 1,000 controls, not 4,000 API calls. The 400 warm-ups comprise 300 API calls and 100 controls. The failed QPC artifact has exactly two zero measured controls; API timings were positive.
+- Reconciled report/checkpoint/board and measurement pointers for fixed Go-only collection/closure, then stop for Sol before EVAL-04. No new task IDs, commit or push.
+
+## [Unreleased] - 2026-09-27: EVAL-03 QPC full-run control sample diagnosis
+
+- Full Go QPC attempt preserved 4,400 rows and exited 1 solely because two of 1,000 measured empty `timer_control` samples were 0 ns; QPC resolution is 100 ns. All 4,000 measured API calls and 400 warm-up operations were positive and returned valid results. No Odoo sample repeated.
+- Diagnosis: nonpositive API durations must fail, but an empty control can complete within one QPC tick. The collector's shared zero-duration rule incorrectly made the whole run fail. Handoff to Sol to scope the exception to timer_control, preserve API/Odoo positivity, add a focused acceptance check; then Luna reruns only Go. EVAL-03 remains in progress.
+
+## [Unreleased] - 2026-09-27: EVAL-03 Windows clock repair and bounded Odoo review
+
+- Traced the installed Go 1.26.4 Windows/amd64 clock to `_INTERRUPT_TIME` in time.now/nanotime1; the collector's nanosecond units masked inadequate effective resolution. Followed the existing repository QPC pattern in two test-only clock files. Collector now records frequency/tick and fails on nonpositive elapsed times; security validity clocks and production code are unchanged.
+- Strengthened summary acceptance to reject zero/negative/missing/noninteger durations even under a declared PASS. Five focused Python checks pass; QPC smoke yields 100 positive rows, frequency 10 MHz/tick 100 ns. Existing invalid Go JSON is rejected as expected; QPC smoke plus retained Odoo JSON validates. Windows clock overhead remains included, with no percentile subtraction or intrinsic evaluator latency claim.
+- Reviewed protected hooks and all 440 retained Odoo rows for commit/persistence and inclusive span consistency. Preserve the 200 measured transactions per route and existing distributions. Only corrected full Go collection remains; no repeated Odoo/ERP gate or scope expansion.
+- Updated report, checkpoint and board once for manual Luna handoff. Fixed collection/closure criteria allow arithmetic-only completion, then stop for Sol before EVAL-04. Previous diagnostic artifacts remain intact; EVAL-03 is still in progress. No commit/push.
+
+## [Unreleased] - 2026-09-27: EVAL-03 collection retained; Go timing validity review required
+
+- Collected 4,400 Go rows and 440 Odoo rows on the fixed warm procedure. Odoo's 200 direct and 200 approved measured commits pass fresh-session persistent outcome checks with zero boundary-call errors; raw distributions and captured image/runtime/source metadata are recorded in the EVAL-03 report.
+- The Go test exits 0 but records evaluator and empty-timer durations as 0 ns in 1,000/1,000 cases, and proof/capability as zero in 980/991 cases. Preserve raw output; do not cite these percentiles. This invalidates the Go microtiming evidence pending diagnosis, not a production security finding.
+- Windows host CPU query was denied; report marks host CPU model unavailable. EVAL-03 stays in progress pending Sol review of timer validity and Odoo boundaries. No reruns, runtime change, new research claim, commit or push.
+
+## [Unreleased] - 2026-09-27: EVAL-03 measurement preparation and mandatory model handoff
+
+> This entry captures the earlier pre-collection checkpoint; the EVAL-03 collection and Sol-review entry above supersedes its "full measurements remain unrun" status.
+
+- Added one opt-in Go API collector and five Python timing/hook/runner/summary/test files. Separate evaluator, proof/AC verification, warm gRPC/mTLS client calls, locked CBI, native mutation-call component and confirm-through-commit totals; direct/approved routes are distinct. Original protected functions always execute; no production or Compose changes.
+- Four focused metric/artifact tests, Python AST, Go smoke (16 rows), real Odoo smoke (six committed/fresh-observer outcomes), raw-denominator/summary and whitespace checks pass. Smoke JSON is explicitly not final latency evidence. Fixed test-only import-cycle, fixture-ID-length and floating-point assertion issues; unchanged EVAL-02 correctness evidence reused.
+- Recorded the contract, limits, smoke artifacts and fixed full-collection commands in the EVAL-03 report. Full measurements remain unrun; EVAL-03 stays IN PROGRESS, six tasks plus the existing DOCX visual gate remain. No current-state claim promotion or proposal export regeneration.
+- Updated AGENTS.md, task board and checkpoint to enforce the user's manual model switches: end the turn before Luna's mechanical collection group, then stop for Sol review or diagnosis. No nested tasks, automatic model-switch claim, commit or push.
+
+## [Unreleased] - 2026-09-27: EVAL-02 committed A/B/C comparison and CBI flush repair
+
+- Added an isolated Compose overlay, four test-only Python setup/fixture/variant/comparison scripts and `make evaluate-odoo-abc`. Eleven shared scenarios produce 33 A/B/C outcomes with real mTLS/JWT PDP calls and fresh-session PO/command/approval observations. A/B ablations never become an addon runtime option; native same-record retry behavior and B's hard-DENY/outage protection are reported alongside C's binding benefits.
+- Found a real false invalidation: deferred Odoo line-state recomputation advanced line write dates at pending commit after CBI creation. Flush all pending line fields before authoritative reconstruction; preserve exact witness comparison and prior line-lock changes. The approved/C scenario now passes pending, issuance and execution in three committed transactions, while post-review edits still invalidate approval.
+- Accepted JSON `V2_EVAL_02_ABC_20260927T143156Z.json` records 33 outcomes, source hashes and runtime metadata; five failed diagnostic results remain intact. The isolated comparison reuses its initialized database with new fixtures and is not labeled a fresh-database run.
+- Validation: Python AST, Compose config, 33 unique scenario/variant pairs, exact final CBI hash and whitespace/BOM checks pass. Because runtime changed, ran the existing fresh Odoo gate once: 75 post-tests, zero failures/errors, plus all concurrency, grant/authority, deferred-expiry and 16 material schedules; exit 0 around 14:35:48 UTC. No Go code changed; no unchanged Go suites or document exports were rerun.
+- Reconciled matrix/audit/CBI note, board, current entry-point status and checkpoint. Completed EVAL-02; EVAL-03 is next, with six tasks plus the existing DOCX visual gate remaining. The existing disposable `odoo_e2e` regression database was recreated; normal `odoo` data was not. No commit/push; no latency, production or general ERP claims.
+
+## [Unreleased] - 2026-09-27: DOC-05 locked framing and single-source proposal exports
+
+- Reconciled the eight named overview/proposal documents: root README, master index, V2 master plan, active proposal, scope/evidence alignment, career roadmap, chapter mapping and addon README. The locked VN/EN title, delegated non-human principal, three contribution layers, authoritative intent flow and ALLOW-only approval obligation now agree. Go PDP performance is supporting evidence; SAP remains applicability only.
+- Reused EVAL-01's bounded 75-post-test closure and 25 composed-boundary IDs without a new runtime claim. Marked A/B/C and current overhead as planned; kept configured-writer/trigger/clock assumptions, deferred-validation limit, manual recovery and availability/locking risks explicit. Preserved V1 archive and prior worktree changes.
+- Removed stale diagrams, retired performance framing and unsupported bibliography claims; corrected OWASP to LLM06:2025, Cedar's lead author to Cutler and Zanzibar attribution using primary sources. Related-work novelty and final bibliography reconciliation still belong to thesis writing.
+- Replaced duplicated generator prose with one Markdown source shared by DOCX/PDF (80 blocks). Added a focused four-check regression file for locked titles, local links, supported/rejected parser input and every block's presence in both exports, including table/link structure. No runtime code, generated protocol, lockfile or environment configuration changes.
+- Validation: bundled Python ran `scripts/generate_master_thesis_proposal.py --check`, generated the artifacts and ran `scripts/test_generate_master_thesis_proposal.py` (4 passed). Bundled Poppler rendered the PDF; all 5 pages visually inspected without clipping/overlap. DOCX creation/content checks passed but bundled `render_docx.py` failed with `LibreOffice soffice.exe was not found on PATH`; DOC-04 visual QA stays open. The PDF is independently generated, not proof of DOCX layout. Scoped whitespace validation recorded at handoff; no Odoo/Docker rerun.
+- Completed DOC-05 where rendering is supported, prepared EVAL-02 with batched Sol/security work and optional lower-model mechanical review, and retained seven remaining tasks plus the existing DOCX visual gate. No stage, commit or push.
+
+## [Unreleased] - 2026-09-27: EVAL-01 bounded authority-ordering closure
+
+- Added ERP policy-publication fencing to all configured Go policy/role mutation APIs and both server entrypoints. Pending publication is durable and fail-closed; decisions cannot clear it. Propagated the exact evaluated snapshot revision through gRPC Advice and checked both approver/agent revisions at the final ERP lock.
+- Added a local-authority SQL epoch for user/group/membership/company/grant changes and deferred PostgreSQL execution-deadline validation. Grant/authority/policy locks survive through local PO/AC/command commit; expiry at deferred validation rolls the transaction back. No distributed transaction or later WAL/network-time validity claim.
+- Added four after-ALLOW policy/role schedules, direct/approved real-clock grant-expiry rollback, five policy-fence fault variants, real PostgreSQL writer/cancellation/failure regressions and snapshot/gRPC metadata tests. The final fresh Odoo 17/mTLS/PDP/PostgreSQL gate exits 0: 75 post-tests, zero failures/errors, every existing runner including 16 material and three grant schedules passes. Exact commands, source scope, fixture failures and the earlier transient UNAVAILABLE are retained in the existing case ledger.
+- Closed V2-EVAL-01 at the 25 retained IDs' composed boundaries; prepared V2-DOC-05 and the eight-task remaining order. Reconciled audit, matrix, invariants, addon operation/recovery guidance, root agent guide, task board and checkpoint. Recovery automation, unconfigured writers, arbitrary extensions/SQL and production readiness remain unclaimed. No commit or push.
+
+## [Unreleased] - 2026-09-26: Batched EVAL-01 gaps and concurrent line-insertion repair
+
+- Reproduced a membership phantom: an independently committed note line escaped a stale final snapshot and its old approval was consumed. Added `purchase_order_line_guard` to lock/version protected parents before ORM line create/write/unlink, including tax relations. Ordinary parent-version regression passes.
+- Added public expired/inactive-grant, exact-one-minor-unit, public wrong-authority issuance and missing-JWT live issuer tests. Expanded material runner to 16 ordered schedules and added three committed-before-final policy/role/expiry cases; no simulated policy decision.
+- Staged evidence: fresh Odoo/mTLS run reports 74 post-tests / 84 cases, zero failures/errors. Its concurrency stage exposed a fixture error-message mismatch; corrected complete runner then exits 0 with 16 material, three grant-ordering and three committed-authority schedules. Unchanged Odoo tests were not rerun after the runner-only correction. Earlier fixture/setup failures and exact commands/source fingerprint are recorded in the existing ledger.
+- Four of the five pending ledger rows are now bounded verified. TXN-N03 after-last-check policy/role/expiry ordering remains unresolved; EVAL-01 is not complete. Reconciled active checkpoint, board, matrix, audit, scope review, invariants and addon guidance once. No commit/push or new task IDs.
+
+## [Unreleased] - 2026-09-26: Batched task execution and compact context handoff
+
+- Revised the existing `active-task-workflow` skill instead of adding another skill or task: batch related acceptance gaps, continue through checks, and use one consolidated exit gate unless failures or changed inputs require reruns.
+- Aligned root guidance, board policy and active checkpoint; detailed evidence remains in the existing ledger. Removed the push-before-task-advance prerequisite while retaining explicit commit/push authorization and unchanged security acceptance.
+- Validation: skill syntax validator and scoped whitespace check; manual scenario review covers continuation with unchanged inputs, docs-only changes, failed/changed gate inputs, context loss, unrelated dirty edits and acceptance complete without push. No Odoo/Go runtime changes or rerun; token savings and implementation forward-test remain unmeasured.
+
+## [Unreleased] - 2026-09-26: Grant revocation ordered with ERP commit
+
+- Repaired the reproduced after-ALLOW grant race using a tenant/grant fence held by Odoo through business commit. PDP first commits a monotonic ERP tombstone, then its existing revocation; failure of the second write remains fail-closed. Required database-scope acknowledgement prevents a silent fallback to an unfenced PDP.
+- Added three asserted real-session schedules (revoke-first, final-first with observed blocking, rollback), initial/approved tombstone denial and acknowledgement negatives. Real PostgreSQL cancellation testing exposed an auto-commit ambiguity; explicit fence transactions fixed the blocked-cancellation case.
+- Fresh gate: 69 post-tests / 79 reported cases, zero failures/errors, three authority and four material schedules plus existing runners pass. Go server/config and focused real PostgreSQL tests pass. Compose maps normal Odoo, E2E and benchmark to their corresponding fence database; only E2E runtime was exercised here.
+- Updated addon configuration guidance, active task, board, ledger, matrix, audit and invariant status. Five composite rows remain open, including policy/role/expiry timing; no general distributed-atomicity claim. No commit or push.
+
+## [Unreleased] - 2026-09-26: Reproduced revocation/commit race
+
+- Added an independent-session diagnostic that pauses final Odoo execution after the live PDP ALLOW, commits `action_revoke()` in another session, then resumes final execution.
+- Fresh-session evidence: grant `revoked` while PO `purchase`, approval `consumed` and attempt `executed`. The 66 post-tests / 76 reported cases and existing race schedules passed, but the commit-time authority invariant is not met; V2-EVAL-01 stays open.
+- Next action within the same active task: implement shared ordering for Odoo final execution and PDP revocation, then rerun the reproducer and consolidated gate. No nested tasks or scope expansion.
+
+## [Unreleased] - 2026-09-26: Evaluation scope review (no runtime change)
+
+- Reviewed six partial EVAL-01 rows against actual executable boundaries. Corrected AUTH-N01's HTTP middleware anchor to gRPC authentication/live mTLS evidence; five rows remain partial, not a 25/25 pass.
+- Corrected the missing-JWT approval-issuance claim and distinguished private guards, serializer checks, public ERP routes and live policy publication. Preserved the unresolved last-authority-check-to-commit guarantee rather than weakening the thesis invariant.
+- Added `V2_EVAL_01_SCOPE_REVIEW_2026_09_26.md` and synchronized ledger, matrix, active task, board and audit. Next is a bounded independent-session authority timing investigation, followed by closure and distinct material-lock packages.
+- Documentation-only review: no new tests, production-code changes, commit or push. Retained runtime evidence is 66 post-tests / 76 reported cases plus four separate material-edit schedules.
+
 Tài liệu này ghi nhận toàn bộ lịch sử thay đổi, tiến độ phát triển và timeline thực tế của dự án **Standalone Policy Engine**.
 
 Phân loại thay đổi:
@@ -9,6 +145,88 @@ Phân loại thay đổi:
 *   `Security`: Các bản vá và cơ chế bảo mật hệ thống.
 
 ---
+
+## [Unreleased] - 2026-09-24: V2 Evaluation Matrix Materialization (Partial)
+
+### Security and tests
+- A missing persisted AC payload now raises a controlled authorization error, allowing deterministic invalidation without an unauthorized final PO effect.
+- Added Odoo adversarial tests for Activity completion/deletion/reassignment without approval, material vendor/line edits after AC issuance, and missing approval row/AC payload. Extended the independent-session runner with a committed line edit between approval and final execution; the old AC invalidates and the PO remains non-final.
+- Extended the Go V2 proof tamper matrix with tenant/company substitutions and tested a valid AC signature against the delegation-proof verifier. Final Odoo tests also reject malformed/wrong-agent/wrong-tenant JWTs and an injected V1 proof with non-final/unconsumed state.
+- An exploratory `partner_ref` rewrite did not advance Odoo `write_date`; replaced the invalid parent-version fixture with an explicit persisted version bump and clarified that the timestamp is not a universal write counter. No broader transaction-version guarantee is claimed.
+
+### Evidence
+- Final fresh Odoo 17/generated-client/mTLS/PDP/PostgreSQL gate: 48 post-tests / 58 cases, 0 failures/errors; baseline and approved two-session runners plus stale-intent runner pass. Focused Go proof/key-confusion tests pass.
+- Added a 25-ID case-to-test ledger distinguishing real ERP, Go/Python boundary and partial composite evidence. V2-EVAL-01 remains in progress; this is not a 25/25 security pass.
+
+## [Unreleased] - 2026-09-24: Approved PO Transaction Failure and Race Evidence
+
+### Verification
+- Added Odoo final-route tests for an injected failure after the business transition, a real AC-verifier transport outage and a controlled late agent-PDP outage. Each negative case asserts a non-final PO and unconsumed, retryable approval/attempt before a successful retry.
+- Extended the independent-session runner to race two executions of one approved command, assert one consumed approval/one executed attempt/one final PO, then discard the response and retry in a new session while forbidding a second `button_approve` call.
+- Final fresh-database Odoo 17/generated-client/mTLS/PDP/PostgreSQL gate: 41 post-tests / 51 cases, 0 failures/errors; mTLS probes, baseline nonce runner, approved race and lost-response retry pass.
+
+### Remaining scope
+- Evidence is limited to one Odoo/PostgreSQL PO effect. Independent-session concurrent business-field edits, cross-system policy-snapshot atomicity, external exactly-once effects, Enterprise and SAP remain unverified.
+
+## [Unreleased] - 2026-09-24: Approved Delegated PO Final Execution
+
+### Security
+- Connected the existing public `button_confirm` retry to the approved AC v1 route: lock/reconstruct exact pending CBI, revalidate current grant and approver authority, verify AC through the PDP, and obtain a fresh V2 proof-bound agent-confirm decision.
+- In one Odoo/PostgreSQL transaction, mark the approval `consumed`, invoke the guarded base PO final transition and mark the protected command `executed`; pending or stale approval cannot reach `purchase`.
+- Reused one exact-decimal agent request builder for initial and final decisions, eliminating an unnecessary float-based amount calculation from that protected request path.
+- Changed the protected high-value policy to `ALLOW` with `REQUIRE_HUMAN_APPROVAL`; final execution accepts the AC only for a current ALLOW. A `DENY` carrying the same obligation remains a hard denial, so unrelated forbids cannot be overridden. The non-delegated legacy non-final routing remains unchanged.
+- The pending attempt now stores the PDP's actual `allow` decision alongside `approval_required`, instead of recording a synthetic `deny` after the policy semantics changed.
+
+### Verification
+- Focused fresh-database final-route suite: 6 post-tests / 6 cases, 0 failures/errors. Final complete Odoo/mTLS/PDP/PostgreSQL gate: 38 post-tests / 48 cases, 0 failures/errors, plus mTLS probes and the baseline two-session nonce check.
+- Eight final-route cases cover success, pending approval, changed intent, grant revocation, current approver-policy denial, simulated agent-policy denial (including DENY with an approval obligation), expired AC and tampered AC, with non-final/unconsumed negative oracles. The real high-value hard-SoD case creates no approval.
+- The full gate exposed a test-only grant-ID collision because PDP revocation persists outside Odoo test transactions; the new fixture now uses a disjoint ID range.
+
+### Remaining scope
+- V2-TXN-04 still owns independent-session final execution, injected rollback, lost-response retry and final-route outage tests. No atomic cross-system policy snapshot, instant revocation, tax-relation race closure or general ERP/SAP claim is made.
+
+## [Unreleased] - 2026-09-24: Approved Final-Intent Preflight
+
+### Security
+- Added a private same-transaction preflight for an approved Odoo PO: lock the PO, approval and command attempt, re-read and lock persisted lines, and compare the exact current CBI to the stored approved intent/hash/witness.
+- Material line/vendor drift invalidates the old approval without a final business effect; mismatched command-attempt binding fails closed.
+
+### Verification
+- Fresh-database Odoo 17/generated-client/mTLS/PDP/PostgreSQL gate passes 30 post-tests / 38 cases with 0 failures/errors, including four new preflight tests; mTLS probes and two-session nonce baseline pass.
+- The prior 24-hour testbed certificates had expired, so the repository's test-certgen refreshed that test-only volume and the mTLS PDP was restarted before the passing run.
+
+### Remaining scope
+- Preflight is not wired to final execution. Current policy/revocation/approver rechecks, atomic approval/command consumption with PO mutation and final-route race/rollback/retry evidence remain V2-TXN-03/04. Tax-relation and extension-field races are not closed by the line-row lock alone.
+
+## [Unreleased] - 2026-09-23: Delegated PO Final-Entry-Point Guard
+
+### Security
+- Added one convergent `purchase.order.write` guard for the pinned Odoo 17 Community public methods and ORM/RPC state-write path that can perform a first transition into `purchase` or `done`.
+- Restricted the valid base-confirm transition to a process-local object-identity sentinel carried only after the repository PEP returns ALLOW; a serialized RPC context value cannot forge it.
+- Added a sticky delegated-scope marker so clearing the grant, agent and delegator first cannot create a two-step bypass.
+
+### Verification
+- Focused fresh-database public-dispatch coverage passes 6 post-tests / 8 test cases with 0 failures or errors.
+- The full Odoo 17/generated-client/mTLS/PDP/PostgreSQL gate passes 26 post-tests / 34 test cases with 0 failures or errors, mTLS boundary probes, and the two-session one-nonce/one-effect concurrency check.
+- Direct `button_approve`, `button_done`, `button_unlock`, `write(state=...)`, forged-context and marker-removal cases prove no unauthorized persistent business mutation; the supported confirm route and post-confirm `done`/`unlock` behavior remain available.
+
+### Remaining scope
+- This evidence is limited to the repository-pinned Odoo Community ORM/RPC boundary. V2-TXN-02 through V2-TXN-04 still own approved final execution, locked current-intent reconstruction, current-authority checks, atomic consumption/mutation, rollback and lost-response behavior.
+
+## [Unreleased] - 2026-09-23: Approval Revalidation and Deterministic Invalidation
+
+### Added
+- Explicit `rejected`, `invalidated`, `expired` and reserved `consumed` approval terminal states with immutable terminal-state guards and recorded terminal reason/time.
+- A PO-then-approval locked Odoo revalidation operation that reconstructs current persisted CBI, checks local delegation lifecycle, verifies stored AC v1 through the PDP and rechecks the original approver's current role, tenant/company, SoD and PDP approval policy.
+- Deterministic invalidation for changed intent, expired capability/grant, revoked grant and lost approver authority; transient PDP/verifier outages fail closed without permanently invalidating retryable approval evidence.
+- Focused persistent-state tests proving that every APP-04 denial leaves the purchase order `to approve` and applies no protected business mutation.
+
+### Verification
+- Fresh-database Odoo 17/generated-client/mTLS/PDP/PostgreSQL execution passes 20 post-tests / 26 test methods with 0 failures or errors, including current-policy denial, mTLS negative probes and the two-session single-nonce concurrency check.
+- Addon compilation, focused Go security/server/parser/engine tests, `go vet ./...`, Docker Compose parsing and `git diff --check` pass.
+
+### Remaining scope
+- APP-04 exposes a private non-mutating revalidation boundary; it is not yet wired as final purchase-order execution. Final entry-point coverage, locked commit-time reconstruction, real `consumed` transition, current-authority revalidation and atomic command/capability consumption with the PO mutation remain V2-TXN-01 through V2-TXN-04.
 
 ## [Unreleased] - 2026-09-21: Purpose-Separated ApprovalCapability v1 Issuance
 
@@ -526,3 +744,19 @@ Dự án được khởi tạo và hoàn thiện toàn bộ tầng logic cốt l
 ### Security
 *   **AST Depth Limit:** Chặn biên dịch chính sách nếu độ sâu biểu thức logic lồng nhau vượt quá **15 cấp** để phòng chống tấn công DoS tràn stack.
 *   **Safe Missing Attributes:** Thuộc tính thiếu trong ngữ cảnh request được evaluator chuyển về trạng thái `ERROR` và trả về `false` (Fail-closed) một cách an toàn mà không gây panic hệ thống.
+- V2-EVAL-01 continuation: added a live Odoo final-route AC-signature-as-delegation-proof substitution test. Fresh Odoo 17/generated-client/mTLS/PDP/PostgreSQL gate passes 49 post-tests / 59 cases, 0 failures/errors, with concurrency/retry/stale-intent runners. Ledger records remaining composites; task stays in progress.
+- V2-EVAL-01 continuation: added Odoo/PostgreSQL checks for AC reissue idempotency, unique one-time-ID collision across commands and copied signed-byte replay. Fresh Odoo 17/generated-client/mTLS/PDP/PostgreSQL gate passes 51 post-tests / 61 cases, 0 failures/errors, with concurrency/retry/stale-intent runners. Task remains in progress.
+- Thesis direction lock (2026-09-24): set the Vietnamese/English title and center the contribution on delegation-aware, transaction-bound authorization for high-impact AI-agent actions in ERP. Added `V2-DOC-05` after `V2-EVAL-01` to align the active proposal before `V2-EVAL-02`; this adds one item to the previously counted eight remaining tasks.
+- V2-DOC-05 scope clarification (2026-09-24): include root README, documentation master index, thesis chapter map, career roadmap and Odoo addon README in the post-EVAL-01 consistency pass, alongside the active proposal and generator. Keep V1 archive and normative implementation/evidence sources immutable unless their owning task establishes a correction.
+- Remaining thesis execution order locked (2026-09-24): EVAL-01 → DOC-05 → EVAL-02 → EVAL-03 → EVAL-04 → WRITE-01 → WRITE-02 → WRITE-03 → WRITE-04. The outstanding V2-DOC-04 DOCX visual render is tracked as a separate artifact gate, not an extra thesis task.
+- V2-EVAL-01 continuation (2026-09-25): added bounded Odoo tests for the attempt-level unique approval constraint and unknown approval state at final execution, each with persistent non-final/unconsumed oracles. Python syntax and Compose parsing pass; the fresh E2E gate remains pending because the local Docker daemon could not start. No new V2 verification claim is made.
+- V2-EVAL-01 fresh gate (2026-09-25): after Docker access and 24-hour testbed mTLS certificate renewal, 54 Odoo post-tests / 64 cases pass with 0 failures/errors, mTLS probes and baseline/approved two-session, retry and stale-intent runners. The duplicate-approval constraint, unknown-state denial and same-tenant cross-company grant/order guard have bounded persistent-state evidence. The task remains in progress because composite negatives remain partial.
+- V2-EVAL-01 line-intent extension (2026-09-25): added Odoo negative oracles for changed purchase-line tax and explicit persisted line write-version change. The fresh gate passes 55 post-tests / 65 cases, 0 failures/errors, with mTLS and two-session/retry/stale-intent runners. The remaining line-shape and other composite matrix variants are still open.
+- V2-EVAL-01 line-shape extension (2026-09-25): added Odoo negative oracles for added/removed purchase lines, one-line sequence change and product substitution. Fresh gate passes 56 post-tests / 66 cases, 0 failures/errors, with mTLS and two-session/retry/stale-intent runners. UoM and actual multi-line reordering remain unverified.
+- V2-EVAL-01 listed-line closure (2026-09-25): added an approved-final UoM substitution case and a real two-line reorder after approval, both asserting non-final PO and unconsumed approval/attempt. The first two-line fixture was denied before approval, so only the corrected same-total fixture and fresh passing gate count as evidence: 57 post-tests / 67 cases, 0 failures/errors, mTLS and two-session/retry/stale-intent runners pass. CBI-N03 is bounded-verified for its listed line edits; other composite rows and concurrent-in-flight business edits remain open.
+- V2-EVAL-01 partial-capability extension (2026-09-26): added 12 persisted missing-field subcases under BOUND-N03. Six absent text metadata fields initially caused uncaught Protobuf TypeErrors; validating them in `_stored_capability` now feeds the existing controlled invalidation path without changing wire contracts, policy or keys. The focused method and fresh full gate pass: 58 post-tests / 68 cases, 0 failures/errors, mTLS and all two-session/retry/stale-intent runners. Each subcase preserves a non-final PO and unconsumed approval/attempt. Remaining issuance-revision/pending-binding variants and other composite rows keep V2-EVAL-01 in progress. Docker Desktop was started after an unavailable-daemon error; no commit/push was performed.
+- BOUND-N03 binding extension (2026-09-26): three new methods cover 23 subcases: 12 required-column NULL writes rejected by PostgreSQL with a post-savepoint non-final/unconsumed oracle; seven persisted empty binding strings rejected by final execution; and NULL/zero/negative/changed issuance revision rejected against an originally signed nonzero revision. The fresh gate passes 61 post-tests / 71 cases, 0 failures/errors, mTLS and all two-session/retry/stale-intent runners. No additional production-code change was needed. Revision 0 remains valid; see the ledger for SQL NULL coercion and corruption-scope limits. V2-EVAL-01 remains in progress.
+- CBI-N04 state-change evidence (2026-09-26): `test_post_approval_state_change_invalidates_old_capability` changes an approved PO to `draft`, `sent` or `cancel` through the public ORM write route. The protected confirm preserves that non-final state, invalidates the old approval with `intent_changed`, and leaves the command unexecuted. The original intent hash, one-time ID and command binding remain unchanged; retrying the invalidated approval hard-denies with the same persistent-state oracle. Together with the explicit parent-version test, this verifies the listed CBI-N04 variants in one Odoo transaction, not concurrent-in-flight edits. Fresh gate: 62 post-tests / 72 cases, 0 failures/errors, mTLS and all two-session/retry/stale-intent runners pass. No additional production-code change was needed. V2-EVAL-01 remains in progress.
+- CBI-N02 material-binding evidence (2026-09-26): `test_final_material_context_tamper_with_old_proof_fails_closed` independently changes tenant, company, action, resource, vendor and currency in the final outgoing request while retaining the proof for the original locked intent. For the five schema-valid variants the state witness is recomputed; the action variant injects an unsupported CBI action. The real generated-client/mTLS/PDP boundary returns gRPC `PERMISSION_DENIED`; post-savepoint oracles preserve non-final source/target POs, approved capabilities and unexecuted commands. No PDP decision is mocked. `test_currency_edit_never_reuses_approved_intent` additionally writes a different currency through public ORM, preserves the numeric total, and verifies old-approval invalidation without consumption; the earlier persisted-vendor test remains separate evidence. The first run failed six assertions because they expected a later policy-denial message instead of the earlier proof/request rejection; after checking the actual chained RPC status, the focused six-subcase method passed. The fresh full gate then passes 64 post-tests / 74 cases, 0 failures/errors, mTLS and all two-session/retry/stale-intent runners. No production-code change was needed. These are bounded request-tamper and sequential ERP-edit tests, not tenant/company migration, compromised-PEP resistance or concurrent-in-flight edit evidence. V2-EVAL-01 remains in progress.
+- TXN-N04 overlapping-edit evidence (2026-09-26): `deployments/docker/odoo_material_race.py` runs four controlled schedules on separate Odoo/PostgreSQL sessions: line description and unit price, each with edit-first and final-first ordering. Events hold transactions open; `pg_blocking_pids` proves actual blocking, and workers require REPEATABLE READ. With edit first, Odoo retries the stale final snapshot and invalidates the old approval; a fresh observer sees the edited PO still non-final and command unconsumed. With final execution first, a fresh observer sees the original approved data, consumed approval and executed command committed together while the edit is still uncommitted; the edit commits later. Bindings remain unchanged and each PO has one approval/attempt. The runner calls real ORM/PDP methods; its hook only pauses before the native final mutation. The focused runner and fresh full gate pass; no authorization defect was reproduced and no production change was required. The first price oracle ignored tax and was corrected to verify persistence of Odoo's tax-inclusive total. Gate: 64 post-tests / 74 reported cases plus four material-race schedules, mTLS and baseline/approved concurrency, retry and stale-intent runners, all passing. These four schedules do not establish coverage for line insert/delete/tax changes, other material fields, concurrent authority changes or a general prohibition on post-confirmation edits. V2-EVAL-01 remains in progress.
+- CBI-N05 protocol evidence (2026-09-26): `test_final_protocol_variants_fail_closed` covers 12 outgoing request variants: unknown CBI schema, intent proof version and proof-envelope version; an unknown `cbi.*` material field; missing company; leading-zero ID; decimal, exponent and overflowing minor units; non-hex digest; noncanonical timestamp; and truncated proof signature. Each reaches the real generated-client/mTLS/PDP boundary and receives gRPC PERMISSION_DENIED, with a non-final PO, approved/unconsumed capability, unexecuted command and unchanged intent/one-time/command binding after the savepoint. `test_stored_canonical_encoding_variants_cannot_finalize` separately persists non-base64, padded or truncated canonical-intent text; Odoo final preflight rejects all three while preserving that corruption and the non-final/unconsumed outcome. The existing V1 downgrade case remains covered. The fresh gate passes 66 post-tests / 76 reported cases, zero failures/errors, mTLS, baseline/approved race/retry/stale-intent and all four overlapping material-edit schedules. Initial execution stopped before tests because the ephemeral TLS certificates expired; certificate regeneration and PDP restart restored the gate. No production change was needed. Coverage is limited to these enumerated wire/storage variants, not arbitrary binary fuzzing or automatic discovery of material fields added by Odoo extensions. V2-EVAL-01 remains in progress; its next step is the six-row scope/evidence review.

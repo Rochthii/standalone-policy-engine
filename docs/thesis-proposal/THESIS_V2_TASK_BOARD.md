@@ -1,7 +1,7 @@
 # Thesis V2 Atomic Task Board
 
-> **Status:** READY
-> **Execution policy:** one task per turn; do not start a task whose dependencies are incomplete.
+> **Status (2026-09-28):** All nine thesis tasks and paired proposal artifact QA are complete. The DOCX matches the shared Markdown source; all five pages of the existing paired PDF passed visual inspection. Per user scope decision, Word-native DOCX rendering is not a separate remaining gate; its lack of independent rendering remains a documented limitation, not a blocker.
+> **Execution policy:** one dependency-complete task at a time; batch related acceptance gaps without nested task IDs or per-case approval turns. Use `ACTIVE_TASK.md` as the resume pointer and its ledger for detailed evidence. Consolidate validation and documentation at the batch boundary; acceptance and authorized Git publication are separate.
 > **Master plan:** [`THESIS_V2_MASTER_PLAN.md`](./THESIS_V2_MASTER_PLAN.md)
 
 ## Status legend
@@ -11,6 +11,7 @@
 | `TODO` | Not started. |
 | `IN PROGRESS` | Current bounded task. |
 | `CODE COMPLETE` | Focused checks pass; boundary evidence remains. |
+| `VERIFIED — DOCX QA OPEN` | Historical status used before the 2026-09-28 paired-artifact closure decision. |
 | `VERIFIED` | Required evidence passed and was recorded. |
 | `BLOCKED` | Named dependency or decision is missing. |
 
@@ -22,7 +23,7 @@
 | V2-DOC-01 | Replace title, thesis statement and RQ1–RQ4 in proposal Markdown. | V2-DOC-00 | `VERIFIED` | Active proposal now states the Odoo 17 one-hop purchase-order scope, transaction-bound thesis statement and aligned RQ1–RQ4; performance is supporting evidence in RQ4. |
 | V2-DOC-02 | Rewrite research gap, contributions, scope, 16-week plan and five-chapter outline. | V2-DOC-01 | `VERIFIED` | Proposal now defines the transaction-integrity gap, four measurable contributions, Odoo-first scope, a 16-week plan and five chapters mapped to RQ1–RQ4; unsupported dynamic HR/limit claims are absent. |
 | V2-DOC-03 | Reconcile scope/evidence alignment, chapter mapping and bounded Odoo-to-SAP applicability mapping with v2. | V2-DOC-02 | `VERIFIED` | Both files now distinguish VERIFIED BASELINE from PLANNED V2, align to RQ1–RQ4 and limit SAP to applicability mapping with no implementation/effectiveness claim. |
-| V2-DOC-04 | Update proposal generator; regenerate and visually verify DOCX/PDF. | V2-DOC-03 | `CODE COMPLETE` | Generator emits V2 DOCX/PDF; PDF has two-page Poppler visual QA and content checks pass. DOCX visual render is blocked: bundled LibreOffice is absent and Word COM has no available logon session. Re-run DOCX render on a workstation with supported renderer before final submission. |
+| V2-DOC-04 | Update proposal generator; regenerate and visually verify DOCX/PDF. | V2-DOC-03 | `VERIFIED — PAIRED ARTIFACT QA` | DOCX matches all 80 Markdown blocks and three tables. Existing paired PDF was rendered with bundled Poppler 26.07.0 (`pdftoppm.exe -png -r 180 <proposal.pdf> <temp-prefix>`); all five A4 pages inspected without clipping, overlap, missing glyphs or broken tables. Per user scope decision, Word-native DOCX pagination is not a separate remaining gate; it was not independently rendered. No new export or content change. |
 
 ### Phase 0 files
 
@@ -77,7 +78,7 @@
 | V2-APP-01 | Persist pending canonical intent and one approval record/state. | V2-PROOF-04 | `VERIFIED` | Fresh-database Odoo/mTLS evidence persists one post-transition CBI JSON/canonical bytes/hash/witness row and one linked Activity; retry creates no duplicate and the PO remains non-final. |
 | V2-APP-02 | Enforce authorized approver and SoD at approval creation. | V2-APP-01 | `VERIFIED` | Fresh-database Odoo/mTLS evidence derives the human from `env.user`; same-tenant/company purchase-manager plus live-PDP checks pass, while creator, delegator, agent, wrong-role, PDP-denied, cross-tenant/company and outage cases fail closed with pending state unchanged. |
 | V2-APP-03 | Issue and verify a purpose-separated, expiring approval capability. | V2-APP-02 | `VERIFIED` | Typed AC v1 issue/verify RPCs use a dedicated key ring/domain and bounded TTL; Odoo locks and rechecks the unchanged pending intent, persists one `approved` capability, verifies it through the PDP and retries idempotently while the PO remains `to approve`. Tamper, expiry, unknown/key-confused credentials and non-human/SoD cases fail closed in focused and real-boundary tests. |
-| V2-APP-04 | Invalidate changed, expired, revoked or already-consumed approval. | V2-APP-03 | `TODO` | Focused Odoo tests cover each invalidation cause. |
+| V2-APP-04 | Invalidate changed, expired, revoked or already-consumed approval. | V2-APP-03 | `VERIFIED` | A locked Odoo revalidation operation reconstructs current CBI, checks local grant lifecycle, verifies stored AC v1 through the PDP and rechecks the original approver's current local/PDP authority. Fresh-database tests make changed intent, expired capability/grant, revoked grant and lost approver role terminal without a protected effect; existing terminal states cannot reopen, while transient PDP outage fails closed without permanent invalidation. Actual consumption and final mutation remain Phase 4 work. |
 
 ### Phase 3 primary files
 
@@ -91,28 +92,36 @@
 
 | ID | Atomic task | Depends | Status | Exit evidence |
 |---|---|---|---|---|
-| V2-TXN-01 | Inventory and close final purchase-order transition entry points in scope. | V2-APP-04 | `TODO` | `button_confirm`, `button_approve` and supported API path cannot bypass PEP. |
-| V2-TXN-02 | Lock/re-read the row and reconstruct intent immediately before final execution. | V2-TXN-01 | `TODO` | Material state mismatch requires new authorization/approval. |
-| V2-TXN-03 | Recheck current PDP policy/revocation and atomically consume approval/command with mutation. | V2-TXN-02 | `TODO` | One database transaction contains consume and business state change. |
-| V2-TXN-04 | Add rollback, concurrent execution, lost-response retry and outage cases. | V2-TXN-03 | `TODO` | One command ID produces at most one committed ERP effect. |
+| V2-TXN-01 | Inventory and close final purchase-order transition entry points in scope. | V2-APP-04 | `VERIFIED V2` | Pinned Odoo Community public `button_approve`, `button_done`, `button_unlock` and direct `write(state=...)` cannot bypass the PEP for a sticky delegated-scope PO; focused 6-post-test/8-case and full 26-post-test/34-case gates pass. |
+| V2-TXN-02 | Lock/re-read the row and reconstruct intent immediately before final execution. | V2-TXN-01 | `VERIFIED V2 PREFLIGHT` | Private same-transaction preflight locks PO/approval/attempt/lines, compares exact approved CBI and invalidates material drift without a final effect; 30 post-tests / 38 cases pass. Integration into final execution remains V2-TXN-03. |
+| V2-TXN-03 | Recheck current PDP policy/revocation and atomically consume approval/command with mutation. | V2-TXN-02 | `VERIFIED V2 — BOUNDED FINAL ROUTE` | Public approved `button_confirm` reuses locked CBI/AC/current-authority checks and a fresh agent PDP `ALLOW` (approval obligation only on ALLOW), then marks approval `consumed`, executes the PO transition and marks the attempt `executed` in one Odoo transaction. Any `DENY`, including DENY with an approval obligation, remains non-final. Full fresh-database gate: 38 post-tests / 48 cases, 0 failures/errors; final-session races/rollback/retry remain TXN-04. |
+| V2-TXN-04 | Add rollback, concurrent execution, lost-response retry and outage cases. | V2-TXN-03 | `VERIFIED V2 — BOUNDED PO` | Fresh-database gate: 41 post-tests / 51 cases, 0 failures/errors. Injected post-transition rollback and final-route AC/agent outages leave approval and command retryable; two independent final sessions converge on one consumed approval/attempt/PO effect, and a new-session retry does not call `button_approve` again. External effects and concurrent business-edit races are not covered. |
 
 ## Phase 5 — Evaluation
 
 | ID | Atomic task | Depends | Status | Exit evidence |
 |---|---|---|---|---|
-| V2-EVAL-01 | Materialize and finalize 20–30 bounded adversarial cases from the designed matrix. | V2-TXN-04 | `TODO` | Every negative case executes against its stated boundary and asserts no unauthorized persistent mutation. |
-| V2-EVAL-02 | Define and run variants A: broad service account, B: policy-only, C: proposed mechanism. | V2-EVAL-01 | `TODO` | Same fixture, action and environment are used across variants. |
-| V2-EVAL-03 | Measure evaluator, proof, gRPC/mTLS, state check and ERP mutation separately. | V2-EVAL-02 | `TODO` | Raw p50/p95/p99/max, errors and environment metadata are recorded. |
-| V2-EVAL-04 | Record claim-to-evidence results and threats to validity. | V2-EVAL-03 | `TODO` | No general ERP, production, WORM or compliance conclusion is inferred. |
+| V2-EVAL-01 | Materialize and finalize 20–30 bounded adversarial cases from the designed matrix. | V2-TXN-04 | `VERIFIED V2 — BOUNDED, PUBLICATION PENDING` | [Final ledger, 2026-09-27](../technical-spec/evidence/V2_EVAL_01_CASE_LEDGER_2026_09_24.md): all 25 retained IDs anchored at their composed boundaries. One fresh gate exits 0: 75 post-tests, zero failures/errors, existing concurrency/retry, 16 material, three grant-ordering, three committed-authority, four after-ALLOW policy/role and two deferred-expiry schedules. Shared publication/epoch fences close retained TXN-N03 ordering; exact configured-writer/clock/trigger limits remain. Real PostgreSQL writer/failure tests and Go regressions pass. No commit/push authorized. |
+| V2-DOC-05 | Reconcile the locked VN/EN title, scope, agent definition, trusted-intent flow, three contributions and bounded evidence across named docs; derive DOCX/PDF from the aligned Markdown and visually check where supported. | V2-EVAL-01 | `VERIFIED — PAIRED ARTIFACT QA` | Eight overview/proposal sources aligned; one 80-block Markdown source; DOCX/PDF content parity passed. Existing PDF's five pages were re-rendered at 180 dpi and inspected. User accepted paired-artifact QA as closure; direct Word pagination remains a non-blocking, explicitly unverified detail. No runtime claim expanded. |
+| V2-EVAL-02 | Define and run variants A: broad service account, B: policy-only, C: proposed mechanism. | V2-EVAL-01, V2-DOC-05 | `VERIFIED V2 — BOUNDED` | [2026-09-27 report](../technical-spec/evidence/V2_EVAL_02_COMPARISON_2026_09_27.md): 11 shared scenarios × 3 variants, 33 committed/fresh-observer outcomes. Explicit isolated A/B ablations, real PDP and ordinary approval; no normal-route bypass. Repaired deferred line flush causing false CBI invalidation across three transactions. ABC passes; final fresh regression passes 75 post-tests and all runners. Five failed diagnostics retained; no timing claim or Git publication. |
+| V2-EVAL-03 | Measure evaluator, proof, gRPC/mTLS, state check and ERP mutation separately. | V2-EVAL-02 | `VERIFIED V2 — BOUNDED` | [Contract/results](../technical-spec/evidence/V2_EVAL_03_MEASUREMENT_2026_09_27.md): corrected Go full run has 1,000 successful samples per boundary; summary validates accepted Go and retained Odoo runs. Raw hashes, timer-control distribution, QPC caveat and claim limits recorded. Failed diagnostics preserved. |
+| V2-EVAL-04 | Record claim-to-evidence results and threats to validity. | V2-EVAL-03 | `VERIFIED V2 — BOUNDED` | [Claim/evidence ledger](../technical-spec/evidence/V2_EVAL_04_CLAIM_EVIDENCE_2026_09_28.md): nine permitted claim families, bounded RQ1–RQ4 answers and construct/internal/external/conclusion validity threats mapped to EVAL-01/02/03. Threat model and writing pointers reconciled; no new runtime evidence or broad ERP/production/SAP/compliance claim. |
+
+### V2-DOC-05 target and guardrail
+
+- **Edit/reconcile:** `README.md`, `docs/00_MASTER_INDEX.md`, active proposal Markdown, `THESIS_SCOPE_AND_EVIDENCE_ALIGNMENT.md`, `docs/technical-spec/THESIS_CHAPTER_MAPPING.md`, `SE_ERP_CAREER_ROADMAP.md`, `custom_addons/pdp_authorizer/README.md` and `scripts/generate_master_thesis_proposal.py`.
+- **Regenerate after source alignment:** active proposal DOCX/PDF; preserve the archived V1 artifacts unchanged.
+- **Use as evidence authority, not copy-edit target:** source/protocol/tests, `CURRENT_STATE_AUDIT.md`, normative technical contracts and the case ledger. Update their implementation claims only through the owning evidence task. Keep `CHANGELOG.md` chronological and append-only.
+- Inventory all README and active thesis overview/title/evidence references for contradictions. Do not mechanically rename the repository or rewrite subsystem specifications whose technical purpose and claims remain correct.
 
 ## Phase 6 — Thesis freeze
 
 | ID | Atomic task | Depends | Status | Exit evidence |
 |---|---|---|---|---|
-| V2-WRITE-01 | Update current-state audit and task evidence from passed tests only. | V2-EVAL-04 | `TODO` | New verified claims link executable evidence; failed/open gates stay explicit. |
-| V2-WRITE-02 | Rewrite Chapters 3–5 around model, enforcement and results. | V2-WRITE-01 | `TODO` | Every RQ has a bounded answer and threats-to-validity section. |
-| V2-WRITE-03 | Reconcile proposal, chapter mapping, references and final quantitative claims. | V2-WRITE-02 | `TODO` | Cross-document claim audit reports no contradiction. |
-| V2-WRITE-04 | Regenerate/render final DOCX/PDF and preserve reproduction metadata. | V2-WRITE-03 | `TODO` | Visual QA passes and final evidence records commit, commands and environment. |
+| V2-WRITE-01 | Update current-state audit and task evidence from passed tests only. | V2-EVAL-04 | `VERIFIED` | Added a concise superseding audit entry linked to EVAL-03/04, including denominators, dirty-worktree and trust assumptions, and prohibited generalization. Relative links/status and scoped whitespace checks pass. Docs-only; no runtime rerun. |
+| V2-WRITE-02 | Rewrite Chapters 3–5 around model, enforcement and results. | V2-WRITE-01 | `VERIFIED — DRAFT COMPLETE` | [Chapters 3–5 draft](THESIS_CHAPTERS_3_5_DRAFT.md) covers contracts/trust/invariants, Odoo/Go execution, EVAL-01/02/03, bounded RQ1–RQ4 answers and validity threats. Relative links resolve; 13 Odoo and four Go metric rows match the accepted report; 11 A/B/C scenario rows retained. No export or runtime rerun. |
+| V2-WRITE-03 | Final cross-document reconciliation of proposal, chapter mapping, references and quantitative claims after the locked framing and evaluation results are incorporated. | V2-WRITE-02 | `VERIFIED — BOUNDED` | Proposal/draft/map agree on title, RQ1–RQ4, three contributions, Odoo-only runtime scope and SAP discussion boundary. Fixed stale EVAL-03 status in README/index/master plan and obsolete next-work text; checked cited source metadata, result units/limits and local links. No evidence/runtime claim added. |
+| V2-WRITE-04 | Regenerate/render final DOCX/PDF and preserve reproduction metadata. | V2-WRITE-03 | `VERIFIED — PAIRED ARTIFACT QA` | DOCX matches all 80 Markdown blocks and three tables; five-page PDF rendered and all pages inspected at 180 dpi without clipping/overlap/missing glyphs or broken tables. Exact command, renderer, dirty source revision and hashes are in CHANGELOG.md. Word-native pagination was not independently rendered and is not a blocker per user scope decision. |
 
 ## Governance gate
 
@@ -142,4 +151,22 @@ Phases 0–5 and V2-WRITE-01 through V2-WRITE-03.
 
 ## Next task
 
-`V2-APP-04` — invalidate changed, expired, revoked or already-consumed approval without applying the protected purchase-order effect.
+No task remains in the original nine-task thesis plan. Paired proposal artifact QA is complete; no further export is needed. A future supervisor requirement for Word-specific pagination can be handled as a new task.
+
+## Locked remaining execution order
+
+The original nine-task order is retained below; all nine tasks are complete. Paired proposal artifact QA is closed as a final handoff check, not an additional thesis task.
+
+| Order | Task | Work and handoff |
+|---:|---|---|
+| 1 | `V2-EVAL-01` — complete | Bounded criteria accepted, clean fresh-database gate passed; publication pending explicit authorization. |
+| 2 | `V2-DOC-05` — complete | Eight source docs aligned; single-source generator and content/link checks pass; paired DOCX source parity and five-page PDF visual QA recorded. |
+| 3 | `V2-EVAL-02` — complete | 33 bounded comparison outcomes; exact ablations/raw evidence recorded; CBI flush repair and final regression pass. |
+| 4 | `V2-EVAL-03` — complete, bounded | Go and Odoo boundary-separated distributions accepted with raw hashes and explicit interpretation limits. |
+| 5 | `V2-EVAL-04` — complete, bounded | Nine claim families and RQ answers mapped to evidence with explicit validity threats and prohibited generalizations. |
+| 6 | `V2-WRITE-01` — complete | Current-state audit, task board, checkpoint and changelog reconciled to bounded EVAL-03/04 evidence. |
+| 7 | `V2-WRITE-02` — draft complete | Three chapters in one evidence-linked Markdown source; RQ1–RQ4 and validity threats covered. |
+| 8 | `V2-WRITE-03` — complete, bounded | Proposal, chapter draft, map, references, evidence limits and current-status summaries reconciled; stale planned-performance and next-work text corrected. |
+| 9 | `V2-WRITE-04` — complete | Regenerated DOCX/PDF, checked exact DOCX source parity, visually inspected all five PDF pages and recorded output provenance. |
+
+**Artifact limitation:** Word-native DOCX pagination was not independently rendered in this environment. The existing paired PDF was rendered and visually inspected, and DOCX content parity with the shared Markdown source is recorded. This limitation is closed as non-blocking under the user's explicit paired-artifact scope decision; do not describe it as Word-rendered evidence.
