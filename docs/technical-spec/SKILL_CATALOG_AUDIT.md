@@ -1,6 +1,18 @@
 # Skill Catalog Audit & Redesign Plan
 
+> **EVAL-01 forward-test closure (2026-09-27):** `erp-testing` completed its bounded forward-test: 25 retained IDs have explicit composed-boundary anchors and persistent negative ERP oracles, with a clean 75-post-test gate and all independent-session runners passing. `active-task-workflow` guided grouping the remaining authority gap through implementation, focused checks, consolidated gate and one handoff; no token-saving measurement is claimed. Existing unrelated skill remediation statuses below are unchanged. Exact evidence and limitations remain in the EVAL-01 ledger.
+
+> **Workflow revision (2026-09-26):** `active-task-workflow` now batches related acceptance gaps, resumes from a compact checkpoint, reuses only valid unchanged evidence and separates acceptance from authorized Git publication. This workflow-only addition to the historical catalog below makes no implementation claim. Syntax validation and manual scenario review are recorded in the changelog; reduced token use has not been measured or behaviorally established on the next implementation task.
+
 > **Audit date:** 2026-09-11
+>
+> **V2 governance update (2026-09-21):** Root and `.agents` guidance, `agent-authorization`, `erp-testing`, and `grpc-dataplane` were rewritten around the active V2 evidence hierarchy. All rewrites are syntax-validated; `agent-authorization` passed its V2-PROOF-01 behavioral forward-test, and `grpc-dataplane` passed its V2-PROOF-04 initial protected-route forward-test. `erp-testing` awaits V2-EVAL-01. The remaining entries retain the remediation status recorded below.
+>
+> **V2-TXN-03 alignment (2026-09-24):** Root guidance and the `agent-authorization`/`erp-testing` entrypoints now distinguish verified single-transaction approved final execution from still-open independent-session race, rollback, retry and outage evidence. This is a narrow evidence-status correction, not a new skill capability.
+
+> **V2-TXN-04 alignment (2026-09-24):** The same entrypoints now recognize bounded approved two-session execution, injected rollback, lost-response retry and final-route outage evidence from the 41-post-test gate. Concurrent business-edit races and cross-system atomicity remain open; this updates evidence status only.
+
+> **V2-EVAL-01 partial forward-test (2026-09-24):** `erp-testing` guided a 25-ID case-to-test ledger and new persistent non-final ERP oracles; the final fresh 48-post-test gate passes. The skill's evidence discipline held, including correction of an invalid `write_date` fixture, but the matrix still has incomplete composite negatives, so its V2-EVAL-01 forward-test is not complete.
 >
 > **Scope:** The nine repository-local skills under `.agents/skills/`.
 >
@@ -22,10 +34,10 @@ The skills must guide a future implementation toward the audited release gates, 
 | `clean-architecture-standards` | REWRITE LIGHTLY | Central configuration and separation are useful; the absolute 250-line rule can create artificial fragmentation and it omits configuration-consumer tests. | Make 250 lines a review threshold, require one config owner and tests proving each env key is consumed. |
 | `dsl-compiler` | REWRITE LIGHTLY | Grammar, depth cap and pre-parsing guidance are useful. | Add parser input-size/fuzz guidance, atomic ruleset compilation, type/error reset behavior and truthful `contains` allocation caveat. |
 | `engine-evaluator` | REWRITE | It calls nested hash maps a Trie with `O(log N)`, promises zero allocation too broadly, and omits writer linearizability plus hash collision verification. | Separate narrow benchmark guarantees from production behavior; require CAS/serialization for writers and worst-case candidate benchmarks. |
-| `agent-authorization` | REWRITE URGENTLY | It teaches the current weak five-field HMAC, optional proof check and local revocation as security controls. | Make JWT mandatory, bind the full tuple, require trusted attributes, authorize revocation, prevent replay and distinguish local lookup from cluster propagation. |
-| `grpc-dataplane` | REWRITE URGENTLY | It says tenant isolation is strict while the handler accepts missing credentials; it also points to an absent external Odoo client. | Define actual interceptor order, mandatory auth, mTLS policy, deadlines, structured errors and generated-contract compatibility. |
+| `agent-authorization` | REWRITTEN V2 + FORWARD-TESTED | V2-PROOF-01 followed its CBI, one-hop authority, version isolation and evidence-bounding rules; focused and package regression tests pass. | Keep future implementation claims bounded by the current-state audit. |
+| `grpc-dataplane` | REWRITTEN V2 + FORWARD-TESTED | V2-PROOF-04 followed its handler/interceptor ownership, mandatory identity binding, generated-Protobuf, mTLS and high-impact no-downgrade rules; focused regressions and the repository-local Odoo/mTLS gate pass. | Keep claims bounded to the initial protected route; approval capability and commit-time atomic enforcement remain open. |
 | `storage-audit` | SPLIT AND RETIRE | It combines two large concerns and describes an unimplemented ring buffer/CopyFrom/spill pipeline as fact. | Replace with `policy-state-consistency` and `audit-pipeline`; keep no catch-all router. |
-| `erp-testing` | REWRITE URGENTLY | It labels in-process vectors E2E and repeats the invalid 44,000x Odoo claim. | Require real boundary tests, negative security cases, multi-replica revocation tests, and honest benchmark methodology. |
+| `erp-testing` | REWRITTEN V2 | Now distinguishes in-process, real-boundary and planned V2 evidence; it requires persistent-state oracles and retires 44,000x framing. | Forward-test while materializing the V2 evaluation matrix in V2-EVAL-01. |
 | `docker-standards` | REWRITE | It calls mutable tags frozen, assumes a nonexistent external addon and lacks Kubernetes runtime security. | Require digest pinning, self-contained assets, security contexts and a release-safe E2E workflow. |
 
 ## 3. Skills that must be added
@@ -97,12 +109,12 @@ Creating either skill before its artifact/workflow exists would add speculative 
 | Critical review | `critical-advisor` | Keep, audit-aware update |
 | Policy language | `dsl-compiler` | Rewrite existing |
 | Evaluation core | `engine-evaluator` | Rewrite existing |
-| Delegation identity | `agent-authorization` | Rewrite existing |
-| Data Plane runtime | `grpc-dataplane` | Rewrite existing |
+| Delegation identity | `agent-authorization` | Rewritten V2; V2-PROOF-01 forward-test passed |
+| Data Plane runtime | `grpc-dataplane` | Rewritten V2; V2-PROOF-04 forward-test passed |
 | Policy consistency | `policy-state-consistency` | New |
 | Audit delivery | `audit-pipeline` | New |
 | API contract | `api-contract-governance` | New |
-| ERP verification | `erp-testing` | Rewrite existing |
+| ERP verification | `erp-testing` | Rewritten V2; forward-test in V2-EVAL-01 |
 | Containers/testbed | `docker-standards` | Rewrite existing |
 | Kubernetes runtime | `kubernetes-runtime-hardening` | New |
 | Claims/evidence | `documentation-evidence-governance` | New |
@@ -121,11 +133,10 @@ This produces 13 skills. That is the upper useful limit for the current reposito
 
 ## 7. Implementation order
 
-1. Rewrite `agent-authorization`, `grpc-dataplane`, `erp-testing`, `storage-audit`, and `engine-evaluator` before using them for new production work.
+1. `agent-authorization` passed its V2-PROOF-01 forward-test and `grpc-dataplane` passed its V2-PROOF-04 initial-route forward-test; `erp-testing` remains scheduled for V2-EVAL-01. Rewrite `storage-audit` and `engine-evaluator` before their next production-work use.
 2. Add `policy-state-consistency`, `audit-pipeline`, `api-contract-governance`, and `documentation-evidence-governance`.
 3. Rewrite `docker-standards` and add `kubernetes-runtime-hardening` before the next deployment attempt.
 4. Apply the light rewrites to `clean-architecture-standards`, `dsl-compiler`, and `critical-advisor`.
 5. Add `odoo-pep-integration` only after the addon becomes a versioned repository artifact.
 
 Each new or substantially revised skill must be validated with the system skill validator and forward-tested against one realistic task. The expected behavior—not wording—is the validation target.
-

@@ -1,6 +1,6 @@
 ---
 name: active-task-workflow
-description: Execute one repository task from ACTIVE_TASK.md with a bounded scope, stated validation, evidence, and an authorized commit/push.
+description: Complete or resume the task in ACTIVE_TASK.md, batching related changes and verification without reopening finished work.
 ---
 
 # Active Task Workflow
@@ -9,17 +9,51 @@ Use this skill when the repository root contains `ACTIVE_TASK.md` and the user
 asks to execute or continue its task. It does not apply to planning, general
 questions, or work outside that file's declared scope.
 
-1. Read `AGENTS.md` and `ACTIVE_TASK.md`, then inspect the branch and working
-   tree. If unrelated changes are present, report the blocker before staging or
-   committing anything.
-2. Read only the files named by `Scope`, make the smallest change that meets
-   `Acceptance`, and run the command in `Validation`.
-3. Record evidence only when validation supports the claim. Keep the task
-   active when validation fails or a required external gate is unavailable.
-4. Commit and push only when the user task explicitly authorizes them. Report
-   the resulting commit hash; do not edit `Commit: pending` to self-reference
-   that same commit.
-5. Replace `ACTIVE_TASK.md` with a new task only after the previous task has
-   been successfully pushed, or after the user explicitly changes the task.
+## Resume from the delta
 
-Final report is limited to: changed, validation, commit, and blocker.
+- Use root `AGENTS.md`, the active task and its linked evidence as the entry
+  points. Inspect branch/worktree changes; preserve unrelated edits rather than
+  treating their presence alone as a blocker.
+- Load required skills in full under the session's skill rules. During the same
+  ongoing execution, reuse available unchanged context; reload instructions when
+  required, changed or missing. Do not scan the proposal, history or all skills.
+- Read only unresolved evidence rows and directly affected code/dependencies.
+  A summary is a navigation aid, not proof that code or test inputs are unchanged.
+
+## Finish one acceptance boundary
+
+- Identify the remaining acceptance gaps before patching. Group checks sharing
+  fixtures or a trust boundary into one implementation pass; keep their existing
+  case IDs. Internal steps are not new project tasks or separate approval turns.
+- Continue through implementation, relevant checks and evidence reconciliation
+  while useful authorized work remains. Do not stop after each passing subcase
+  to ask the user to say "continue".
+- A newly found in-scope defect belongs to this task. Record unrelated findings
+  briefly; do not expand scope. Pause for missing authority, a material scope
+  decision or an external blocker; never weaken acceptance to finish sooner.
+
+## Verify proportionally
+
+- Run focused checks during repair, then the required consolidated boundary gate
+  on the final relevant code/test/configuration state. Prefer one successful exit
+  gate per batch, not a full gate after every case.
+- Reuse a passing result only when its inputs and relevant environment are
+  unchanged. On failure, diagnose and rerun the affected check first; rerun the
+  gate if its inputs changed or its result is uncertain. Docs-only edits do not
+  trigger Odoo/Docker tests unless they change executable inputs.
+- Keep command, result, tested revision or dirty-worktree scope and environment
+  in the existing evidence artifact. Do not paste full logs into active status.
+
+## Checkpoint and close once
+
+- `ACTIVE_TASK.md` is the compact resume pointer: goal/acceptance, remaining
+  gaps, touched boundaries, evidence link, blocker and exact next action. Update
+  it before a handoff/interruption, not after every command.
+- Keep detailed evidence in one existing ledger. At closure or a material
+  handoff, reconcile board/changelog once; update the current-state audit only
+  when verified implementation claims change. Link instead of copying history.
+- Acceptance completion and Git publication are separate: record VERIFIED with
+  commit/push pending when appropriate. Advance only after acceptance passes and
+  the next task is authorized; push is not an implicit prerequisite or permission.
+- Commit/push only with explicit authorization and scoped staging. Final report:
+  outcome/files, validation, unresolved risk, next action; publication if relevant.
