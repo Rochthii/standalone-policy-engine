@@ -71,17 +71,36 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
+      - name: Install pinned Buf CLI with transient-download retry
+        env:
+          GOBIN: ${{ runner.temp }}/buf-bin
+        run: |
+          mkdir -p "$GOBIN"
+          for attempt in 1 2 3; do
+            if go install github.com/bufbuild/buf/cmd/buf@v1.72.0; then
+              echo "$GOBIN" >> "$GITHUB_PATH"
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              delay=$((attempt * 5))
+              echo "::warning::Buf install attempt $attempt/3 failed; retrying in ${delay}s with checksum verification enabled."
+              sleep "$delay"
+            fi
+          done
+          echo "::error::Pinned Buf CLI installation failed after 3 attempts."
+          exit 1
+
       - name: Lint canonical IDL
-        run: go run github.com/bufbuild/buf/cmd/buf@v1.72.0 lint
+        run: buf lint
 
       - name: Format-check canonical IDL
         run: |
-          go run github.com/bufbuild/buf/cmd/buf@v1.72.0 format -w proto
+          buf format -w proto
           git diff --exit-code -- proto
 
       - name: Regenerate Go and Python clients and reject drift
         run: |
-          go run github.com/bufbuild/buf/cmd/buf@v1.72.0 generate
+          buf generate
           git diff --exit-code -- proto/v1/policy.pb.go proto/v1/policy_grpc.pb.go clients/python
 
       - name: Check protobuf backward compatibility
@@ -94,7 +113,7 @@ jobs:
           else
             AGAINST=".git#ref=HEAD~1"
           fi
-          go run github.com/bufbuild/buf/cmd/buf@v1.72.0 breaking --against "$AGAINST"
+          buf breaking --against "$AGAINST"
 
   odoo-pep-static:
     name: Odoo PEP Protocol & Static Checks

@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased] - 2026-09-28: Protobuf CI download resilience; Odoo failure remains under diagnosis
+
+- The Protobuf Contract job now installs the same pinned Buf CLI once and retries only that installation up to three times for transient module/checksum transport failures. Go checksum verification remains enabled; lint, format, generation and breaking checks still fail normally on contract errors.
+- CI run #82 also reports one error among 78 Odoo tests. Its visible tail only identifies the failed Odoo subprocess; the earlier clean Odoo gate passed on unchanged Odoo source, so no test was disabled or production code altered based on a guess. Root exception and a CI rerun remain outstanding.
+- Workflow YAML parses and `git diff --check` passes. No full CI rerun, commit or push.
+
 ## [Unreleased] - 2026-09-28: clean research-baseline gate verified
 
 - Reran the full isolated Odoo 17/mTLS/PDP/PostgreSQL testbed gate on clean `main` revision `29afd70550645a8ba780345dbb4531fe7638b38a`: 78 post-tests, 0 failures/errors; currency migration, mTLS, concurrency/retry, authority-ordering and all 16 material-edit schedules pass. See `docs/technical-spec/evidence/CLEAN_BASELINE_GATE_2026_09_28.md`.
