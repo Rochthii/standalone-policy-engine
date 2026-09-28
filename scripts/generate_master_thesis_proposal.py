@@ -1,379 +1,229 @@
+"""Export the active proposal Markdown to DOCX/PDF without duplicate thesis prose."""
+import argparse
 import os
-import shutil
+from pathlib import Path
+import re
+from xml.sax.saxutils import escape
+
 from docx import Document
-from docx.shared import Inches, Pt, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.oxml import parse_xml
-from docx.oxml.ns import nsdecls
-import win32com.client
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
+from docx.shared import Mm, Pt, RGBColor
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-def set_cell_background(cell, fill_color):
-    tcPr = cell._tc.get_or_add_tcPr()
-    shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{fill_color}"/>')
-    tcPr.append(shd)
+ROOT = Path(__file__).resolve().parents[1]
+SOURCE = ROOT / "docs/thesis-proposal/DE_CUONG_CHI_TIET_DO_AN_TOT_NGHIEP_CHUAN_KHOA_HOC.md"
+PLAN = SOURCE.parent / "THESIS_V2_MASTER_PLAN.md"
+MARGIN_MM = 18
+BODY_PT = 10.5
+INLINE = re.compile(r"(\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*|" + chr(96) + r"[^" + chr(96) + r"]+" + chr(96) + r")")
+LINK = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 
-def set_cell_margins(cell, top=60, bottom=60, left=90, right=90):
-    tcPr = cell._tc.get_or_add_tcPr()
-    tcMar = parse_xml(f'''
-        <w:tcMar {nsdecls("w")}>
-            <w:top w:w="{top}" w:type="dxa"/>
-            <w:bottom w:w="{bottom}" w:type="dxa"/>
-            <w:left w:w="{left}" w:type="dxa"/>
-            <w:right w:w="{right}" w:type="dxa"/>
-        </w:tcMar>
-    ''')
-    tcPr.append(tcMar)
 
-def add_callout(doc, text, title="TRỤC TIẾN HÓA NGHIÊN CỨU TAM ĐOẠN LUẬN (RESEARCH LINEAGE)", bg_color="F0F4F8", border_color="1E3A5F"):
-    tbl = doc.add_table(rows=1, cols=1)
-    tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
-    tbl.autofit = False
-    tbl.columns[0].width = Inches(6.5)
-    
-    cell = tbl.cell(0, 0)
-    set_cell_background(cell, bg_color)
-    set_cell_margins(cell, top=100, bottom=100, left=150, right=150)
-    
-    tcPr = cell._tc.get_or_add_tcPr()
-    borders = parse_xml(f'''
-        <w:tcBorders {nsdecls("w")}>
-            <w:top w:val="none"/>
-            <w:left w:val="single" w:sz="24" w:space="0" w:color="{border_color}"/>
-            <w:bottom w:val="none"/>
-            <w:right w:val="none"/>
-        </w:tcBorders>
-    ''')
-    tcPr.append(borders)
-    
-    p = cell.paragraphs[0]
-    p.paragraph_format.space_before = Pt(2)
-    p.paragraph_format.space_after = Pt(2)
-    p.paragraph_format.line_spacing = 1.15
-    
-    if title:
-        run_title = p.add_run(f"📌 {title}\n")
-        run_title.bold = True
-        run_title.font.name = "Arial"
-        run_title.font.size = Pt(9.5)
-        run_title.font.color.rgb = RGBColor(30, 58, 95)
-    
-    run_text = p.add_run(text)
-    run_text.font.name = "Arial"
-    run_text.font.size = Pt(8.5)
-    run_text.font.color.rgb = RGBColor(40, 50, 60)
-    
-    sp_p = doc.add_paragraph()
-    sp_p.paragraph_format.space_before = Pt(0)
-    sp_p.paragraph_format.space_after = Pt(3)
+def parse_blocks(text):
+    """Support the proposal's explicit subset; reject unsupported block constructs."""
+    blocks, paragraph, table = [], [], []
 
-def format_heading(p, text, level=1):
-    p.paragraph_format.keep_with_next = True
-    run = p.add_run(text)
-    run.font.name = "Arial"
-    run.bold = True
-    if level == 1:
-        p.paragraph_format.space_before = Pt(12)
-        p.paragraph_format.space_after = Pt(3)
-        run.font.size = Pt(12)
-        run.font.color.rgb = RGBColor(14, 43, 82)
-    elif level == 2:
-        p.paragraph_format.space_before = Pt(8)
-        p.paragraph_format.space_after = Pt(2)
-        run.font.size = Pt(10.5)
-        run.font.color.rgb = RGBColor(13, 79, 60)
-    elif level == 3:
-        p.paragraph_format.space_before = Pt(4)
-        p.paragraph_format.space_after = Pt(2)
-        run.font.size = Pt(9)
-        run.font.color.rgb = RGBColor(50, 60, 75)
+    def flush():
+        if paragraph:
+            blocks.append(("p", " ".join(paragraph)))
+            paragraph.clear()
+        if table:
+            if any(len(row) != len(table[0]) for row in table):
+                raise ValueError("Uneven Markdown table")
+            blocks.append(("table", list(table)))
+            table.clear()
 
-def format_bullet(doc, bold_prefix, text):
-    p = doc.add_paragraph(style='List Bullet')
-    p.paragraph_format.space_before = Pt(1)
-    p.paragraph_format.space_after = Pt(1.5)
-    p.paragraph_format.line_spacing = 1.15
-    
-    r1 = p.add_run(bold_prefix)
-    r1.font.name = "Arial"
-    r1.font.size = Pt(8.5)
-    r1.bold = True
-    r1.font.color.rgb = RGBColor(20, 30, 40)
-    
-    r2 = p.add_run(text)
-    r2.font.name = "Arial"
-    r2.font.size = Pt(8.5)
-    r2.font.color.rgb = RGBColor(50, 60, 70)
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            flush()
+        elif line.startswith("|"):
+            if paragraph:
+                flush()
+            if not re.fullmatch(r"[| :\-]+", line):
+                table.append([cell.strip() for cell in line.strip("|").split("|")])
+        elif match := re.match(r"^(#{1,3}) (.+)$", line):
+            flush()
+            blocks.append(("h" + str(len(match[1])), match[2]))
+        elif match := re.match(r"^(-|\d+\.) (.+)$", line):
+            flush()
+            prefix = "• " if match[1] == "-" else match[1] + " "
+            blocks.append(("list", prefix + match[2]))
+        elif line.startswith(("#", ">", chr(96) * 3, "---")):
+            raise ValueError(f"Unsupported proposal block: {line[:60]}")
+        else:
+            if table:
+                flush()
+            paragraph.append(line)
+    flush()
+    return blocks
+
+
+def visible(text):
+    return LINK.sub(r"\1", text).replace("**", "").replace(chr(96), "")
+
+
+def title_from(blocks, label):
+    index = blocks.index(("p", "**" + label + "**"))
+    return visible(blocks[index + 1][1])
+
+
+def pdf_inline(text):
+    parts = []
+    for token in INLINE.split(text):
+        if match := LINK.fullmatch(token):
+            label, target = match.groups()
+            parts.append(f'<link href="{escape(target, {chr(34): "&quot;"})}">{escape(label)}</link>'
+                         if target.startswith("https://") else escape(label))
+        elif token.startswith("**") and token.endswith("**"):
+            parts.append("<b>" + escape(token[2:-2]) + "</b>")
+        else:
+            parts.append(escape(token.strip(chr(96))))
+    return "".join(parts)
+
+
+def word_inline(paragraph, text):
+    for token in INLINE.split(text):
+        if match := LINK.fullmatch(token):
+            label, target = match.groups()
+            link = OxmlElement("w:hyperlink")
+            link.set(qn("r:id"), paragraph.part.relate_to(target, RT.HYPERLINK, is_external=True))
+            run, value = OxmlElement("w:r"), OxmlElement("w:t")
+            value.text = label
+            run.append(value)
+            link.append(run)
+            paragraph._p.append(link)
+        else:
+            bold = token.startswith("**") and token.endswith("**")
+            run = paragraph.add_run(token[2:-2] if bold else token.strip(chr(96)))
+            run.bold = bold
+
+
+def write_docx(blocks, path, title):
+    doc = Document()
+    section = doc.sections[0]
+    section.page_width, section.page_height = Mm(210), Mm(297)
+    section.top_margin = section.bottom_margin = Mm(MARGIN_MM)
+    section.left_margin = section.right_margin = Mm(MARGIN_MM)
+    for name in ("Normal", "Title", "Heading 1", "Heading 2"):
+        style = doc.styles[name]
+        style.font.name = "Arial"
+        style.font.color.rgb = RGBColor(0, 0, 0)
+    doc.styles["Normal"].font.size = Pt(BODY_PT)
+    doc.styles["Normal"].paragraph_format.space_after = Pt(6)
+    doc.styles["Normal"].paragraph_format.line_spacing = 1.1
+    doc.styles["Title"].font.size = Pt(16)
+    doc.styles["Heading 1"].font.size = Pt(13)
+    doc.styles["Heading 2"].font.size = Pt(11.5)
+    doc.core_properties.title = title
+    doc.core_properties.subject = "Graduation thesis proposal generated from the active Markdown source"
+    for kind, body in blocks:
+        if kind == "table":
+            table = doc.add_table(rows=0, cols=len(body[0]))
+            table.style = "Table Grid"
+            for index, row in enumerate(body):
+                cells = table.add_row().cells
+                props = cells[0]._tc.getparent().get_or_add_trPr()
+                props.append(OxmlElement("w:cantSplit"))
+                if index == 0:
+                    props.append(OxmlElement("w:tblHeader"))
+                for cell, text in zip(cells, row):
+                    word_inline(cell.paragraphs[0], text)
+                    shade = OxmlElement("w:shd")
+                    shade.set(qn("w:fill"), "E4EAF0" if index == 0 else ("F5F7F9" if index % 2 else "FFFFFF"))
+                    cell._tc.get_or_add_tcPr().append(shade)
+                    for paragraph in cell.paragraphs:
+                        for run in paragraph.runs:
+                            run.font.size = Pt(9)
+                            if index == 0:
+                                run.bold = True
+            doc.add_paragraph()
+        else:
+            style = {"h1": "Title", "h2": "Heading 1", "h3": "Heading 2"}.get(kind)
+            paragraph = doc.add_paragraph(style=style)
+            word_inline(paragraph, body)
+            if kind.startswith("h"):
+                paragraph.paragraph_format.keep_with_next = True
+    footer = section.footer.paragraphs[0]
+    footer.add_run("Đồ án tốt nghiệp Kỹ thuật Phần mềm  |  ")
+    number = OxmlElement("w:fldSimple")
+    number.set(qn("w:instr"), "PAGE")
+    footer._p.append(number)
+    for run in footer.runs:
+        run.font.size = Pt(8)
+    doc.save(path)
+
+
+def write_pdf(blocks, path, title, font_dir):
+    fonts = [font_dir / name for name in ("arial.ttf", "arialbd.ttf")]
+    if not all(font.exists() for font in fonts):
+        raise FileNotFoundError("Provide --font-dir containing arial.ttf and arialbd.ttf")
+    for name, font in zip(("Proposal", "Proposal-Bold"), fonts):
+        pdfmetrics.registerFont(TTFont(name, str(font)))
+    pdfmetrics.registerFontFamily("Proposal", normal="Proposal", bold="Proposal-Bold")
+    base = ParagraphStyle("body", fontName="Proposal", fontSize=BODY_PT, leading=14, spaceAfter=6)
+    styles = {"p": base, "list": base}
+    for kind, size in (("h1", 16), ("h2", 13), ("h3", 11.5)):
+        styles[kind] = ParagraphStyle(kind, parent=base, fontName="Proposal-Bold",
+                                      fontSize=size, leading=size + 3, spaceBefore=9,
+                                      keepWithNext=True, alignment=TA_CENTER if kind == "h1" else 0)
+    cell_style = ParagraphStyle("cell", parent=base, fontSize=9, leading=12, spaceAfter=0)
+    margin = MARGIN_MM * 72 / 25.4
+    width = A4[0] - 2 * margin
+    story = []
+    for kind, body in blocks:
+        if kind == "table":
+            data = [[Paragraph(pdf_inline(cell), cell_style) for cell in row] for row in body]
+            table = Table(data, colWidths=[width / len(body[0])] * len(body[0]), repeatRows=1)
+            table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e4eaf0")),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor("#f5f7f9"), colors.white]),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#bac3cb")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]))
+            story.extend([table, Spacer(1, 8)])
+        else:
+            story.append(Paragraph(pdf_inline(body), styles[kind]))
+
+    def footer(canvas, document):
+        canvas.setFont("Proposal", 8)
+        canvas.drawString(margin, 25, "Đồ án tốt nghiệp Kỹ thuật Phần mềm")
+        canvas.drawRightString(A4[0] - margin, 25, str(document.page))
+
+    SimpleDocTemplate(str(path), pagesize=A4, leftMargin=margin, rightMargin=margin,
+                      topMargin=margin, bottomMargin=margin, title=title).build(
+                          story, onFirstPage=footer, onLaterPages=footer)
+
 
 def main():
-    doc = Document()
-    
-    for section in doc.sections:
-        section.top_margin = Inches(0.7)
-        section.bottom_margin = Inches(0.7)
-        section.left_margin = Inches(0.75)
-        section.right_margin = Inches(0.75)
-        
-        footer = section.footer
-        f_p = footer.paragraphs[0]
-        f_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        f_run = f_p.add_run("Đề Cương Đồ Án Tốt Nghiệp — Chuyên Ngành Kỹ Thuật Phần Mềm (Software Engineering)")
-        f_run.font.name = "Arial"
-        f_run.font.size = Pt(8)
-        f_run.font.color.rgb = RGBColor(140, 150, 160)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true", help="Validate source only; do not regenerate")
+    parser.add_argument("--font-dir", type=Path,
+                        default=Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts")
+    args = parser.parse_args()
+    blocks = parse_blocks(SOURCE.read_text(encoding="utf-8"))
+    title = title_from(blocks, "Tên tiếng Việt")
+    english = title_from(blocks, "Tên tiếng Anh")
+    plan = PLAN.read_text(encoding="utf-8")
+    if title not in plan or english not in plan:
+        raise ValueError("Proposal titles differ from the locked master plan")
+    if args.check:
+        print(f"Source valid: {len(blocks)} blocks; locked VN/EN titles match.")
+        return
+    write_docx(blocks, SOURCE.with_suffix(".docx"), title)
+    write_pdf(blocks, SOURCE.with_suffix(".pdf"), title, args.font_dir)
+    print(f"Generated DOCX and PDF from {SOURCE}; {len(blocks)} shared blocks.")
 
-    # ----------------------------------------------------
-    # BỘ GIÁO DỤC VÀ ĐÀO TẠO
-    # ----------------------------------------------------
-    tp = doc.add_paragraph()
-    tp.paragraph_format.space_before = Pt(2)
-    tp.paragraph_format.space_after = Pt(2)
-    tp.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r_tp = tp.add_run("BỘ GIÁO DỤC VÀ ĐÀO TẠO — KHOA CÔNG NGHỆ THÔNG TIN\nĐỀ CƯƠNG CHI TIẾT ĐỒ ÁN TỐT NGHIỆP ĐẠI HỌC CHÍNH QUY")
-    r_tp.font.name = "Arial"; r_tp.font.size = Pt(11.5); r_tp.bold = True
-    r_tp.font.color.rgb = RGBColor(14, 43, 82)
-
-    title_p = doc.add_paragraph()
-    title_p.paragraph_format.space_before = Pt(5)
-    title_p.paragraph_format.space_after = Pt(2)
-    title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    t_run = title_p.add_run("XÂY DỰNG CƠ CHẾ POLICY DECISION POINT HỖ TRỢ ỦY QUYỀN CÓ KIỂM SOÁT (DELEGATION-AWARE AUTHORIZATION) CHO TÁC TỬ AI TRONG HỆ THỐNG ERP — NGHIÊN CỨU TRIỂN KHAI VÀ ĐÁNH GIÁ THỰC NGHIỆM TRÊN NỀN TẢNG ODOO")
-    t_run.font.name = "Arial"; t_run.font.size = Pt(12); t_run.bold = True
-    t_run.font.color.rgb = RGBColor(180, 20, 20)
-
-    sub_p = doc.add_paragraph()
-    sub_p.paragraph_format.space_before = Pt(2)
-    sub_p.paragraph_format.space_after = Pt(8)
-    sub_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    s_run = sub_p.add_run("Design and Implementation of a Delegation-Aware Policy Decision Point for Autonomous AI Agents in ERP Systems — An Empirical Evaluation on the Odoo Platform")
-    s_run.font.name = "Arial"; s_run.font.size = Pt(9); s_run.italic = True
-    s_run.font.color.rgb = RGBColor(70, 85, 100)
-
-    # Info Table
-    tbl_info = doc.add_table(rows=4, cols=2)
-    tbl_info.alignment = WD_TABLE_ALIGNMENT.CENTER
-    tbl_info.columns[0].width = Inches(3.25)
-    tbl_info.columns[1].width = Inches(3.25)
-    
-    info_data = [
-        ("Chuyên ngành: Kỹ thuật Phần mềm (Software Engineering)", "Loại hình: Nghiên cứu Ứng dụng & Phát triển Hệ thống Phân tán"),
-        ("Sinh viên thực hiện: ......................................................", "MSSV: ............................. — Lớp: .........................."),
-        ("Cán bộ hướng dẫn: .........................................................", "Thời gian thực hiện: 16 tuần (Học kỳ tốt nghiệp)"),
-        ("Mục tiêu hiệu năng: In-Memory Core 27ns | E2E gRPC < 1ms", "Kiến trúc: NIST SP 800-162, Zero Trust, NIST AI RMF")
-    ]
-    for r_idx, (c1, c2) in enumerate(info_data):
-        row = tbl_info.rows[r_idx]
-        for c_idx, val in enumerate([c1, c2]):
-            cell = row.cells[c_idx]
-            set_cell_background(cell, "F4F7FA")
-            set_cell_margins(cell, 30, 30, 45, 45)
-            p = cell.paragraphs[0]
-            r = p.add_run(val)
-            r.font.name = "Arial"; r.font.size = Pt(8); r.font.color.rgb = RGBColor(30, 45, 60)
-
-    doc.add_paragraph().paragraph_format.space_after = Pt(3)
-
-    add_callout(
-        doc,
-        "1. HIGH-PERFORMANCE PDP (GỐC RỄ KỸ THUẬT PHẦN MỀM - BASELINE PROTOTYPE): Động cơ In-Memory Go Core, Trie FNV-1a uint64, Role DAG Transitive Closure O(1), Copy-On-Write Lock-Free, Zero Heap Allocation (27ns).\n"
-        "2. ENTERPRISE AUTHORIZATION (MIỀN THỰC NGHIỆM KIỂM CHỨNG - VALIDATION): Mô hình 4-Tuple NIST SP 800-162 giải quyết Role Explosion và kiểm soát Phân tách trách nhiệm (SoD theo SOX 404) trên Odoo 17.\n"
-        "3. DELEGATION-AWARE AI AUTHORIZATION (TRỌNG TÂM NGHIÊN CỨU MỚI - RESEARCH FOCUS): Chuỗi ủy quyền 1-Hop, Bất biến suy giảm quyền lực theo thời gian, chống TOCTOU bằng In-Memory Revocation O(1), và Rào chắn tiền định 3 trạng thái (ALLOW / DENY / REQUIRE_APPROVAL) theo NIST AI RMF & OWASP LLM06.",
-        title="TRỤC TIẾN HÓA NGHIÊN CỨU TAM ĐOẠN LUẬN (RESEARCH LINEAGE)"
-    )
-
-    # I. BỐN CÂU HỎI NGHIÊN CỨU
-    format_heading(doc.add_paragraph(), "I. Bốn Câu Hỏi Nghiên Cứu Cốt Lõi (Core Research Questions)", level=1)
-    format_bullet(doc, "RQ1 (Mô hình hóa Định danh & Chuỗi Ủy Quyền Tác tử AI): ", "Làm thế nào để xây dựng mô hình định danh hợp nhất (Unified Authorization Subject) và bộ ngũ ủy quyền có kiểm soát Δ biểu diễn chính xác quan hệ Người ủy quyền (Delegator) -> AI Agent (Delegatee) và ràng buộc thời gian thực?")
-    format_bullet(doc, "RQ2 (Hiệu Năng Runtime & Tối Ưu Bộ Nhớ Cấp Máy): ", "Làm thế nào để thiết kế một Động cơ In-Memory đạt độ trễ đánh giá nano-giây (27ns), thông lượng trên 30.000.000 decisions/giây và triệt tiêu heap allocation trên hot-path đánh giá?")
-    format_bullet(doc, "RQ3 (Cơ Chế Kiểm Soát Rủi Ro & An Toàn Tiền Định): ", "Làm thế nào cơ chế quyết định 3 trạng thái (ALLOW / DENY / REQUIRE_APPROVAL) hạn chế tác động rủi ro (Impact Mitigation) khi tác tử AI bị ảo giác hoặc bị tấn công Prompt Injection?")
-    format_bullet(doc, "RQ4 (Đánh Giá Thực Nghiệm & So Sánh Đa Chiều Trên Odoo): ", "Động cơ đề xuất thể hiện tính đúng đắn chức năng (Functional), độ an toàn bảo mật (Security), và hiệu năng mở rộng (Performance) như thế nào trên miền doanh nghiệp Odoo ERP so với cơ chế Record Rules truyền thống?")
-
-    # II. TÍNH CẤP THIẾT
-    format_heading(doc.add_paragraph(), "II. Tính Cấp Thiết & Khoảng Trống Nghiên Cứu (Problem Statement & Research Gap)", level=1)
-    format_bullet(doc, "Bối cảnh Doanh nghiệp Tự hành (Autonomous Enterprise): ", "Tỷ trọng ngày càng lớn các giao dịch tài chính, mua hàng và đối soát kế toán sẽ được khởi tạo hoặc thực hiện tự động bởi các Tác tử AI qua các lệnh gọi công cụ (Tool-Calls).")
-    format_bullet(doc, "Khủng hoảng của RBAC & Hiểm họa rủi ro AI: ", "RBAC gây bùng nổ hàng nghìn vai trò tĩnh và rò rỉ logic vào SQL. Đồng thời, AI là mô hình xác suất có rủi ro ảo giác (Hallucination) hoặc bị lừa (Prompt Injection) ra lệnh chi tiền trái phép. Động cơ PDP đóng vai trò là chốt chặn tiền định cô lập và hạn chế tối đa tác động rủi ro (Impact Mitigation).")
-    format_bullet(doc, "Bài toán nghiên cứu duy nhất: ", "Thiết kế một Runtime phân quyền chuyên biệt độ trễ thấp (Specialized Low-Latency Authorization Runtime) trong bộ nhớ RAM, tách rời hoàn toàn logic kiểm tra quyền ra khỏi ứng dụng.")
-
-    # III. TỔNG QUAN TÀI LIỆU
-    format_heading(doc.add_paragraph(), "III. Tổng Quan Tình Hình Nghiên Cứu Liên Quan (Literature Review)", level=1)
-    format_bullet(doc, "Mô hình toán học & Chuẩn quốc tế: ", "NIST SP 800-162 (Vincent Hu et al.) đặc tả cấu trúc PEP-PDP-PIP-PAP; OASIS XACML v3.0 quy định thuật toán kết hợp quyết định Deny-by-Default và Forbid-Overrides; NIST SP 800-207 Zero Trust Architecture.")
-    format_bullet(doc, "Ngôn ngữ chính sách & An toàn AI: ", "AWS Cedar Language (ACM OOPSLA 2024) về phân tích hình thức và giới hạn độ sâu AST chống DoS; Google Zanzibar (USENIX ATC 2019) về xử lý phân quyền đồ thị; NIST AI RMF 1.0 và OWASP LLM06 Excessive Agency.")
-    format_bullet(doc, "Thuật toán hiệu năng cao: ", "Radix Trie FNV-1a và Role DAG Transitive Closure chuyển hóa việc kiểm tra kế thừa sang O(1) query; Copy-On-Write (COW) với atomic.Pointer đảm bảo đọc lock-free 100%.")
-
-    # IV. MỤC TIÊU & PHẠM VI (TÁCH BẠCH FOUNDATION VS THESIS)
-    format_heading(doc.add_paragraph(), "IV. Mục Tiêu & Ranh Giới Nghiên Cứu (Foundation vs. Thesis Scope)", level=1)
-    
-    tbl_ft = doc.add_table(rows=5, cols=2)
-    tbl_ft.alignment = WD_TABLE_ALIGNMENT.CENTER
-    tbl_ft.columns[0].width = Inches(3.25)
-    tbl_ft.columns[1].width = Inches(3.25)
-    
-    hdr_ft = tbl_ft.rows[0]
-    for c_i, title_ft in enumerate(["A. NỀN TẢNG KẾ THỪA (EXISTING FOUNDATION)", "B. PHẠM VI ĐÓNG GÓP MỚI (THESIS SCOPE)"]):
-        c_cell = hdr_ft.cells[c_i]
-        set_cell_background(c_cell, "1E3A5F")
-        set_cell_margins(c_cell, 35, 35, 50, 50)
-        p = c_cell.paragraphs[0]; r = p.add_run(title_ft)
-        r.font.name = "Arial"; r.font.size = Pt(8); r.bold = True; r.font.color.rgb = RGBColor(255, 255, 255)
-        
-    ft_data = [
-        ("• Động cơ In-Memory Go Core & Pratt Parser", "• Chuẩn hóa Input 4-Tuple NIST và Bộ ngũ Ủy quyền Δ (RQ1)"),
-        ("• Cấu trúc chỉ mục Trie FNV-1a & Role DAG Closure", "• Đánh giá chuỗi ủy quyền 1-Hop & Suy giảm quyền lực theo thời gian"),
-        ("• Copy-On-Write Lock-Free & gRPC JSON Server", "• Triệt tiêu TOCTOU bằng In-Memory Revocation Blacklist O(1)"),
-        ("• Đồng bộ Postgres Monotonic Seq & WORM Logger", "• Rào chắn tiền định 3 trạng thái & Lộ trình 2 pha cho Obligations")
-    ]
-    for r_idx, (f_val, t_val) in enumerate(ft_data):
-        row = tbl_ft.rows[r_idx + 1]
-        bg = "F7FAFC" if r_idx % 2 == 0 else "FFFFFF"
-        for c_idx, val in enumerate([f_val, t_val]):
-            cell = row.cells[c_idx]
-            set_cell_background(cell, bg)
-            set_cell_margins(cell, 30, 30, 45, 45)
-            p = cell.paragraphs[0]; r = p.add_run(val)
-            r.font.name = "Arial"; r.font.size = Pt(7.5); r.font.color.rgb = RGBColor(30, 40, 50)
-
-    doc.add_paragraph().paragraph_format.space_after = Pt(3)
-
-    # V. PHƯƠNG PHÁP NGHIÊN CỨU & DỰ KIẾN ĐÓNG GÓP
-    format_heading(doc.add_paragraph(), "V. Phương Pháp Nghiên Cứu & Dự Kiến Đóng Góp Kỹ Thuật", level=1)
-    format_bullet(doc, "Mô Hình Phân Quyền Ủy Quyền Cho Tác Tử AI (Delegation-Aware Agent Authorization): ", "Hình thức hóa bộ ngũ ủy quyền Δ và bảo toàn tính suy giảm quyền lực theo thời gian: P_effective(A|U, t) = P_active(U, t) ∩ S_delegation ∩ Ω_guardrails.")
-    format_bullet(doc, "Kiến Trúc Phân Tầng An Ninh & Lõi Đánh Giá 27ns: ", "Tầng 1 Security Interceptor xác thực mTLS, verify HMAC delegation_proof và tra cứu Revocation Map O(1). Tầng 2 Hot-path In-Memory Core thực thi logic phân quyền thuần túy với 0 allocs/op.")
-    format_bullet(doc, "Bảo Toàn Phân Tách Trách Nhiệm Tổng Quát (Generalized SoD): ", "Cấm người tạo đơn duyệt đơn thông qua toán tử contains trên chuỗi phân tách bởi dấu phẩy (context.delegation_chain contains resource.creator_id).")
-
-    # VI. TIẾN ĐỘ 16 TUẦN
-    format_heading(doc.add_paragraph(), "VI. Kế Hoạch Thực Hiện & Tiến Độ 16 Tuần", level=1)
-    
-    tbl_plan = doc.add_table(rows=6, cols=4)
-    tbl_plan.alignment = WD_TABLE_ALIGNMENT.CENTER
-    tbl_plan.autofit = False
-    
-    col_w = [Inches(1.2), Inches(2.6), Inches(1.1), Inches(1.6)]
-    p_headers = ["Giai Đoạn", "Nội Dung Công Việc Chi Tiết", "Thời Gian", "Sản Phẩm Đầu Ra"]
-    
-    hdr = tbl_plan.rows[0]
-    for i, title in enumerate(p_headers):
-        cell = hdr.cells[i]; cell.width = col_w[i]
-        set_cell_background(cell, "1E3A5F")
-        set_cell_margins(cell, 40, 40, 60, 60)
-        p = cell.paragraphs[0]; r = p.add_run(title)
-        r.font.name = "Arial"; r.font.size = Pt(8); r.bold = True; r.font.color.rgb = RGBColor(255, 255, 255)
-        
-    p_data = [
-        ("Giai đoạn 1", "Khảo sát lý thuyết NIST SP 800-162, đặc tả mô hình Unified Subject, Delegation Chain & Threat Model giải quyết RQ1, RQ3", "Tuần 1 - 3", "Báo cáo SRS & Đặc tả mô hình"),
-        ("Giai đoạn 2", "Kế thừa Foundation Engine, mở rộng Pratt Parser & AST Compiler hỗ trợ Delegation & Tool Context", "Tuần 4 - 7", "Bộ thư viện cú pháp mở rộng"),
-        ("Giai đoạn 3", "Hiện thực hóa Risk-Aware Tri-State Engine (REQUIRE_APPROVAL) và cơ chế Human-in-the-Loop giải quyết RQ2, RQ3", "Tuần 8 - 11", "Mã nguồn Go PDP mở rộng"),
-        ("Giai đoạn 4", "Tích hợp thử nghiệm trên 4 kịch bản Enterprise ERP và mô phỏng Multi-Agent Workflows", "Tuần 12 - 13", "Hệ thống phân tán & Module ERP"),
-        ("Giai đoạn 5", "Thực nghiệm toàn diện 3 chiều (Functional, Security, Performance) giải quyết RQ4, hoàn thiện thuyết minh 100 trang", "Tuần 14 - 16", "Thuyết minh đồ án 100 trang")
-    ]
-    for r_idx, row_d in enumerate(p_data):
-        row = tbl_plan.rows[r_idx + 1]
-        bg = "F7FAFC" if r_idx % 2 == 0 else "FFFFFF"
-        for c_idx, val in enumerate(row_d):
-            cell = row.cells[c_idx]; cell.width = col_w[c_idx]
-            set_cell_background(cell, bg)
-            set_cell_margins(cell, 35, 35, 50, 50)
-            p = cell.paragraphs[0]; r = p.add_run(val)
-            r.font.name = "Arial"; r.font.size = Pt(7.5)
-            if c_idx == 0: r.bold = True
-            r.font.color.rgb = RGBColor(30, 40, 50)
-
-    doc.add_paragraph().paragraph_format.space_after = Pt(3)
-
-    # VII. KHUNG ĐÁNH GIÁ THỰC NGHIỆM
-    format_heading(doc.add_paragraph(), "VII. Khung Đánh Giá Thực Nghiệm 3 Chiều & Kết Quả Đạt Được", level=1)
-    format_bullet(doc, "1. Functional Evaluation (Tính Đúng Đắn Chức Năng): ", "Kiểm chứng 100% PASS 7 kịch bản ERP P2P thực tế (PO limits, Generalized SoD, Chi nhánh, Lương) và chuỗi ủy quyền Tool-Call của AI Agent.")
-    format_bullet(doc, "2. Security Evaluation (An Toàn Bảo Mật & Threat Model): ", "Kiểm thử khả năng chống leo thang đặc quyền, chặn đứng Prompt Injection ($10M) trong 286.3 ns theo chuẩn NIST/OWASP LLM06, và triệt tiêu hoàn toàn TOCTOU qua In-Memory Revocation Blacklist O(1) trong < 1 µs.")
-    format_bullet(doc, "3. Performance Evaluation (Kết Quả Đo Tải Thực Tế Trên 20 Cores CPU): ", "Thông lượng đánh giá đồng thời: ~36.800.000 decisions/s (27.12 ns/op); Tải 10.000 Policies đồng thời: ~27.800.000 decisions/s (35.94 ns/op); 0 byte heap allocation trên hot-path.")
-
-    # VIII. BỐ CỤC LUẬN VĂN
-    format_heading(doc.add_paragraph(), "VIII. Bố Cục Dự Kiến Của Luận Văn Thuyết Minh (5 Chương)", level=1)
-    format_bullet(doc, "Chương 1: ", "Giới thiệu tổng quan, Bối cảnh Doanh nghiệp Tự hành, Đặt vấn đề và 4 câu hỏi nghiên cứu (RQ1–RQ4).")
-    format_bullet(doc, "Chương 2: ", "Cơ sở lý thuyết & Mô hình phân quyền ABAC/PBAC (NIST SP 800-162), Chuẩn an toàn AI (NIST AI RMF, OWASP LLM06) và Lý thuyết Ủy quyền có kiểm soát.")
-    format_bullet(doc, "Chương 3: ", "Thiết kế kiến trúc phân tầng (Security Interceptor vs In-Memory Core 27ns), Giải thuật Radix Trie FNV-1a, Role DAG Transitive Closure O(1), và Lộ trình 2 pha cho Obligations.")
-    format_bullet(doc, "Chương 4: ", "Hiện thực hóa & Tích hợp vào hệ thống ERP thực tế: Custom Module Odoo 17 (pdp_authorizer), chuỗi ủy quyền ngăn cách dấu phẩy, và toán tử SoD contains (evaluator.go:387).")
-    format_bullet(doc, "Chương 5: ", "Đánh giá thực nghiệm 3 chiều (Functional - Security - Comparative Performance), Kết luận & Hướng phát triển mở rộng.")
-
-    # IX. TÀI LIỆU THAM KHẢO
-    format_heading(doc.add_paragraph(), "IX. Danh Mục Tài Liệu Tham Khảo Học Thuật (IEEE References)", level=1)
-    refs = [
-        "[1] V. C. Hu, D. Ferraiolo, R. Kuhn et al., 'Guide to Attribute Based Access Control (ABAC) Definition and Considerations', NIST Special Publication 800-162, 2014.",
-        "[2] S. Rose, O. Borchert, S. Mitchell, and S. Connelly, 'Zero Trust Architecture', NIST Special Publication 800-207, 2020.",
-        "[3] National Institute of Standards and Technology (NIST), 'Artificial Intelligence Risk Management Framework (AI RMF 1.0)', NIST Trustworthy and Responsible AI, 2023.",
-        "[4] OWASP Foundation, 'OWASP Top 10 for Large Language Model Applications (LLM06: Excessive Agency)', OWASP GenAI Security Project, 2023.",
-        "[5] OASIS Standard, 'eXtensible Access Control Markup Language (XACML) Version 3.0', OASIS Open, 2013.",
-        "[6] B. Cook, M. Disenfeld, M. Eilers et al. (AWS Research), 'Cedar: A New Language for Expressive, Fast, Safe, and Analyzable Authorization', Proc. ACM Program. Lang., ACM OOPSLA 2024.",
-        "[7] R. Pang, P. Bisht, A. Cidon, and R. Stutsman (Google Research), 'Zanzibar: Google’s Consistent, Global Authorization System', in USENIX ATC '19, pp. 907-920, 2019.",
-        "[8] D. F. Ferraiolo, R. Sandhu et al., 'Proposed NIST standard for role-based access control', ACM TISSEC, vol. 4, no. 3, pp. 224-274, 2001.",
-        "[9] Gartner Research, 'Market Guide for Policy-Based Access Control and Externalized Runtime Authorization for Modern Workloads and AI Agents', Gartner Inc., 2024.",
-        "[10] United States Congress, 'Sarbanes-Oxley Act of 2002 (SOX)', Section 404: Management Assessment of Internal Controls, 2002.",
-        "[11] ISO/IEC, 'ISO/IEC 27001:2022 Information Security Management Systems — Requirements', International Organization for Standardization, 2022.",
-        "[12] SAP SE & Odoo S.A., 'Enterprise Security Framework, Access Control & Record Rules Documentation', 2024."
-    ]
-    for rf in refs:
-        p_rf = doc.add_paragraph()
-        p_rf.paragraph_format.space_before = Pt(1); p_rf.paragraph_format.space_after = Pt(1)
-        r_rf = p_rf.add_run(rf)
-        r_rf.font.name = "Arial"; r_rf.font.size = Pt(7.5); r_rf.font.color.rgb = RGBColor(60, 70, 80)
-
-    # Approval Signatures Box
-    doc.add_paragraph().paragraph_format.space_after = Pt(6)
-    tbl_sign = doc.add_table(rows=2, cols=2)
-    tbl_sign.alignment = WD_TABLE_ALIGNMENT.CENTER
-    tbl_sign.columns[0].width = Inches(3.25)
-    tbl_sign.columns[1].width = Inches(3.25)
-    
-    row_title = tbl_sign.rows[0]
-    p_c1 = row_title.cells[0].paragraphs[0]; p_c1.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r_c1 = p_c1.add_run("CÁN BỘ HƯỚNG DẪN\n(Ký và ghi rõ họ tên)")
-    r_c1.font.name = "Arial"; r_c1.font.size = Pt(8.5); r_c1.bold = True
-    
-    p_c2 = row_title.cells[1].paragraphs[0]; p_c2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r_c2 = p_c2.add_run("TRƯỞNG BỘ MÔN KỸ THUẬT PHẦN MỀM\n(Ký và ghi rõ họ tên)")
-    r_c2.font.name = "Arial"; r_c2.font.size = Pt(8.5); r_c2.bold = True
-    
-    row_space = tbl_sign.rows[1]
-    p_s1 = row_space.cells[0].paragraphs[0]; p_s1.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_s1.paragraph_format.space_before = Pt(30)
-    r_s1 = p_s1.add_run("Ngày ..... tháng ..... năm 202...")
-    r_s1.font.name = "Arial"; r_s1.font.size = Pt(8); r_s1.italic = True
-    
-    p_s2 = row_space.cells[1].paragraphs[0]; p_s2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_s2.paragraph_format.space_before = Pt(30)
-    r_s2 = p_s2.add_run("Ngày ..... tháng ..... năm 202...")
-    r_s2.font.name = "Arial"; r_s2.font.size = Pt(8); r_s2.italic = True
-
-    # Ensure output directories exist
-    out_dir = r"e:\Projects\Project_TN\standalone-policy-engine\docs\thesis-proposal"
-    os.makedirs(out_dir, exist_ok=True)
-    
-    docx_path = os.path.join(out_dir, "DE_CUONG_CHI_TIET_DO_AN_TOT_NGHIEP_CHUAN_KHOA_HOC.docx")
-    doc.save(docx_path)
-    print(f"DOCX created at: {docx_path}")
-
-    # Export to PDF
-    pdf_path = os.path.join(out_dir, "DE_CUONG_CHI_TIET_DO_AN_TOT_NGHIEP_CHUAN_KHOA_HOC.pdf")
-    try:
-        word = win32com.client.Dispatch("Word.Application")
-        word.Visible = False
-        doc_com = word.Documents.Open(os.path.abspath(docx_path))
-        doc_com.ExportAsFixedFormat(os.path.abspath(pdf_path), 17)
-        doc_com.Close(False)
-        word.Quit()
-        print(f"PDF exported at: {pdf_path}")
-    except Exception as e:
-        print(f"Error exporting PDF: {e}")
-
-    # Copy to Downloads safely
-    dst_dir = os.path.expanduser(r'~\Downloads')
-    for f in [docx_path, pdf_path]:
-        if os.path.exists(f):
-            try:
-                shutil.copy2(f, os.path.join(dst_dir, os.path.basename(f)))
-                print(f"Copied {os.path.basename(f)} to Downloads")
-            except PermissionError:
-                alt_name = "DE_CUONG_DO_AN_TOT_NGHIEP_2029_v3_FROZEN.pdf" if f.endswith(".pdf") else "DE_CUONG_DO_AN_TOT_NGHIEP_2029_v3_FROZEN.docx"
-                shutil.copy2(f, os.path.join(dst_dir, alt_name))
-                print(f"Copied to Downloads as fallback: {alt_name}")
 
 if __name__ == "__main__":
     main()
