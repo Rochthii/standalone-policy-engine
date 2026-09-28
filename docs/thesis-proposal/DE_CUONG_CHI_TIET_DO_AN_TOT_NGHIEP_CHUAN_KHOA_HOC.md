@@ -1,349 +1,153 @@
-# BỘ GIÁO DỤC VÀ ĐÀO TẠO
-## KHOA CÔNG NGHỆ THÔNG TIN — BỘ MÔN KỸ THUẬT PHẦN MỀM
+# ĐỀ CƯƠNG CHI TIẾT ĐỒ ÁN TỐT NGHIỆP
 
----
+KHOA CÔNG NGHỆ THÔNG TIN — BỘ MÔN KỸ THUẬT PHẦN MỀM
 
-# ĐỀ CƯƠNG CHI TIẾT ĐỒ ÁN TỐT NGHIỆP ĐẠI HỌC
-### HỆ ĐÀO TẠO: KỸ SƯ / CỬ NHÂN CHÍNH QUY — CHUYÊN NGÀNH KỸ THUẬT PHẦN MỀM
+## PHẦN A — Thông tin đề tài
 
----
+**Tên tiếng Việt**
 
-## PHẦN A. THÔNG TIN HÀNH CHÍNH VÀ ĐỊNH DANH ĐỀ TÀI
+Cơ chế ủy quyền ràng buộc giao dịch cho hành động của tác tử AI trong hệ thống ERP: Thiết kế và đánh giá trên Odoo 17
 
-* **Tên đề tài (Tiếng Việt):**
-  > **XÂY DỰNG CƠ CHẾ POLICY DECISION POINT HỖ TRỢ ỦY QUYỀN CÓ KIỂM SOÁT (DELEGATION-AWARE AUTHORIZATION) CHO TÁC TỬ AI TRONG HỆ THỐNG ERP — NGHIÊN CỨU TRIỂN KHAI VÀ ĐÁNH GIÁ THỰC NGHIỆM TRÊN NỀN TẢNG ODOO**
+**Tên tiếng Anh**
 
-* **Tên đề tài (Tiếng Anh):**
-  > **DESIGN AND IMPLEMENTATION OF A DELEGATION-AWARE POLICY DECISION POINT FOR AUTONOMOUS AI AGENTS IN ERP SYSTEMS — AN EMPIRICAL EVALUATION ON THE ODOO PLATFORM**
+Transaction-Bound Authorization for AI-Agent Actions in ERP: Design and Evaluation on Odoo 17
 
-* **Mã ngành đào tạo:** Kỹ thuật Phần mềm (Software Engineering)
-* **Loại hình đề tài:** Nghiên cứu Ứng dụng & Phát triển Hệ thống Phân tán (Applied Research & Distributed Systems Engineering)
-* **Thời gian thực hiện:** 16 tuần (Học kỳ tốt nghiệp)
-* **Sinh viên thực hiện:** ..................................................... — **MSSV:** ............................. — **Lớp:** ..........................
-* **Cán bộ hướng dẫn:** .........................................................................................................................................
+- Ngành đào tạo: Kỹ thuật Phần mềm (Software Engineering).
+- Loại hình: Nghiên cứu ứng dụng và phát triển hệ thống.
+- Thời gian dự kiến: 16 tuần trong học kỳ tốt nghiệp.
+- Sinh viên thực hiện: ........................................; MSSV: ........................; Lớp: ........................
+- Cán bộ hướng dẫn: ........................................................................................
 
----
+## PHẦN B — Nội dung thuyết minh
 
-## HIỆU ĐÍNH PHẠM VI VÀ EVIDENCE HIỆN TRẠNG (2026-09-11)
+### Tuyên bố luận đề
 
-Đề cương này giữ nguyên hướng nghiên cứu, 4 RQ và phạm vi 1-Hop Delegation trên Odoo 17. Tuy nhiên, các mô tả kiến trúc và số đo lịch sử trong các phần sau chỉ là baseline hoặc mục tiêu nếu chưa được xác nhận bởi mã nguồn và bộ thực nghiệm hiện hành. Tài liệu hiệu đính bắt buộc khi viết luận văn là [`THESIS_SCOPE_AND_EVIDENCE_ALIGNMENT.md`](./THESIS_SCOPE_AND_EVIDENCE_ALIGNMENT.md); trạng thái kỹ thuật chi tiết lấy từ [`CURRENT_STATE_AUDIT.md`](../technical-spec/CURRENT_STATE_AUDIT.md).
+Đồ án thiết kế và đánh giá cơ chế ủy quyền ràng buộc giao dịch cho hành động của tác tử AI. Trong phạm vi nghiên cứu, AI agent là một chủ thể phần mềm không phải con người (non-human software principal), gọi công cụ nghiệp vụ thay mặt người dùng thông qua ủy quyền được kiểm soát. Đề tài nghiên cứu ranh giới authorization, không đánh giá chất lượng suy luận hay huấn luyện mô hình.
 
-Odoo PEP được kế thừa từ baseline Project 2 tại `E:\Projects\ERP_Mastery_Hub\02_Project_2_Odoo_Go_PDP_Approval`. Kết quả tích hợp thực nghiệm chỉ dùng addon đã migrate và versioned trong repository này; legacy addon không phải release artifact.
+Bất biến trung tâm là: giao dịch được bảo vệ chỉ được commit khi danh tính tin cậy, ủy quyền một-hop, ý định nghiệp vụ chuẩn hóa, trạng thái ERP, policy/revocation và phê duyệt bắt buộc đều vượt qua kiểm tra; command và approval được tiêu thụ nguyên tử với thay đổi nghiệp vụ. Hiện thực dùng khóa và fence để sắp thứ tự các thay đổi được cấu hình trong Odoo/PostgreSQL. Thời hạn được kiểm tra tại bước deferred validation của PostgreSQL, không phải thời điểm WAL bền vững hay phản hồi đến client.
 
----
+Miền thực nghiệm chỉ gồm một đường xác nhận đơn mua hàng `purchase.order` trên Odoo 17. Go PDP là nền tảng hiện thực; hiệu năng hỗ trợ đánh giá tính khả thi.
 
-## PHẦN B. NỘI DUNG THUYẾT MINH CHI TIẾT
+### I — Câu hỏi nghiên cứu
 
-```text
-╔═════════════════════════════════════════════════════════════════════════════╗
-║         TRỤC TIẾN HÓA NGHIÊN CỨU TAM ĐOẠN LUẬN (RESEARCH LINEAGE)           ║
-╠═════════════════════════════════════════════════════════════════════════════╣
-║  1. HIGH-PERFORMANCE PDP (GỐC RỄ KỸ THUẬT PHẦN MỀM - BASELINE PROTOTYPE):   ║
-║     • Động cơ In-Memory Go Core, Trie phân cấp FNV-1a, Role DAG Closure.    ║
-║     • Trình biên dịch Pratt Parser, AST Evaluator, Copy-On-Write Lock-Free. ║
-║     • Đạt Zero Heap Allocation trên hot-path đánh giá phân quyền.           ║
-║                                                                             ║
-║  2. ENTERPRISE AUTHORIZATION (MIỀN THỰC NGHIỆM KIỂM CHỨNG - VALIDATION):    ║
-║     • Mô hình ABAC (NIST SP 800-162) & Policy-as-Code (OASIS XACML).        ║
-║     • Giải quyết Role Explosion & Rò rỉ logic phân quyền vào backend/SQL.   ║
-║     • Kiểm soát Phân tách trách nhiệm (SoD theo SOX 404 & ISO/IEC 27001).   ║
-║     • Kiểm chứng thực nghiệm trên chu trình Procure-to-Pay của Odoo 17.     ║
-║                                                                             ║
-║  3. AI AGENT AUTHORIZATION (TRỌNG TÂM NGHIÊN CỨU MỚI - RESEARCH FOCUS):     ║
-║     • Chốt chặn Tiền định (Deterministic Guardrail) ở tốc độ microsecond.   ║
-║     • Đánh giá chuỗi ủy quyền (Delegation Chain) và ngữ cảnh Tool-Calls     ║
-║       nhằm hạn chế tối đa tác động rủi ro (Impact Mitigation) khi AI bị     ║
-║       thao túng hoặc ảo giác (theo chuẩn NIST AI RMF 1.0 & OWASP LLM06).   ║
-║     • Cơ chế quyết định đi kèm nghĩa vụ: ALLOW, DENY + REQUIRE_APPROVAL.    ║
-╚═════════════════════════════════════════════════════════════════════════════╝
-```
+- **RQ1:** Làm thế nào biểu diễn và kiểm chứng agent hành động thay mặt human principal trong cùng tenant, theo scope, thời hạn và ràng buộc nghiệp vụ của ủy quyền một-hop?
+- **RQ2:** Làm thế nào ràng buộc quyền với đúng canonical business intent và trạng thái ERP tại ranh giới commit, để phát hiện thay đổi tham số, replay và TOCTOU?
+- **RQ3:** Làm thế nào gắn phê duyệt với đúng hành động, kiểm tra Separation of Duties (SoD), và ngăn thay thế, tự phê duyệt hoặc sử dụng lại approval?
+- **RQ4:** Trên cùng workflow, fixture và môi trường, cơ chế đề xuất khác broad service account và policy-only ra sao về tính đúng đắn bảo mật và chi phí thực thi?
 
----
+### II — Vấn đề và phạm vi đóng góp
 
-### I. BỐN CÂU HỎI NGHIÊN CỨU CỐT LÕI (CORE RESEARCH QUESTIONS)
+Khi agent gọi công cụ ERP, quyền gọi API chưa đủ để xác định một thay đổi nghiệp vụ cụ thể có được phép thực hiện hay không. Request có thể bị sửa, approval có thể thuộc một phiên bản đơn khác, quyền có thể thay đổi trong lúc xử lý, hoặc client có thể gửi lại request sau mất phản hồi.
 
-Đồ án được thiết kế xoay quanh **4 Câu hỏi Nghiên cứu (Research Questions - RQs)** làm kim chỉ nam xuyên suốt:
+OWASP LLM06:2025 xác định excessive functionality, permissions và autonomy là nguồn rủi ro; các biện pháp được nêu gồm giới hạn quyền, thực thi trong ngữ cảnh người dùng, phê duyệt hành động tác động cao và kiểm soát tại hệ thống downstream [4]. Đồ án chọn nghiên cứu lớp kiểm soát hành động đó, không tuyên bố giải quyết mọi prompt injection.
 
-* **RQ1 (Mô hình hóa Định danh & Ngữ cảnh Tác tử AI):**
-  > *Làm thế nào để xây dựng một mô hình định danh hợp nhất (Unified Authorization Subject) có khả năng biểu diễn đầy đủ và chính xác cho Con người (Human Users), Tiến trình dịch vụ (Workloads), Tác tử AI tự hành (Autonomous Agents), Chuỗi ủy quyền nhiều cấp (Delegation Chains) và Ngữ cảnh gọi công cụ (Tool-Call Execution Context)?*
+Khoảng trống kỹ thuật được khảo sát là sự kết hợp giữa delegated authorization và tính toàn vẹn của giao dịch ERP. Một policy check tách rời không tự tạo ra ràng buộc nguyên tử với mutation. Đồ án không khẳng định mọi hệ thống hiện hữu đều thiếu cơ chế này hoặc đề xuất là hoàn toàn mới; đối chiếu related work và giới hạn tính mới phải được lập luận trong luận văn.
 
-* **RQ2 (Hiệu Năng Runtime & Tối Ưu Hóa Bộ Nhớ Cấp Máy):**
-  > *Làm thế nào để thiết kế một Động cơ Phân quyền Trong Bộ Nhớ (In-Memory PDP) đạt độ trễ đánh giá sub-microsecond (< 1 µs), thông lượng trên 1.000.000 decisions/giây và triệt tiêu hoàn toàn việc cấp phát bộ nhớ (Zero Heap Allocation) trên đường truyền nóng (hot-path) mà không bị xung đột khóa (lock-free)?*
+Xác nhận đơn mua hàng là trường hợp thực nghiệm có amount, currency, vendor, lines, trạng thái và approval để quan sát. Đây không phải nghiên cứu toàn bộ Procure-to-Pay, thanh toán hoặc quản lý ERP tự động.
 
-* **RQ3 (Cơ Chế Kiểm Soát Rủi Ro & An Toàn Tiền Định):**
-  > *Làm thế nào cơ chế quyết định 3 trạng thái (`ALLOW` / `DENY` / `REQUIRE_HUMAN_APPROVAL`) và chốt chặn tiền định (Deterministic Guardrail) có thể hạn chế và cô lập tối đa tác động rủi ro (Impact Mitigation) khi các tác tử AI tự hành bị ảo giác (Hallucination) hoặc bị tấn công Prompt Injection?*
+### III — Cơ sở lý thuyết và nghiên cứu liên quan
 
-* **RQ4 (Đánh Giá Thực Nghiệm & So Sánh Đa Chiều):**
-  > *Động cơ đề xuất thể hiện tính đúng đắn chức năng (Functional), độ an toàn bảo mật (Security), và hiệu năng mở rộng (Performance) như thế nào khi kiểm chứng thực nghiệm trên các kịch bản doanh nghiệp thực tế (ERP Validation Domain) so với Prototype nền tảng và các giải pháp hiện hành?*
+- ABAC [1] hỗ trợ diễn đạt quyền theo thuộc tính chủ thể, tài nguyên, hành động và môi trường. Zero Trust [2] cung cấp bối cảnh về quyết định truy cập, không chứng minh invariant giao dịch của đồ án.
+- NIST AI RMF [3] cung cấp bối cảnh quản trị rủi ro; OWASP [4] định hướng kiểm soát excessive agency. Viện dẫn các tài liệu này không đồng nghĩa đạt chứng nhận hay compliance.
+- XACML [5] giúp đối chiếu việc tách điểm quyết định và điểm thực thi. Cedar [6] là tham khảo về ngôn ngữ authorization; không kế thừa tuyên bố verification hoặc ưu thế hiệu năng của Cedar cho PDP này.
+- Zanzibar [7] là tham khảo về consistency của authorization. Đồ án không tái hiện kiến trúc phân tán hoặc quy mô triển khai của hệ thống đó.
+- Cơ chế transaction, khóa, idempotency và SoD được sử dụng để đặc tả boundary Odoo/PostgreSQL. SAP chỉ xuất hiện trong phân tích khả năng áp dụng, không có tích hợp runtime.
 
----
+### IV — Mục tiêu và ranh giới nghiên cứu
 
-### II. TÍNH CẤP THIẾT VÀ KHOẢNG TRỐNG NGHIÊN CỨU (PROBLEM STATEMENT & RESEARCH GAP)
+| Nền tảng kế thừa | Vai trò trong đề tài |
+|---|---|
+| Go PDP, policy evaluator, role graph và gRPC/mTLS | Hạ tầng quyết định quyền và truyền thông; không phải đóng góp học thuật chính. |
+| Odoo ORM, purchase workflow và PostgreSQL | Nguồn trạng thái nghiệp vụ có thẩm quyền và ranh giới mutation. |
+| Testbed, unit tests và integration runners | Cơ sở tái lập, không tự chứng minh phạm vi lớn hơn từng phép kiểm thử. |
 
-#### 2.1. Bối Cảnh Chuyển Dịch Sang Kỷ Nguyên "Doanh Nghiệp Tự Hành" (Autonomous Enterprise)
-Hệ thống Hoạch định Nguồn lực Doanh nghiệp (**ERP — Enterprise Resource Planning**) như SAP S/4HANA, Oracle ERP hay Odoo quản lý toàn bộ dòng tiền, quy trình mua sắm, nhân sự và báo cáo tài chính của tổ chức. 
+Phạm vi thực hiện gồm một-hop human-to-agent delegation trong cùng tenant; canonical intent và material-state witness; purpose-separated proof/capability; exact-action approval và SoD; locked revalidation, atomic consumption, retry/concurrency và đánh giá có đối chứng.
 
-Trong tiến trình chuyển đổi số hiện nay và hướng tới tương lai, một tỷ trọng ngày càng lớn các giao dịch doanh nghiệp đang và sẽ được khởi tạo hoặc thực thi tự động thông qua **các Tác tử AI tự hành (Autonomous AI Agents), AI Copilots và các Định danh phi con người (Non-Human Identities - NHI)** thông qua các lệnh gọi công cụ (Tool-Calls / APIs).
+Ngoài phạm vi: multi-hop/multi-agent orchestration; huấn luyện hoặc chọn model; prompt filtering; SAP runtime; toàn bộ ERP; production certification; chống chối bỏ bằng shared-key HMAC; distributed atomic transaction; exactly-once external side effects; dynamic HR hoặc daily-limit không có nguồn và thực nghiệm tương ứng.
 
-#### 2.2. Thách Thức Kép Của Bài Toán Phân Quyền Hiện Đại
-1. **Hạn chế của mô hình RBAC truyền thống trong môi trường Enterprise:**
-   - **Bùng nổ vai trò (Role Explosion):** Phân quyền vai trò tĩnh khi mở rộng theo phòng ban, chi nhánh và hạn mức làm bùng nổ hàng chục nghìn vai trò kết hợp (ví dụ: `Manager_DeptIT_Limit50M_BranchHN`), gây tê liệt khả năng quản trị.
-   - **Rò rỉ logic vào mã nguồn & SQL (Authorization Leakage):** Việc viết cứng các điều kiện so sánh giá trị (`amount <= limit`) trong code backend và câu truy vấn SQL gây nghẽn nghiêm trọng cho Database khi có hàng nghìn giao dịch đồng thời.
-   - **Vi phạm Phân tách nhiệm vụ (Separation of Duties - SoD):** Khó kiểm soát tự động các hành vi gian lận tài chính (như người tạo đề nghị mua hàng tự ký duyệt đơn mua) theo chuẩn kiểm toán **SOX Section 404**.
-2. **Thách thức an toàn từ các luồng tự động hóa của Tác tử AI:**
-   - Theo chuẩn bảo mật **OWASP Top 10 for LLM (Lỗ hổng LLM06: Excessive Agency)** và **Khung quản trị rủi ro NIST AI RMF**, các mô hình AI có bản chất là **mô hình xác suất (Probabilistic)** — có rủi ro bị **ảo giác (Hallucination)**, bị tấn công **Prompt Injection**, hoặc tự ý thực hiện hành động vượt quá thẩm quyền được ủy quyền.
-   - Trong khi đó, các quy chuẩn tài chính kế toán bắt buộc phải **chính xác tiền định (Deterministic)**. Động cơ PDP đóng vai trò cô lập và hạn chế tối đa tác động rủi ro (Impact Mitigation) khi AI Agent bị thao túng.
+### V — Thiết kế và phương pháp nghiên cứu
 
-#### 2.3. Khoảng Trống Nghiên Cứu (Research Gap)
-Các giải pháp phân quyền đa dụng hiện nay (General-Purpose Policy Engines) cung cấp khả năng phân quyền mạnh mẽ nhưng độ trễ đánh giá và chi phí tài nguyên có thể dao động lớn tùy thuộc vào cấu trúc chính sách và mô hình triển khai. Điều này đặt ra nhu cầu nghiên cứu một **Runtime phân quyền chuyên biệt có độ trễ cực thấp (Specialized Low-Latency Authorization Runtime)**, có khả năng thực thi trong bộ nhớ RAM, phục vụ đồng thời cả khối lượng công việc doanh nghiệp lẫn chốt chặn an toàn cho các tác tử AI tự hành.
+Luồng tin cậy được giới hạn như sau:
 
----
+1. Human principal cấp delegation; agent gửi đề xuất gọi tool.
+2. Odoo PEP lấy dữ liệu authoritative và dựng Canonical Business Intent (CBI). Agent không được tự khai báo amount/vendor/lines như nguồn sự thật. Tiền được biểu diễn bằng số nguyên đơn vị nhỏ nhất tại boundary.
+3. PDP kiểm tra danh tính, delegation và policy, trả ALLOW hoặc DENY.
+4. Nếu ALLOW kèm REQUIRE_HUMAN_APPROVAL, Odoo lưu trạng thái `to approve` và pending intent, kết thúc transaction trước khi chờ người duyệt. Activity chỉ là thông báo.
+5. Người duyệt độc lập được kiểm tra quyền và SoD; capability gắn đúng intent hash, witness và thời hạn.
+6. Đường cuối khóa và đọc lại trạng thái, kiểm tra proof/capability cùng quyền hiện hành, rồi tiêu thụ command/approval và thay đổi PO trong cùng transaction. ALLOW không cần approval đi theo đường cuối trực tiếp; DENY luôn là từ chối cứng, kể cả khi có obligation.
 
-### III. TỔNG QUAN TÌNH HÌNH NGHIÊN CỨU LIÊN QUAN (LITERATURE REVIEW)
+Ba lớp đóng góp:
 
-Đề tài kế thừa và phát triển từ 4 trụ cột học thuật quốc tế:
+- **Đóng góp 1 — Delegation-aware authorization:** mô hình human, agent, tenant, scope, validity và constraints; xác định nguồn tin cậy cho từng thuộc tính (RQ1).
+- **Đóng góp 2 — Transaction binding:** CBI, material-state witness, proof versioning, phát hiện tamper và replay đối với đúng giao dịch (RQ2).
+- **Đóng góp 3 — Commit-time enforcement:** revalidation dưới khóa, exact-action approval, SoD và one-time consumption nguyên tử với mutation trong phạm vi bảo vệ (RQ3).
 
-```mermaid
-flowchart LR
-    A["1. MÔ HÌNH TOÁN & ZERO TRUST:\n• NIST SP 800-162 (ABAC)\n• NIST SP 800-207 (Zero Trust)\n• OASIS XACML v3.0"] 
-    --> B["2. AN TOÀN AI & NON-HUMAN IDENTITY:\n• NIST AI RMF 1.0\n• OWASP LLM06 Excessive Agency\n• EU AI Act & ISO/IEC 42001"]
-    --> C["3. NGÔN NGỮ & ĐỒ THỊ HIỆU NĂNG CAO:\n• AWS Cedar (ACM OOPSLA 2024)\n• Google Zanzibar (USENIX ATC)\n• Radix Trie FNV-1a & DAG Closure O(1)"]
-    --> D["4. MIỀN DOANH NGHIỆP & TUÂN THỦ:\n• SOX 404 (SoD Compliance)\n• SAP S/4HANA & Odoo 17 Security"]
+Khung đánh giá tái lập trả lời RQ4 và kiểm chứng ba lớp đóng góp; không tách thành một đóng góp cơ chế thứ tư. Trie, DAG, AST evaluator, gRPC và mTLS là lựa chọn hiện thực.
 
-    style A fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
-    style B fill:#f3e5f5,stroke:#7b1fa2,color:#4a148c
-    style C fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
-    style D fill:#fff3e0,stroke:#e65100,color:#e65100
-```
+Phương pháp gồm đặc tả threats/invariants, hiện thực Go/Odoo, golden vectors xuyên ngôn ngữ, kiểm thử âm với oracle trạng thái bền vững và lịch xen kẽ hai session. Với policy/role publication và revocation, mọi writer thuộc phạm vi phải dùng cùng ERP fence; local-authority epoch và trigger phải còn nguyên vẹn. Deadline dùng clock PostgreSQL được tin cậy. Không giữ row lock khi chờ human approval.
 
-1. **Chuẩn Kiến trúc Phân Quyền NIST SP 800-162 & Zero Trust NIST SP 800-207:**
-   * *NIST SP 800-162:* Định nghĩa hình thức mô hình ABAC 4 thực thể: **PEP** (Thực thi) $\leftrightarrow$ **PDP** (Quyết định) $\leftrightarrow$ **PIP** (Ngữ cảnh) $\leftrightarrow$ **PAP** (Quản trị chính sách).
-   * *NIST SP 800-207:* Nguyên tắc Zero Trust: Đánh giá phân quyền liên tục dựa trên ngữ cảnh thực tế tại thời điểm Runtime cho mọi chủ thể (Human, Workload, Agent).
-2. **Khung Quản Trị Rủi Ro AI & Non-Human Identity (NIST AI RMF & OWASP):**
-   * *NIST AI Risk Management Framework (AI RMF 1.0):* Định hướng xây dựng các cơ chế kiểm soát kỹ thuật tiền định để giảm thiểu rủi ro từ các hệ thống AI tự hành.
-   * *OWASP Top 10 for LLM (LLM06 - Excessive Agency):* Khuyến nghị bắt buộc áp dụng kiểm soát thuộc tính chi tiết (Fine-Grained ABAC) và kiểm soát chuỗi ủy quyền trước khi AI thực thi công cụ (Tool-Calls).
-3. **Ngôn Ngữ Khai Báo Chính Sách & Cấu Trúc Đồ Thị Hiệu Năng Cao:**
-   * *AWS Cedar Language (ACM OOPSLA 2024):* Mô hình Policy-as-Code an toàn, phân tích hình thức và giới hạn độ sâu cây AST ($\le 15$) chống tấn công cạn kiệt tài nguyên.
-   * *Google Zanzibar (USENIX ATC 2019):* Kiến trúc phân quyền quan hệ phân tán với tính nhất quán cao.
-4. **Chuẩn Mực Quản Trị ERP & Kiểm Toán Doanh Nghiệp (SOX 404, SAP, Odoo):**
-   * Kiểm soát Phân tách trách nhiệm (SoD) trong chu trình Procure-to-Pay (P2P) và Order-to-Cash (O2C).
+### VI — Kế hoạch 16 tuần
 
----
+Kế hoạch dưới đây là cấu trúc học kỳ, không phải danh sách yêu cầu làm lại phần đã hoàn tất. Tiến độ thực tế theo task board.
 
-### IV. MỤC TIÊU VÀ PHẠM VI NGHIÊN CỨU (OBJECTIVES & SCOPE)
-
-#### 4.1. Phân Tách Minh Bạch: Nền Tảng Kế Thừa (Existing Foundation) & Phạm Vi Đóng Góp Mới (Thesis Scope)
-
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│              PHÂN TÁCH MINH BẠCH: NỀN TẢNG KẾ THỪA VS ĐÓNG GÓP MỚI          │
-├──────────────────────────────────────┬──────────────────────────────────────┤
-│  A. NỀN TẢNG KẾ THỪA TỪ PROTOTYPE    │  B. PHẠM VI ĐÓNG GÓP MỚI CỦA ĐỒ ÁN   │
-│     (EXISTING FOUNDATION - BASELINE) │     (THESIS RESEARCH CONTRIBUTIONS)  │
-├──────────────────────────────────────┼──────────────────────────────────────┤
-│  • Động cơ In-Memory Go Core         │  • Đặc tả mô hình định danh hợp nhất │
-│  • Bộ phân tích cú pháp Pratt Parser │    (Unified Authorization Subject)   │
-│  • Cấu trúc chỉ mục Trie phân cấp    │  • Cơ chế đánh giá chuỗi ủy quyền    │
-│  • Đồ thị Role DAG Transitive Closure│    nhiều cấp (Delegation Chain)      │
-│  • Cơ chế Copy-On-Write Lock-Free    │  • Đánh giá ngữ cảnh Tool-Call AI    │
-│  • Server gRPC Protobuf chuẩn         │  • Rào chắn tiền định & Obligations: │
-│  • Đồng bộ Postgres Monotonic Seq    │    ALLOW / DENY / REQUIRE_APPROVAL   │
-│  • Bộ đo tải Benchmark vi mô cơ sở   │  • Bộ khung thực nghiệm 3 chiều:     │
-│                                      │    Functional - Security - Compare   │
-└──────────────────────────────────────┴──────────────────────────────────────┘
-```
-
-#### 4.2. Ranh Giới Nghiên Cứu (In-Scope & Out-of-Scope)
-* **Phạm vi thực hiện (In-Scope):**
-  1. Tái sử dụng và mở rộng runtime nền tảng hiện có để giải quyết 4 câu hỏi nghiên cứu (RQ1–RQ4).
-  2. Đặc tả và hiện thực hóa mô hình định danh hợp nhất (Unified Authorization Subject).
-  3. Xây dựng logic phân quyền ủy quyền chuỗi (`DelegationChain`) và ngữ cảnh gọi công cụ (`ToolExecutionContext`).
-  4. Hiện thực hóa cơ chế quyết định đi kèm nghĩa vụ: `ALLOW`, `DENY` kèm `REQUIRE_HUMAN_APPROVAL`.
-  5. Đánh giá thực nghiệm 3 chiều trên chu trình Procure-to-Pay (P2P) của Odoo 17 và kịch bản AI Agent Tool-Calls.
-* **Phạm vi không thực hiện (Out-of-Scope):**
-  - Không xây dựng lại toàn bộ ứng dụng ERP từ đầu (sử dụng nền tảng nguồn mở Odoo 17 làm môi trường thực nghiệm kiểm chứng chính thức; việc tích hợp các hệ thống đóng như SAP S/4HANA được định vị là hướng mở rộng quy mô sau tốt nghiệp).
-  - Không đi sâu vào nghiên cứu toán học huấn luyện mô hình AI (tập trung thuần túy vào Kỹ thuật Phần mềm, An toàn Hệ thống và Governance cho Tool-Calls).
-
----
-
-### V. PHƯƠNG PHÁP NGHIÊN CỨU VÀ DỰ KIẾN ĐÓNG GÓP KỸ THUẬT (METHODOLOGY & CONTRIBUTIONS)
-
-```mermaid
-flowchart TD
-    subgraph Clients["TẦNG KHÁCH THỂ (UNIFIED AUTHORIZATION SUBJECTS)"]
-        HumanStaff["Con người (Human Users: Nhân viên / Kế toán / Quản lý)"]
-        AIAgent["Tác tử AI (Autonomous Agents: Tool-Calls / Copilots)"]
-        ServiceWorkload["Tiến trình Dịch vụ (Service & Workload Identities)"]
-    end
-
-    subgraph Gateway["TẦNG POLICY ENFORCEMENT POINT (PEP)"]
-        EnvoyPEP["Envoy L7 Proxy / API Gateway"]
-        OdooModule["Odoo 17 Custom PDP Connector (pdp_authorizer)"]
-    end
-
-    subgraph PDP_Core["ĐỘNG CƠ POLICY DECISION POINT (GO IN-MEMORY PDP :50051)"]
-        GRPC["gRPC Server (Protobuf chuẩn, mTLS, JWT Context)"]
-        
-        subgraph RAM_Engine["In-Memory Execution Engine (Zero-Allocation Hot-Path)"]
-            Trie["Radix Trie Index [FNV-1a 64-bit Hash Prefix Lookup]"]
-            DAG["Role Hierarchy DAG [Transitive Closure O(1) Query]"]
-            AST["AST Evaluator [Short-circuit, IP Bitmask, sync.Pool]"]
-            Guardrail["Deterministic Guardrail [Hard Financial Bounds & SoD]"]
-            COW["In-Memory Policy Snapshots (Copy-On-Write Atomic Pointer)"]
-        end
-    end
-
-    subgraph Storage["TẦNG LƯU TRỮ, ĐỒNG BỘ & KIỂM TOÁN BỀN VỮNG"]
-        Postgres[("PostgreSQL 15+ (Transactional Sequence `tenants.revision`)")]
-        Vector["Vector Sidecar (hướng mở rộng)"]
-        ClickHouse[("Kho lưu trữ WORM (hướng mở rộng)")]
-        Badger[("BadgerDB LSM-Tree (Edge Cold-Start Snapshot)")]
-    end
-
-    Clients --> Gateway
-    Gateway -->|"gRPC CheckAccess(Subject, Action, Resource, Context)"| GRPC
-    GRPC --> COW
-    COW --> Trie
-    Trie --> DAG
-    DAG --> AST
-    AST --> Guardrail
-    Guardrail -->|"Quyết định: ALLOW / DENY + Obligations"| GRPC
-
-    GRPC -.->|"audit integration (hướng mở rộng)"| Vector
-    Vector -.->|"batch stream (hướng mở rộng)"| ClickHouse
-    Postgres -.->|"NOTIFY metadata (< 120B) + Fast Gap Catch-Up"| COW
-    Badger -.->|"Cold Startup"| COW
-
-    style PDP_Core fill:#1e3a5f,color:#fff
-    style RAM_Engine fill:#0d4f3c,color:#fff
-    style Storage fill:#4a148c,color:#fff
-```
-
-#### 5.1. Dự Kiến Đóng Góp Nghiên Cứu & Kỹ Thuật (Expected Contributions)
-1. **Chuẩn Hóa Mô Hình Không Gian Phân Quyền Theo NIST SP 800-162 & Bộ Ngũ Ủy Quyền:**
-   - Phân định rõ ràng giữa Không gian Thuộc tính Đầu vào và Hàm Quyết định:
-     * *Không gian thuộc tính đầu vào (Input 4-Tuple):* $\mathcal{I} = \langle \mathcal{S}, \mathcal{A}, \mathcal{R}, \mathcal{C} \rangle$ (Subject, Action, Resource, Context).
-     * *Không gian chính sách (Policy Space):* $\mathcal{P} = \{ p_1, p_2, \dots, p_n \}$ (Tập hợp các luật khai báo tiền định).
-     * *Hàm quyết định phân quyền (Decision Function):*
-       $$\mathcal{D}: \mathcal{I} \times \mathcal{P} \longrightarrow \{ \text{ALLOW}, \text{DENY} \} \times \mathcal{O}$$
-       (với $\mathcal{O}$ là tập hợp các nghĩa vụ thực thi thời gian chạy - Runtime Obligations).
-   - **Hình thức hóa hành vi ủy quyền có kiểm soát (Constrained Delegation Tuple):**
-     $$\Delta = \langle \mathcal{U}_{\text{root}}, \mathcal{A}_{\text{exec}}, \Sigma_{\text{scope}}, \Omega_{\text{constraints}}, \mathcal{C}_{\text{chain}} \rangle$$
-     Trong đó, phạm vi nghiên cứu thực nghiệm khóa chặt ở **1-Hop Delegation** ($\text{Depth} = 1$: $\mathcal{U}_{\text{root}} \to \mathcal{A}_{\text{exec}}$). Giao thức hiện hành truyền chuỗi và tool context trong context map; Multi-Hop không thuộc phạm vi luận văn.
-   - **Bảo toàn tính suy giảm quyền lực theo thời gian (Time-Aware Monotonic Attenuation):**
-     $$\mathcal{P}_{\text{effective}}(\mathcal{A} \mid \mathcal{U}, t) = \mathcal{P}_{\text{active}}(\mathcal{U}, t) \cap \mathcal{S}_{\text{delegation}} \cap \Omega_{\text{guardrails}}$$
-     Tại thời điểm $t$, nếu User gốc bị đình chỉ hoặc cạn hạn mức, quyền của Agent lập tức suy biến về $\emptyset$ thông qua đánh giá trực tiếp thuộc tính ngữ cảnh trong RAM mà không cần truy vấn ngược database.
-   - **Triệt tiêu lỗ hổng TOCTOU (Time-of-Check to Time-of-Use):** Xây dựng bảng tra cứu thu hồi tức thời trong RAM (In-Memory Revocation Map $O(1)$) cập nhật dưới $1\,\mu\text{s}$ khi người dùng hủy ủy quyền trên giao diện ERP.
-   - **Bảo toàn phân tách trách nhiệm tổng quát (Generalized SoD):** Nghiêm cấm mọi sự giao thoa giữa Người tạo tài nguyên và bất kỳ mắt xích nào trong chuỗi ủy quyền của Người duyệt ($\mathcal{U}_{\text{creator}} \notin \mathcal{C}_{\text{chain}}(\text{Approver})$) thông qua toán tử `contains` trên chuỗi phân tách bởi dấu phẩy (`context.delegation_chain contains resource.creator_id`).
-
-2. **Lộ Trình Đóng Góp Kỹ Thuật 2 Pha Cho Cơ Chế Runtime Obligations (NIST AI RMF & OWASP LLM06):**
-   - *Pha 1 (Baseline Engine Hiện Hữu):* Giữ nguyên tính tối giản và hiệu năng cao của Lexer/Parser. Engine thực hiện đánh giá nhị phân thuần túy (`ALLOW` / `DENY`), và tầng **Decision Synthesizer** kích hoạt nghĩa vụ `REQUIRE_HUMAN_APPROVAL` dựa trên ánh xạ siêu dữ liệu (`matched_policy_id == "POL-AGENT-AUTONOMOUS-HIGH-FORBID"`).
-   - *Pha 2 (Đóng Góp Mở Rộng Học Thuật):* Mở rộng ngữ pháp EBNF của Cedar-like DSL (`lexer.go`, `ast.go`, `parser.go`) để hỗ trợ trực tiếp khối khai báo `advice { ... }` / `obligations { ... }`, cho phép chính sách tự mô tả nghĩa vụ thời gian thực mà không cần hardcode metadata mapping.
-
-3. **Kiến Trúc Phân Tầng: Tách Biệt Tầng Biên An Ninh (Security Interceptor) & Lõi Đánh Giá Nóng:**
-   - *Tầng 1 - gRPC Security Interceptor (Gateway Middleware):* Xác thực kênh truyền mTLS, kiểm tra tính toàn vẹn `delegation_proof` (HMAC-SHA256 trong $\sim 1 - 2\,\mu\text{s}$) và tra cứu In-Memory Revocation Blacklist $O(1)$ để bảo vệ Trust Boundary.
-   - *Tầng 2 - In-Memory Evaluation Core:* Tra cứu chỉ mục và Role DAG nhằm giảm chi phí đánh giá; đường hot-path tách khỏi kiểm tra mật mã. Chỉ số hiệu năng chỉ được công bố sau khi tái lập theo cấu hình, commit và phạm vi benchmark đã nêu rõ.
-
-4. **Kiến Trúc Bền Vững Đa Tầng & Đồng Bộ Không Redis (Failure-Resilient Policy Runtime):**
-   - Xử lý yêu cầu stateless bằng snapshot chính sách trong RAM và PostgreSQL monotonic revision/LISTEN-NOTIFY. Edge restore, durable multi-replica revocation, WORM logging và Vector/ClickHouse là các hạng mục cần hoàn thiện hoặc hướng mở rộng, không phải kết quả đã nghiệm thu.
-
----
-
-### VI. KẾ HOẠCH THỰC HIỆN VÀ TIẾN ĐỘ 16 TUẦN (WORK BREAKDOWN TIMELINE)
-
-| Giai đoạn | Nội dung công việc chi tiết | Thời gian | Sản phẩm đầu ra bắt buộc |
+| Giai đoạn | Công việc | Thời gian | Đầu ra |
 |---|---|---|---|
-| **Giai đoạn 1** | Khảo sát lý thuyết NIST SP 800-162, đặc tả mô hình Unified Subject, Delegation Chain & Threat Model giải quyết RQ1, RQ3. | Tuần 1 – 3 | Báo cáo SRS & Đặc tả mô hình nghiên cứu. |
-| **Giai đoạn 2** | Kế thừa Foundation Engine, mở rộng Pratt Parser & AST Compiler hỗ trợ Delegation & Tool Context. | Tuần 4 – 7 | Bộ thư viện phân tích cú pháp mở rộng. |
-| **Giai đoạn 3** | Hiện thực hóa Risk-Aware Tri-State Engine (`REQUIRE_APPROVAL`) và tích hợp cơ chế Human-in-the-Loop vào Data Plane giải quyết RQ2, RQ3. | Tuần 8 – 11 | Mã nguồn Go PDP Engine mở rộng hoàn chỉnh. |
-| **Giai đoạn 4** | Tích hợp và kiểm chứng các kịch bản authorization trong purchase-confirmation/P2P checkpoint của Odoo 17, gồm ALLOW, hard DENY, SoD, approval, revoke, tamper và replay/concurrency. | Tuần 12 – 13 | Repository-owned Odoo PEP và evidence giao dịch tái lập được. |
-| **Giai đoạn 5** | Thực nghiệm toàn diện 3 chiều (Functional - Security - Comparative Performance) giải quyết RQ4, hoàn thiện Thuyết minh 100 trang & Slide. | Tuần 14 – 16 | Thuyết minh Đồ án & Slide bảo vệ. |
+| 1 | Chốt RQ, scope, threats và invariants | Tuần 1–2 | Đề cương và matrix |
+| 2 | Đặc tả delegation, CBI, witness và capability | Tuần 3–4 | Contract và golden vectors |
+| 3 | Hiện thực proof, pending approval và SoD | Tuần 5–8 | Code và focused tests |
+| 4 | Commit enforcement, rollback, retry và concurrency | Tuần 9–11 | Bằng chứng Odoo/PostgreSQL |
+| 5 | So sánh A/B/C, đo boundary và phân tích giới hạn | Tuần 12–14 | Raw results, trả lời RQ4 |
+| 6 | Viết luận văn, đối chiếu claims và luyện bảo vệ | Tuần 15–16 | Luận văn, phụ lục, slide |
 
----
+### VII — Đánh giá và evidence hiện tại
 
-### VII. KHUNG ĐÁNH GIÁ THỰC NGHIỆM VÀ KẾ HOẠCH ĐO (EVALUATION FRAMEWORK)
+**VERIFIED V2 trong phạm vi giới hạn, ngày 2026-09-27:** gate Odoo 17/mTLS/PDP/PostgreSQL chạy trên worktree chưa commit đạt 75 post-tests, không có failure/error. Các runner riêng kiểm tra concurrency/retry, 16 lịch sửa material state, ba lịch grant ordering, ba thay đổi authority trước final, bốn lịch policy/role sau ALLOW và hai trường hợp grant hết hạn theo clock thật tại deferred validation.
 
-Đề tài áp dụng **Khung Đánh Giá Thực Nghiệm 3 Chiều** chuẩn mực khoa học nhằm trả lời trọn vẹn câu hỏi nghiên cứu **RQ4**:
+25 ID trong matrix có bằng chứng ghép theo từng boundary; không được diễn giải thành 25 kiểm thử ERP end-to-end độc lập hoặc chứng minh an toàn tổng quát. Lệnh, lỗi trước đó và source fingerprint được lưu trong [EVAL-01 ledger](../technical-spec/evidence/V2_EVAL_01_CASE_LEDGER_2026_09_24.md). Cập nhật tài liệu này không tạo thêm bằng chứng runtime.
 
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                 KHUNG ĐÁNH GIÁ THỰC NGHIỆM 3 CHIỀU (3-TIER EVALUATION)       │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  1. FUNCTIONAL EVALUATION (TÍNH ĐÚNG ĐẮN CHỨC NĂNG):                        │
-│     • Kiểm chứng 7 kịch bản ERP thực tế (Hạn mức PO, SoD, Chi nhánh, Lương)│
-│     • Kiểm chứng cơ chế ủy quyền và Tool-Call Context của AI Agent.         │
-│     • Tiêu chí hoàn thành: 100% PASS các trường hợp kiểm thử nghiệp vụ.     │
-│                                                                             │
-│  2. SECURITY EVALUATION & THREAT MODEL (AN TOÀN BẢO MẬT):                   │
-│     • Kiểm thử khả năng chống leo thang đặc quyền (Privilege Escalation).   │
-│     • Hạn chế tác động (Impact Mitigation) khi AI Agent bị Prompt Injection │
-│       bằng các request Tool-Call vượt phạm vi/hạn mức được kiểm soát.        │
-│     • Kiểm tra bảo mật, tính toàn vẹn và khả năng khôi phục của audit trail.│
-│                                                                             │
-│  3. PERFORMANCE EVALUATION (CÔNG BỐ THEO BỘ ĐO TÁI LẬP):                    │
-│     • Đo tách bạch evaluator, authentication/proof, gRPC và Odoo E2E.        │
-│     • Báo cáo p50/p95/p99/p99.9, throughput, CPU/RSS/GC và allocations/op.  │
-│     • Gắn mỗi kết quả với cấu hình phần cứng, commit và lệnh tái lập.         │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+**VERIFIED V2 trong phạm vi giới hạn:** [EVAL-02](../technical-spec/evidence/V2_EVAL_02_COMPARISON_2026_09_27.md) ghi nhận 11 scenario × 3 variant bằng committed/fresh-observer outcomes. [EVAL-03](../technical-spec/evidence/V2_EVAL_03_MEASUREMENT_2026_09_27.md) ghi phân phối tách rời cho Go API/control và các boundary Odoo, kèm raw samples, hash và môi trường. [EVAL-04](../technical-spec/evidence/V2_EVAL_04_CLAIM_EVIDENCE_2026_09_28.md) khóa claim-to-evidence và threats to validity. Các kết quả này không chứng minh ưu thế phổ quát, causal approval overhead, speedup hoặc production SLA.
 
----
+| Nhóm đánh giá | Phép đo hoặc oracle |
+|---|---|
+| Functional | Delegation, approval lifecycle, trạng thái PO/command/capability sau transaction |
+| Adversarial | Tamper, wrong authority, reuse, revocation, outage và races; trường hợp âm phải không có unauthorized persistent mutation |
+| Comparison | A: broad service account; B: policy-only; C: cơ chế đề xuất, với khả năng và giới hạn ghi rõ |
+| Performance | Tách evaluator, proof/capability, gRPC/mTLS, locked reconstruction và ERP mutation; raw samples, p50/p95/p99/max, errors, môi trường và revision |
 
-### VIII. BỐ CỤC DỰ KIẾN CỦA LUẬN VĂN THUYẾT MINH TỐT NGHIỆP (5 CHƯƠNG)
+Giới hạn thực nghiệm gồm một workflow, tập fixture hữu hạn, writer được cấu hình và các trigger/clock được tin cậy. Chi phí tranh chấp của coarse authority epoch chưa đo; phục hồi publication thủ công chưa được xác minh end-to-end. Một lần UNAVAILABLE ở RPC đầu trong lần chạy trước chưa được giải thích đầy đủ dù clean gate sau đó đã pass. Không suy diễn production readiness hay độ sẵn sàng tổng quát.
 
-* **Chương 1: Giới Thiệu Tổng Quan & Đặt Vấn Đề**
-  - Thực trạng phân quyền trong hệ thống doanh nghiệp và sự bất lực của mô hình RBAC tĩnh.
-  - Sự dịch chuyển sang kiến trúc Zero Trust và nhu cầu chốt chặn bảo vệ thời gian thực cho các luồng tự động hóa của Tác tử AI (Tool-Calls).
-  - Mục tiêu, đối tượng, phạm vi nghiên cứu (tập trung 1-Hop Delegation trên Odoo 17) và 4 câu hỏi nghiên cứu (RQ1–RQ4).
-* **Chương 2: Cơ Sở Lý Thuyết & Mô Hình Phân Quyền ABAC/PBAC**
-  - Không gian toán học chuẩn NIST SP 800-162: Input 4-Tuple $\mathcal{I} = \langle \mathcal{S}, \mathcal{A}, \mathcal{R}, \mathcal{C} \rangle$ và Hàm quyết định phân quyền $\mathcal{D}$.
-  - Phân tích rủi ro an toàn AI theo khung NIST AI RMF và OWASP LLM06 Excessive Agency.
-  - Lý thuyết Ủy quyền có kiểm soát (Constrained Delegation Tuple $\Delta$), Bất biến suy giảm quyền lực theo thời gian ($t$) và Bất biến phân tách trách nhiệm tổng quát (Generalized SoD).
-* **Chương 3: Thiết Kế Kiến Trúc & Giải Thuật Động Cơ Standalone In-Memory PDP**
-  - Cấu trúc chỉ mục Radix Trie FNV-1a, Đồ thị Role DAG Transitive Closure $O(1)$ query.
-  - Trình biên dịch Pratt Parser, AST Evaluator Zero-Allocation, In-Memory Policy Snapshots.
-  - Kiến trúc phân tầng: Tầng 1 gRPC Security Interceptor (mTLS, HMAC-SHA256 verify `delegation_proof`, tenant-scoped revocation) và Tầng 2 In-Memory Hot-Path Core. Chỉ công bố latency/throughput theo từng boundary đã đo, không dùng số lịch sử chưa tái lập.
-  - Lộ trình kỹ thuật 2 pha cho Runtime Obligations (`REQUIRE_HUMAN_APPROVAL`): Pha 1 Metadata Mapping, Pha 2 mở rộng EBNF Parser.
-  - Kiến trúc đồng bộ trạng thái qua PostgreSQL Monotonic Sequence (`tenants.revision`) LISTEN/NOTIFY; audit durable/WORM và edge restore được trình bày như các release gate hoặc hướng mở rộng cho tới khi có evidence.
-* **Chương 4: Hiện Thực Hóa & Tích Hợp Vào Hệ Thống Doanh Nghiệp Thực Tế (Odoo Platform)**
-  - Migrate và kiểm chứng Custom Module Odoo 17 (`pdp_authorizer`) kế thừa model `purchase.order`, trích xuất ngữ cảnh Tool-Call và chuỗi ủy quyền dưới hợp đồng protobuf/JWT/mTLS hiện tại.
-  - Chuẩn hóa giao thức dữ liệu: Phân tách chuỗi bằng dấu phẩy và thực thi luật SoD qua toán tử `contains` (`evaluator.go:387`).
-  - Điều phối quy trình Human-in-the-Loop trên Odoo workflow: Chuyển state `to approve` mà không gây rollback transaction.
-  - (Định vị kiến trúc Two-Tier ERP tích hợp SAP S/4HANA là hướng mở rộng quy mô tập đoàn sau tốt nghiệp).
-* **Chương 5: Đánh Giá Thực Nghiệm (Functional - Security - Comparative Performance), Kết Luận & Hướng Phát Triển**
-  - Báo cáo kết quả đánh giá 3 chiều chi tiết nhằm trả lời toàn diện 4 câu hỏi nghiên cứu (RQ1–RQ4).
-  - Kiểm chứng các kịch bản P2P/AI Tool-Call, proof tamper, revocation và fail-closed; chỉ công bố số liệu sau khi tái lập được.
-  - Đo đạc định lượng gRPC và Odoo ORM trên cùng workload, cùng môi trường, kèm raw results và percentiles.
-  - Kết luận đóng góp học thuật và hướng phát triển mở rộng.
+Các mốc VERIFIED BASELINE, DESIGNED V2, PLANNED V2 và VERIFIED V2 không thay thế nhau. [Current-state audit](../technical-spec/CURRENT_STATE_AUDIT.md) và [scope alignment](THESIS_SCOPE_AND_EVIDENCE_ALIGNMENT.md) xác định giới hạn dùng evidence khi viết.
 
----
+### VIII — Bố cục luận văn
 
-### IX. DANH MỤC TÀI LIỆU THAM KHẢO HỌC THUẬT (ACADEMIC REFERENCES)
+- **Chương 1:** Bối cảnh, vấn đề, scope Odoo-first, RQ1–RQ4 và giới hạn đóng góp.
+- **Chương 2:** Authorization, delegation, SoD, threats, trust boundaries và related work.
+- **Chương 3:** Mô hình delegation, CBI/proof, capability và invariant tại commit.
+- **Chương 4:** Hiện thực Go/Odoo, fences, state machine, rollback/retry và kiểm thử thực thi.
+- **Chương 5:** Kết quả đúng đắn, A/B/C và overhead; threats to validity, câu trả lời RQ và applicability sang SAP.
 
-1. **Hu, V. C., Ferraiolo, D., Kuhn, R., et al. (NIST SP 800-162):** *Guide to Attribute Based Access Control (ABAC) Definition and Considerations*, National Institute of Standards and Technology, 2014.
-2. **Rose, S., Borchert, O., Mitchell, S., & Connelly, S. (NIST SP 800-207):** *Zero Trust Architecture*, National Institute of Standards and Technology, 2020.
-3. **National Institute of Standards and Technology (NIST):** *Artificial Intelligence Risk Management Framework (AI RMF 1.0)*, NIST Trustworthy and Responsible AI, 2023.
-4. **OWASP Foundation:** *OWASP Top 10 for Large Language Model Applications (LLM06: Excessive Agency)*, OWASP GenAI Security Project, 2023.
-5. **OASIS Standard:** *eXtensible Access Control Markup Language (XACML) Version 3.0*, OASIS Open, 2013.
-6. **Cook, B., Disenfeld, M., Eilers, M., et al. (AWS Research):** *Cedar: A New Language for Expressive, Fast, Safe, and Analyzable Authorization*, Proc. ACM Program. Lang., **ACM OOPSLA 2024**.
-7. **Pang, R., Bisht, P., Cidon, A., & Stutsman, R. (Google Research):** *Zanzibar: Google’s Consistent, Global Authorization System*, **USENIX Annual Technical Conference (USENIX ATC 19)**, 2019.
-8. **Ferraiolo, D. F., Sandhu, R., et al.:** *Proposed NIST standard for role-based access control*, **ACM Transactions on Information and System Security (TISSEC)**, 2001.
-9. **Gartner Research:** *Market Guide for Policy-Based Access Control and Externalized Runtime Authorization for Modern Workloads and AI Agents*, Gartner Inc., 2024.
-10. **United States Congress:** *Sarbanes-Oxley Act of 2002 (SOX)*, Section 404: Management Assessment of Internal Controls, 2002.
-11. **ISO/IEC:** *ISO/IEC 27001:2022 Information Security Management Systems — Requirements*, ISO, 2022.
-12. **SAP SE & Odoo S.A.:** *Enterprise Security Framework, Access Control & Record Rules Documentation*, 2024.
+SAP không được coi là đã tương thích, đã chạy hoặc có hiệu quả tương đương. Hướng nghề nghiệp là phát triển năng lực SE cho ERP backend/integration; không dùng đồ án làm cam kết tuyển dụng hay dự báo chắc chắn đến 2029.
 
----
+### IX — Tài liệu tham khảo
 
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                   XÁC NHẬN VÀ PHÊ DUYỆT CỦA BỘ MÔN / KHOA                   │
-├──────────────────────────────────────┬──────────────────────────────────────┤
-│  CÁN BỘ HƯỚNG DẪN                    │  TRƯỞNG BỘ MÔN KỸ THUẬT PHẦN MỀM     │
-│  (Ký và ghi rõ họ tên)               │  (Ký và ghi rõ họ tên)               │
-│                                      │                                      │
-│                                      │                                      │
-│                                      │                                      │
-│  Ngày ..... tháng ..... năm 202...   │  Ngày ..... tháng ..... năm 202...   │
-└──────────────────────────────────────┴──────────────────────────────────────┘
-```
+[1] Hu, V. C., et al. NIST SP 800-162, Guide to Attribute Based Access Control (ABAC) Definition and Considerations, 2014, cập nhật 2019. [NIST](https://csrc.nist.gov/pubs/sp/800/162/upd2/final).
+
+[2] Rose, S., et al. NIST SP 800-207, Zero Trust Architecture, 2020. [NIST](https://csrc.nist.gov/pubs/sp/800/207/final).
+
+[3] NIST. Artificial Intelligence Risk Management Framework (AI RMF 1.0), NIST AI 100-1, 2023. [NIST](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf).
+
+[4] OWASP Foundation. LLM06:2025 Excessive Agency. [OWASP GenAI](https://genai.owasp.org/llmrisk/llm062025-excessive-agency/).
+
+[5] OASIS. eXtensible Access Control Markup Language (XACML) Version 3.0, 2013. [OASIS specification](https://docs.oasis-open.org/xacml/3.0/xacml-3.0-core-spec-os-en.html).
+
+[6] Cutler, J. W., et al. Cedar: A New Language for Expressive, Fast, Safe, and Analyzable Authorization, OOPSLA 2024. [Extended version](https://arxiv.org/abs/2403.04651).
+
+[7] Pang, R., et al. Zanzibar: Google's Consistent, Global Authorization System, USENIX ATC 2019. [USENIX](https://www.usenix.org/conference/atc19/presentation/pang).
+
+### Xác nhận của bộ môn
+
+Cán bộ hướng dẫn: ........................................ (Ký và ghi rõ họ tên)
+
+Trưởng bộ môn: ............................................. (Ký và ghi rõ họ tên)
+
+Ngày ........ tháng ........ năm ........

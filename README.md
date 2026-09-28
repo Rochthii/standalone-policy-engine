@@ -1,229 +1,80 @@
-# Standalone In-Memory Policy Decision Point (PDP)
-### Delegation-Aware Authorization & Guardrails for ERP AI Agents (Odoo 17)
+# Transaction-Bound Authorization for AI Agents in ERP
 
-> **Current implementation status (evidence update 2026-09-19):** This repository is a **research prototype**, not a production-ready PDP. The authoritative status, limits and release gates are in [`CURRENT_STATE_AUDIT.md`](./docs/technical-spec/CURRENT_STATE_AUDIT.md) and [`PRODUCTION_READINESS_CHECKLIST.md`](./docs/technical-spec/PRODUCTION_READINESS_CHECKLIST.md).
+**Cơ chế ủy quyền ràng buộc giao dịch cho hành động của tác tử AI trong hệ thống ERP: Thiết kế và đánh giá trên Odoo 17**
 
-**Author:** Chăm Rốch Thi  
-**Affiliation:** Posts and Telecommunications Institute of Technology (PTIT)  
-**Thesis:** Software Engineering Graduation Thesis
+*Transaction-Bound Authorization for AI-Agent Actions in ERP: Design and Evaluation on Odoo 17*
 
-[![CI](https://github.com/Rochthii/standalone-policy-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/Rochthii/standalone-policy-engine/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/tag/Rochthii/standalone-policy-engine?label=release&color=green)](https://github.com/Rochthii/standalone-policy-engine/releases/tag/v1.0.0-core-verified)
-[![Go Version](https://img.shields.io/badge/Go-1.25+-blue.svg)](https://go.dev)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Verification](https://img.shields.io/badge/7%2F7%20In--Process%20Vectors-PASS-brightgreen.svg)](./tests/e2e_delegation_test.go)
+Research prototype for a Software Engineering graduation thesis, implemented on one Odoo 17 `purchase.order` confirmation path. Repository name: `standalone-policy-engine`. Author: Chăm Rốch Thi — PTIT.
 
-An in-memory Policy Decision Point (PDP) research prototype in Go implementing PBAC/ABAC, constrained delegation and deterministic ERP AI-agent guardrails. The measured core path is zero-allocation for the audited cases. The Odoo non-rollback, mTLS and database-level nonce/retry workflows are verified for the listed real-boundary cases; multi-replica revocation is verified in a local PostgreSQL test, while production release gates remain open.
+## What this project investigates
 
----
+Can an agent commit the exact ERP action a human delegated, with the required approval still valid and without replaying it?
 
-## Read this first
+An AI agent is modeled as a non-human software principal calling business tools under controlled human delegation. Model reasoning, training and prompt filtering are outside the evaluation.
 
-- [`CURRENT_STATE_AUDIT.md`](./docs/technical-spec/CURRENT_STATE_AUDIT.md): authoritative implementation status and claim boundaries.
-- [`EVALUATION_MATRIX.md`](./docs/technical-spec/EVALUATION_MATRIX.md): thesis scenarios and comparative result summary.
-- [`evidence/`](./docs/technical-spec/evidence/): reproducible commands, limits and raw benchmark artifacts.
+Three contribution layers:
 
-Current source evidence is `e243db5`. It covers three distinct boundaries that must not be compared as one end-to-end SLO:
+1. **Delegation-aware authorization:** human, agent, tenant, scope, validity and business constraints.
+2. **Transaction binding:** authoritative canonical business intent, material-state witness and versioned integrity proof.
+3. **Commit-time enforcement:** locked revalidation, exact-action human approval, and atomic one-time command/approval consumption with the protected ERP mutation.
 
-| Boundary | Current result | Limit |
-|---|---|---|
-| In-memory evaluator | 1329–1494 ns/op, 0 allocs | Excludes JWT, gRPC, TLS, audit and Odoo |
-| Local TCP gRPC path | p50 337–616 µs; p99 1.443–2.123 ms | Excludes mTLS, PostgreSQL audit flush, containers and Odoo |
-| Odoo purchase confirmation | Native mean 29.933 ms; PDP mean 71.525 ms | Warm low-value PO only; final DB commit and concurrency excluded |
+Go PDP, policy indexing/role evaluation, gRPC and mTLS implement the mechanism. PDP speed is supporting evidence, not the thesis novelty.
 
-The PDP path is slower in the measured Odoo workload. Raw samples and method limits are in the [Odoo evidence](./docs/technical-spec/evidence/ODOO_ORM_COMPARISON_2026_09_15.md).
-
----
-
-## Architecture & Core Data Flow
-
-```mermaid
-flowchart TD
-    Client(["Autonomous AI Agent / Odoo User"])
-    PEP["Odoo 17 PEP Addon\n(custom_addons/pdp_authorizer)\nNon-Rollback State Machine"]
-    PDP["Go PDP Server (:50051)\ngRPC CheckAccess / RevokeDelegation"]
-
-    subgraph Layer1 ["Layer 1: Security Interceptor (boundary-specific latency)"]
-        RevMap["In-Memory RevocationMap O(1)\nsync.Map (Anti-TOCTOU)"]
-        HMAC["Versioned length-prefixed full-tuple HMAC\nProof & TTL Verification"]
-        TenantIso["Tenant Isolation\nclaims.tenant_id == req.tenant_id"]
-        FastDeny["Fast DENY / 403\nShort-Circuit Exit"]
-    end
-
-    subgraph Layer2 ["Layer 2: In-Memory Engine (Lock-Free COW)"]
-        Trie["Multi-Level Trie O(log N)\nFNV-1a 64-bit uint64 Index"]
-        DAG["Role Hierarchy DAG\nPre-computed Transitive Closure O(1)"]
-        AST["Measured-case AST Evaluator\nToán tử SoD contains + Bitmask IP"]
-    end
-
-    Postgres[("PostgreSQL 15+\nTransactional Sequence\ntenants.revision")]
-
-    Client -->|"Calls Tool / button_confirm()"| PEP
-    PEP -->|"Standard ORM Transaction"| Postgres
-    PEP -->|"gRPC with HMAC Proof"| PDP
-    PDP --> Layer1
-    Layer1 -->|"Pass: Proof Valid"| Layer2
-    Layer1 -->|"Fail: Tampered / Expired / Revoked"| FastDeny
-    FastDeny -->|"Early Response (403 / DENY)"| PDP
-    Layer2 -->|"ALLOW / DENY + Obligations"| PDP
-    PDP -->|"Decision Response"| PEP
-    PEP -->|"state -> 'to approve' (No Rollback)"| Client
-
-    PEP -->|"action_revoke() Sync gRPC"| PDP
-    PDP -->|"Local O(1) update + PostgreSQL propagation"| RevMap
-
-    PDP -.->|"Bounded async audit queue (pgx.CopyFrom)"| Postgres
-    Postgres -->|"LISTEN/NOTIFY revision reconciliation"| PDP
-
-    style PDP fill:#1e3a5f,color:#fff
-    style Layer1 fill:#4a154b,color:#fff
-    style Layer2 fill:#0f2d25,color:#fff
-    style FastDeny fill:#7a1c1c,color:#fff
-```
-
-
----
-
-## Verified 7/7 In-Process Delegation Vectors
-
-The Go test fixture passes all seven logic vectors defined in [`tests/e2e_delegation_test.go`](./tests/e2e_delegation_test.go). Those seven tests remain in-process evidence. A separate Docker gate verifies seven real Odoo transaction cases plus a two-session concurrency/retry case across ORM, network transport and PostgreSQL. Multi-replica revocation is evidenced separately by [`evidence/REVOCATION_DURABILITY_2026_09_13.md`](./evidence/REVOCATION_DURABILITY_2026_09_13.md).
-
-| Vector ID | Test Scenario Description | Expected Decision | Result |
-|---|---|:---:|:---:|
-| **`TC-01`** | Manager creates PO and attempts to self-approve | **`DENY`** | **PASS** |
-| **`TC-02`** | AI Agent attempts to approve PO created by delegating Manager (SoD Chain) | **`DENY`** | **PASS** |
-| **`TC-03`** | AI Agent autonomously approves PO within delegated limit (<= $2,000) | **`ALLOW`** | **PASS** |
-| **`TC-04`** | AI Agent attempts PO approval above limit (> $2,000, Guardrail Ceiling) | **`DENY`** + `REQUIRE_HUMAN_APPROVAL` | **PASS** |
-| **`TC-05`** | Malicious Actor tampers with PO amount in context | **`403 PermissionDenied`** | **PASS** |
-| **`TC-06`** | Manager revokes delegation on Odoo; Agent calls immediately (Anti-TOCTOU) | **`DENY`** (`POL-REVOCATION-BLACK-LIST`) | **PASS** |
-| **`TC-07`** | AI Agent presents delegation proof with expired TTL token | **`403 PermissionDenied`** | **PASS** |
-
----
-
-## Quick Start
-
-### 1. Docker Testbed Status
-
-The Compose file uses only repository-local Odoo addon and generated-client inputs for this path. Its external bases are manifest-digest pinned. The fresh-database Odoo gate and the combined Control Plane/PDP gate run in remote CI without a skip fallback; this is still a development testbed, not a production release environment, because the external audit-retention gate remains open. See [`CI_ODOO_2026_09_18.md`](./docs/technical-spec/evidence/CI_ODOO_2026_09_18.md) and [`REL_INTEGRATION_2026_09_18.md`](./docs/technical-spec/evidence/REL_INTEGRATION_2026_09_18.md).
-
-```bash
-# Clone the repository
-git clone https://github.com/Rochthii/standalone-policy-engine.git
-cd standalone-policy-engine
-
-# Run the real Odoo/PostgreSQL/gRPC transaction gate
-make test-odoo-e2e
-```
-
-### 2. Run Locally from Source
-```bash
-# 1. Run Core Engine & Layer 1 Interceptor Tests
-go test -v ./internal/security ./internal/server
-
-# 2. Verify all 7 in-process delegation vectors
-go test -v ./tests -run=TestE2E_P2P_Delegation_7Vectors
-
-# 3. Run Sub-Microsecond Evaluator Benchmark
-go test -bench=BenchmarkEvaluatorLatency -benchmem ./tests -run=^$
-
-# 4. Verify the Odoo/PDP proof compatibility vector
-python custom_addons/pdp_authorizer/tests/test_pdp_protocol.py
-```
-
----
-
-## Cedar-like Declarative DSL (P2P Seed Rules)
-
-Rules in [`configs/policies.cedar`](./configs/policies.cedar) demonstrate Separation of Duties (SoD) and AI Guardrails:
-
-```cedar
-// 1. Autonomous AI Agent PO approval within delegated limit ($2,000)
-permit(
-    principal in role:ai_agent,
-    action    == action:APPROVE,
-    resource  == doc:purchase_order
-)
-when {
-    context.amount <= 2000
-};
-
-// 2. High-value transactions trigger Human Approval obligation
-forbid(
-    principal in role:ai_agent,
-    action    == action:APPROVE,
-    resource  == doc:purchase_order
-)
-when {
-    context.amount > 2000
-};
-
-// 3. Separation of Duties: Prevent creator and delegator from approving
-forbid(
-    principal == any,
-    action    == action:APPROVE,
-    resource  == doc:purchase_order
-)
-when {
-    context.delegation_chain contains resource.creator_id
-};
-```
-
----
-
-## Repository Structure
+## Protected execution flow
 
 ```text
-standalone-policy-engine/
-├── .agents/                 # AI Master Context & 9 Concise Domain Skills (< 40 lines each)
-├── configs/
-│   └── policies.cedar       # 6 Standard P2P seed rules enforcing SoD via contains
-├── cmd/
-│   ├── pdp-server/          # gRPC Data Plane Server (:50051)
-│   ├── control-plane/       # REST Control Plane API (:8080)
-│   └── pectl/               # Enterprise Policy CLI
-├── custom_addons/
-│   └── pdp_authorizer/      # Odoo 17 PEP, proof signer and transactional nonce ledger
-├── internal/
-│   ├── engine/              # Multi-level Trie, Role DAG, measured-case AST evaluator, COW
-│   ├── security/            # DelegationManager (full-tuple HMAC, O(1) local revocation, JWT)
-│   ├── parser/              # Cedar DSL Lexer, Pratt Parser (Depth <= 15), Compiler
-│   ├── server/              # gRPC Server (Layer 1 Interceptors), HTTP Handlers, Replay Buffer
-│   ├── audit/               # Bounded async logger, redaction, pgx.CopyFrom, encryption/spill replay
-│   └── storage/             # PostgreSQL pgx driver, Postgres LISTEN/NOTIFY sync, BadgerDB
-├── proto/v1/                # Protobuf Contract (CheckAccess, ExplainDecision, RevokeDelegation)
-├── docs/                    # Master Index & 12 Technical Specifications
-│   ├── 00_MASTER_INDEX.md   # System navigation & live metrics
-│   ├── technical-spec/      # ARCH_SPEC, PROTOCOL_CONTRACT, SECURITY_INVARIANTS, etc.
-│   └── thesis-proposal/     # PTIT Graduation Thesis Proposal (5 Chapters)
-├── tests/                   # 7 in-process vectors, benchmarks, ERP ABAC test suite
-├── benchmarks/              # Static 2026 test artifacts & latency reports
-├── docker-compose.testbed.yml # Frozen single-command testbed (2026-2029)
-├── AGENTS.md / CLAUDE.md    # Master AI context guide (Single Source of Truth)
-└── CHANGELOG.md             # Semantic release history (Current: v1.15.0)
+Human delegation → Agent tool proposal
+  → Odoo PEP reconstructs intent from authoritative ERP records
+  → PDP: ALLOW or DENY
+  → If ALLOW requires approval: persist "to approve"; release locks
+  → Independent human approves the exact pending intent
+  → Final execution: lock/reread, verify intent and current authority
+  → Consume command/required approval + mutate PO in one ERP transaction
 ```
 
----
+An ALLOW without the approval obligation follows the direct final route. `REQUIRE_HUMAN_APPROVAL` is an obligation on ALLOW, not a third decision; DENY is never overridden by a capability. An Odoo Activity is a notification, not approval evidence. Caller-supplied amount/vendor/lines are not authoritative business facts.
 
-## CLI Tool (pectl)
+## Evidence and limits
 
-`pectl` provides a developer CLI for policy management, dry-run simulation, and live checking:
+**VERIFIED V2 — bounded evidence, 2026-09-27:** the fresh Odoo 17/mTLS/PDP/PostgreSQL gate passed with **75 post-tests, zero failures/errors**. Separate runners cover concurrency/retry, 16 material-edit schedules, grant ordering, authority changes and deferred-expiry rollback. The 25 retained matrix IDs have composed-boundary anchors; they are not 25 independent full-stack proofs.
 
-```bash
-# Check live access permission
-pectl check tenant-odoo --subject agent:procurement_copilot --action APPROVE --resource doc:purchase_order
+Read the [current-state audit](docs/technical-spec/CURRENT_STATE_AUDIT.md) and [EVAL-01 case ledger](docs/technical-spec/evidence/V2_EVAL_01_CASE_LEDGER_2026_09_24.md) for commands, tested dirty-worktree scope, failures and assumptions. This documentation update does not rerun or extend that evidence.
 
-# Dry-run simulate a draft policy
-pectl simulate tenant-odoo --subject user:manager_bob --action APPROVE --resource doc:purchase_order --draft-file draft.cedar
-```
+Final execution relies on shared ERP fences for all configured policy/revocation writers, intact authority triggers and the PostgreSQL UTC clock. Deadline validation occurs at the deferred commit check, not at later WAL durability or network response. Manual publication recovery is not verified end-to-end; contention cost is unmeasured, and an earlier transient UNAVAILABLE remains an availability observation.
 
----
+**VERIFIED V2 — bounded A/B/C comparison:** [EVAL-02](docs/technical-spec/evidence/V2_EVAL_02_COMPARISON_2026_09_27.md) records 11 selected scenarios × 3 variants with committed-state oracles. It also repairs deferred line flushing that falsely invalidated an unchanged approval across transactions; the fresh 75-post-test regression and all runners pass afterward. [EVAL-03](docs/technical-spec/evidence/V2_EVAL_03_MEASUREMENT_2026_09_27.md) and [EVAL-04](docs/technical-spec/evidence/V2_EVAL_04_CLAIM_EVIDENCE_2026_09_28.md) now report separated boundary measurements and the permitted claim wording. These are bounded results from the recorded dirty worktree, not a release or production performance guarantee. Historical evaluator numbers do not measure the current protected workflow.
 
-## License & Academic Attribution
+**Not production-ready.** No general ERP/SAP compatibility, whole Procure-to-Pay coverage, instant/global revocation, distributed atomicity, HMAC non-repudiation, legal compliance or exactly-once external-effect claim. SAP is applicability discussion only.
 
-Distributed under the **MIT License**.
+## Start here
 
-**Author:** Chăm Rốch Thi  
-**Institution:** Posts and Telecommunications Institute of Technology (PTIT)  
+| Need | Source |
+|---|---|
+| Resume the next bounded task | [ACTIVE_TASK](ACTIVE_TASK.md) |
+| Direction, title and RQs | [V2 master plan](docs/thesis-proposal/THESIS_V2_MASTER_PLAN.md) |
+| Progress and remaining work | [V2 task board](docs/thesis-proposal/THESIS_V2_TASK_BOARD.md) |
+| Active proposal | [Markdown proposal](docs/thesis-proposal/DE_CUONG_CHI_TIET_DO_AN_TOT_NGHIEP_CHUAN_KHOA_HOC.md) |
+| Chapters 3–5 working draft | [Thesis chapter draft](docs/thesis-proposal/THESIS_CHAPTERS_3_5_DRAFT.md) |
+| Claims versus evidence | [Scope alignment](docs/thesis-proposal/THESIS_SCOPE_AND_EVIDENCE_ALIGNMENT.md) |
+| All documentation | [Master index](docs/00_MASTER_INDEX.md) |
+| Odoo setup, fences and recovery | [Addon README](custom_addons/pdp_authorizer/README.md) |
+| CLI | [pectl guide](docs/cli/pectl.md) |
 
-This project serves as the primary implementation and experimental testbed for the **PTIT Software Engineering Graduation Thesis**:
-> *"XÂY DỰNG CƠ CHẾ POLICY DECISION POINT HỖ TRỢ ỦY QUYỀN CÓ KIỂM SOÁT (DELEGATION-AWARE AUTHORIZATION) CHO TÁC TỬ AI TRONG HỆ THỐNG ERP — NGHIÊN CỨU TRIỂN KHAI VÀ ĐÁNH GIÁ THỰC NGHIỆM TRÊN NỀN TẢNG ODOO"*.
+The proposal DOCX/PDF are derived artifacts of the Markdown source. Their current visual-QA status is recorded on the task board; artifact generation alone does not prove layout correctness.
+
+## Reproduction
+
+Use the addon setup/runbook and the exact commands in the ledger. `make test-odoo-e2e` is the isolated integration gate and recreates its test database; do not point it at a real ERP database. Run only the checks relevant to changed inputs. Documentation-only work does not require a Docker/Odoo rerun.
+
+| Component | Path |
+|---|---|
+| Delegation/proof/capability | `internal/security/` |
+| PDP transport and trust boundary | `internal/server/` |
+| Policy storage and ERP fences | `internal/storage/` |
+| Odoo enforcement and tests | `custom_addons/pdp_authorizer/` |
+| Testbed and independent-session runners | `deployments/docker/` |
+| Proposal artifact generator | `scripts/generate_master_thesis_proposal.py` |
+
+## Graduation and ERP career direction
+
+Build demonstrable SE skills in backend integration, authorization and database transactions through this bounded Odoo workflow. See the [SE-to-ERP roadmap](docs/thesis-proposal/SE_ERP_CAREER_ROADMAP.md). The [V1 archive](docs/thesis-proposal/archive/v1-2026-09-19/VERSION_INDEX.md) preserves the earlier PDP-performance framing; it is not the active proposal.
